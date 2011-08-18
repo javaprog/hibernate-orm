@@ -35,16 +35,16 @@ package org.hibernate;
  * @author Gavin King
  */
 public class HibernateException extends RuntimeException {
-	public HibernateException(String s) {
-		super(s);
+	public HibernateException(String message) {
+		super( message );
 	}
 
 	public HibernateException(Throwable root) {
-		super(root);
+		super( root );
 	}
 
-	public HibernateException(String string, Throwable root) {
-		super(string, root);
+	public HibernateException(String message, Throwable root) {
+		super( message, root );
 	}
 }
 

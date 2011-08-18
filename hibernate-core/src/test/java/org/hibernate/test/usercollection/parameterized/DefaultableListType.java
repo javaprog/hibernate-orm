@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import org.hibernate.EntityMode;
-import org.hibernate.collection.PersistentCollection;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.collection.spi.PersistentCollection;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.usertype.ParameterizedType;
 import org.hibernate.usertype.UserCollectionType;
@@ -33,12 +33,7 @@ public class DefaultableListType implements UserCollectionType, ParameterizedTyp
 	}
 
 	public PersistentCollection wrap(SessionImplementor session, Object collection) {
-		if ( session.getEntityMode() == EntityMode.DOM4J ) {
-			throw new IllegalStateException( "dom4j not supported" );
-		}
-		else {
-			return new PersistentDefaultableList( session, ( List ) collection );
-		}
+		return new PersistentDefaultableList( session, ( List ) collection );
 	}
 
 	public Iterator getElementsIterator(Object collection) {

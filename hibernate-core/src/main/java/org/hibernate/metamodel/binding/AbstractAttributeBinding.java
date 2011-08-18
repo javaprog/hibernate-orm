@@ -23,45 +23,41 @@
  */
 package org.hibernate.metamodel.binding;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
-import org.hibernate.FetchMode;
-import org.hibernate.mapping.MetaAttribute;
 import org.hibernate.metamodel.domain.Attribute;
-import org.hibernate.metamodel.relational.Column;
-import org.hibernate.metamodel.relational.DerivedValue;
-import org.hibernate.metamodel.relational.SimpleValue;
-import org.hibernate.metamodel.relational.TableSpecification;
-import org.hibernate.metamodel.relational.Tuple;
-import org.hibernate.metamodel.relational.Value;
+import org.hibernate.metamodel.source.MetaAttributeContext;
 
 /**
- * TODO : javadoc
+ * Basic support for {@link AttributeBinding} implementors
  *
  * @author Steve Ebersole
  */
 public abstract class AbstractAttributeBinding implements AttributeBinding {
+	private final AttributeBindingContainer container;
+	private final Attribute attribute;
+
 	private final HibernateTypeDescriptor hibernateTypeDescriptor = new HibernateTypeDescriptor();
-	private final EntityBinding entityBinding;
+	private final Set<SingularAssociationAttributeBinding> entityReferencingAttributeBindings = new HashSet<SingularAssociationAttributeBinding>();
 
-	private Attribute attribute;
-	private Value value;
+	private boolean includedInOptimisticLocking;
 
-	private FetchMode fetchMode;
-	private boolean alternateUniqueKey;
+	private boolean isLazy;
+	private String propertyAccessorName;
+	private boolean isAlternateUniqueKey;
 
-	private Map<String, MetaAttribute> metaAttributes;
+	private MetaAttributeContext metaAttributeContext;
 
-	protected AbstractAttributeBinding(EntityBinding entityBinding) {
-		this.entityBinding = entityBinding;
+	protected AbstractAttributeBinding(AttributeBindingContainer container, Attribute attribute) {
+		this.container = container;
+		this.attribute = attribute;
 	}
 
 	@Override
-	public EntityBinding getEntityBinding() {
-		return entityBinding;
+	public AttributeBindingContainer getContainer() {
+		return container;
 	}
 
 	@Override
@@ -70,108 +66,73 @@ public abstract class AbstractAttributeBinding implements AttributeBinding {
 	}
 
 	@Override
-	public void setAttribute(Attribute attribute) {
-		this.attribute = attribute;
-	}
-
-	@Override
-	public Value getValue() {
-		return value;
-	}
-
-	@Override
-	public void setValue(Value value) {
-		this.value = value;
-	}
-
-	@Override
 	public HibernateTypeDescriptor getHibernateTypeDescriptor() {
 		return hibernateTypeDescriptor;
 	}
 
 	@Override
-	public Map<String, MetaAttribute> getMetaAttributes() {
-		return metaAttributes;
+	public boolean isBasicPropertyAccessor() {
+		return propertyAccessorName == null || "property".equals( propertyAccessorName );
 	}
 
 	@Override
-	public void setMetaAttributes(Map<String, MetaAttribute> metaAttributes) {
-		this.metaAttributes = metaAttributes;
+	public String getPropertyAccessorName() {
+		return propertyAccessorName;
+	}
+
+	public void setPropertyAccessorName(String propertyAccessorName) {
+		this.propertyAccessorName = propertyAccessorName;
 	}
 
 	@Override
-	public Iterable<SimpleValue> getValues() {
-		return value == null
-				? Collections.<SimpleValue>emptyList()
-				: value instanceof Tuple
-						? ( (Tuple) value ).values()
-						: Collections.singletonList( (SimpleValue) value );
+	public boolean isIncludedInOptimisticLocking() {
+		return includedInOptimisticLocking;
+	}
+
+	public void setIncludedInOptimisticLocking(boolean includedInOptimisticLocking) {
+		this.includedInOptimisticLocking = includedInOptimisticLocking;
 	}
 
 	@Override
-	public TableSpecification getTable() {
-		return getValue().getTable();
+	public MetaAttributeContext getMetaAttributeContext() {
+		return metaAttributeContext;
 	}
 
-	@Override
-	public FetchMode getFetchMode() {
-		return fetchMode;
-	}
-
-	@Override
-	public void setFetchMode(FetchMode fetchMode) {
-		this.fetchMode = fetchMode;
-	}
-
-	@Override
-	public boolean hasFormula() {
-		for ( SimpleValue simpleValue : getValues() ) {
-			if ( simpleValue instanceof DerivedValue ) {
-				return true;
-			}
-		}
-		return false;
+	public void setMetaAttributeContext(MetaAttributeContext metaAttributeContext) {
+		this.metaAttributeContext = metaAttributeContext;
 	}
 
 	@Override
 	public boolean isAlternateUniqueKey() {
-		return alternateUniqueKey;
+		return isAlternateUniqueKey;
 	}
 
 	public void setAlternateUniqueKey(boolean alternateUniqueKey) {
-		this.alternateUniqueKey = alternateUniqueKey;
+		this.isAlternateUniqueKey = alternateUniqueKey;
 	}
 
 	@Override
-	public boolean isNullable() {
-		for ( SimpleValue simpleValue : getValues() ) {
-			if ( simpleValue instanceof DerivedValue ) {
-				return true;
-			}
-			Column column = (Column) simpleValue;
-			if ( column.isNullable() ) {
-				return true;
-			}
-		}
-		return false;
+	public boolean isLazy() {
+		return isLazy;
 	}
 
-	@Override
-	public boolean[] getColumnInsertability() {
-		List<Boolean> tmp = new ArrayList<Boolean>();
-		for ( SimpleValue simpleValue : getValues() ) {
-			tmp.add( ! ( simpleValue instanceof DerivedValue ) );
-		}
-		boolean[] rtn = new boolean[ tmp.size() ];
-		int i = 0;
-		for ( Boolean insertable : tmp ) {
-			rtn[i++] = insertable.booleanValue();
-		}
-		return rtn;
+	public void setLazy(boolean isLazy) {
+		this.isLazy = isLazy;
 	}
 
-	@Override
-	public boolean[] getColumnUpdateability() {
-		return getColumnInsertability();
+	public void addEntityReferencingAttributeBinding(SingularAssociationAttributeBinding referencingAttributeBinding) {
+		entityReferencingAttributeBindings.add( referencingAttributeBinding );
+	}
+
+	public Set<SingularAssociationAttributeBinding> getEntityReferencingAttributeBindings() {
+		return Collections.unmodifiableSet( entityReferencingAttributeBindings );
+	}
+
+	public void validate() {
+		if ( !entityReferencingAttributeBindings.isEmpty() ) {
+			// TODO; validate that this AttributeBinding can be a target of an entity reference
+			// (e.g., this attribute is the primary key or there is a unique-key)
+			// can a unique attribute be used as a target? if so, does it need to be non-null?
+		}
 	}
 }

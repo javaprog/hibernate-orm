@@ -23,17 +23,16 @@
  */
 package org.hibernate.test.flush;
 
-import java.util.Map;
-
 import org.hibernate.Session;
 import org.hibernate.cfg.Configuration;
-import org.hibernate.event.EventListenerRegistration;
-import org.hibernate.event.EventType;
-import org.hibernate.service.StandardServiceInitiators;
-import org.hibernate.service.event.spi.EventListenerRegistry;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.event.spi.EventType;
+import org.hibernate.event.service.spi.EventListenerRegistry;
+import org.hibernate.integrator.spi.IntegratorService;
 import org.hibernate.service.internal.BasicServiceRegistryImpl;
-import org.hibernate.service.spi.ServiceRegistryImplementor;
-
+import org.hibernate.service.spi.SessionFactoryServiceRegistry;
+import org.hibernate.integrator.spi.Integrator;
+import org.hibernate.metamodel.source.MetadataImplementor;
 import org.junit.Test;
 
 import org.hibernate.testing.FailureExpected;
@@ -53,15 +52,32 @@ public class TestCollectionInitializingDuringFlush extends BaseCoreFunctionalTes
 	@Override
 	protected void applyServices(BasicServiceRegistryImpl serviceRegistry) {
 		super.applyServices( serviceRegistry );
-		serviceRegistry.getService( StandardServiceInitiators.EventListenerRegistrationService.class ).attachEventListenerRegistration(
-				new EventListenerRegistration() {
+		serviceRegistry.getService( IntegratorService.class ).addIntegrator(
+				new Integrator() {
+
 					@Override
-					public void apply(
-							EventListenerRegistry eventListenerRegistry,
+					public void integrate(
 							Configuration configuration,
-							Map<?, ?> configValues,
-							ServiceRegistryImplementor serviceRegistry) {
-						eventListenerRegistry.getEventListenerGroup( EventType.PRE_UPDATE ).appendListener( new InitializingPreUpdateEventListener() );
+							SessionFactoryImplementor sessionFactory,
+							SessionFactoryServiceRegistry serviceRegistry) {
+                        integrate(serviceRegistry);
+					}
+
+					@Override
+					public void integrate( MetadataImplementor metadata,
+					                       SessionFactoryImplementor sessionFactory,
+					                       SessionFactoryServiceRegistry serviceRegistry ) {
+					    integrate(serviceRegistry);
+					}
+
+					private void integrate( SessionFactoryServiceRegistry serviceRegistry ) {
+                        serviceRegistry.getService(EventListenerRegistry.class).getEventListenerGroup(EventType.PRE_UPDATE)
+                                       .appendListener(new InitializingPreUpdateEventListener());
+					}
+
+					@Override
+					public void disintegrate(
+							SessionFactoryImplementor sessionFactory, SessionFactoryServiceRegistry serviceRegistry) {
 					}
 				}
 		);

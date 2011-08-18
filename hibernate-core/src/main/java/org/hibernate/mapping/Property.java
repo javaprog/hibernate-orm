@@ -28,8 +28,8 @@ import java.util.StringTokenizer;
 import org.hibernate.EntityMode;
 import org.hibernate.MappingException;
 import org.hibernate.PropertyNotFoundException;
-import org.hibernate.engine.CascadeStyle;
-import org.hibernate.engine.Mapping;
+import org.hibernate.engine.spi.CascadeStyle;
+import org.hibernate.engine.spi.Mapping;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.property.Getter;
 import org.hibernate.property.PropertyAccessor;
@@ -289,12 +289,7 @@ public class Property implements Serializable, MetaAttributable {
 	}
 
 	public String getAccessorPropertyName( EntityMode mode ) {
-		if ( mode == EntityMode.DOM4J ) {
-			return nodeName;
-		}
-		else {
-			return getName();
-		}
+		return getName();
 	}
 
 	// todo : remove

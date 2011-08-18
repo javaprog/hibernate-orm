@@ -22,14 +22,16 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.type.descriptor.sql;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
+import org.jboss.logging.Logger;
 
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.type.descriptor.ValueExtractor;
 import org.hibernate.type.descriptor.WrapperOptions;
 import org.hibernate.type.descriptor.java.JavaTypeDescriptor;
-import org.jboss.logging.Logger;
 
 /**
  * Convenience base implementation of {@link org.hibernate.type.descriptor.ValueExtractor}
@@ -62,11 +64,15 @@ public abstract class BasicExtractor<J> implements ValueExtractor<J> {
 	public J extract(ResultSet rs, String name, WrapperOptions options) throws SQLException {
 		final J value = doExtract( rs, name, options );
 		if ( value == null || rs.wasNull() ) {
-            LOG.trace("Found [null] as column [" + name + "]");
+                        if (LOG.isTraceEnabled()) {
+                           LOG.trace("Found [null] as column [" + name + "]");
+                        }
 			return null;
 		}
 		else {
-            LOG.trace("Found [" + getJavaDescriptor().extractLoggableRepresentation(value) + "] as column [" + name + "]");
+                        if (LOG.isTraceEnabled()) {
+                           LOG.trace("Found [" + getJavaDescriptor().extractLoggableRepresentation(value) + "] as column [" + name + "]");
+                        }
 			return value;
 		}
 	}

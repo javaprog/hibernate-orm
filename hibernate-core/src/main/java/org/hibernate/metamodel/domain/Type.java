@@ -1,7 +1,7 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2010, Red Hat Inc. or third-party contributors as
+ * Copyright (c) 2011, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
  * distributed under license by Red Hat Inc.
@@ -23,6 +23,8 @@
  */
 package org.hibernate.metamodel.domain;
 
+import org.hibernate.internal.util.Value;
+
 /**
  * Basic information about a Java type, in regards to its role in particular set of mappings.
  *
@@ -30,17 +32,33 @@ package org.hibernate.metamodel.domain;
  */
 public interface Type {
 	/**
-	 * Get the name of the type.
+	 * Obtain the name of the type.
 	 *
 	 * @return The name
 	 */
 	public String getName();
 
 	/**
-	 * Return the persistence type.
+	 * Obtain the java class name for this type.
 	 *
-	 * @return persistence type
+	 * @return The class name
 	 */
-	public TypeNature getNature();
+	public String getClassName();
 
+	/**
+	 * Obtain the java {@link Class} reference for this type
+	 *
+	 * @return The {@link Class} reference
+	 *
+	 * @throws org.hibernate.service.classloading.spi.ClassLoadingException Indicates the class reference
+	 * could not be determined.  Generally this is the case in reverse-engineering scenarios where the specified
+	 * domain model classes do not yet exist.
+	 */
+	public Class<?> getClassReference();
+
+	public Value<Class<?>> getClassReferenceUnresolved();
+
+	public boolean isAssociation();
+
+	public boolean isComponent();
 }

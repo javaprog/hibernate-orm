@@ -28,8 +28,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.hibernate.QueryException;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.query.ParameterParser;
+import org.hibernate.engine.query.spi.ParameterParser;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.persister.collection.SQLLoadableCollection;
 import org.hibernate.persister.entity.SQLLoadable;
 
@@ -86,7 +86,7 @@ public class SQLQueryParser {
 	//       don't get'em'all we throw an exception! Way better than trial and error ;)
 	private String substituteBrackets(String sqlQuery) throws QueryException {
 
-		StringBuffer result = new StringBuffer( sqlQuery.length() + 20 );
+		StringBuilder result = new StringBuilder( sqlQuery.length() + 20 );
 		int left, right;
 
 		// replace {....} with corresponding column aliases
@@ -294,7 +294,7 @@ public class SQLQueryParser {
 	}
 
 	public static class ParameterSubstitutionRecognizer implements ParameterParser.Recognizer {
-		StringBuffer result = new StringBuffer();
+		StringBuilder result = new StringBuilder();
 		Map namedParameterBindPoints = new HashMap();
 		int parameterCount = 0;
 
@@ -320,7 +320,7 @@ public class SQLQueryParser {
 		}
 
 		private void addNamedParameter(String name) {
-			Integer loc = new Integer( parameterCount++ );
+			Integer loc = parameterCount++;
 			Object o = namedParameterBindPoints.get( name );
 			if ( o == null ) {
 				namedParameterBindPoints.put( name, loc );

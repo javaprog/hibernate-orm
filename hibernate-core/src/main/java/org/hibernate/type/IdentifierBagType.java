@@ -22,12 +22,14 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.type;
+
 import java.io.Serializable;
 import java.util.ArrayList;
+
 import org.hibernate.HibernateException;
-import org.hibernate.collection.PersistentCollection;
-import org.hibernate.collection.PersistentIdentifierBag;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.collection.internal.PersistentIdentifierBag;
+import org.hibernate.collection.spi.PersistentCollection;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.persister.collection.CollectionPersister;
 
 public class IdentifierBagType extends CollectionType {

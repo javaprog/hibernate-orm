@@ -25,19 +25,20 @@ package org.hibernate.envers.event;
 
 import org.jboss.logging.Logger;
 
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.event.spi.EventType;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.cfg.Configuration;
-import org.hibernate.engine.SessionFactoryImplementor;
 import org.hibernate.envers.configuration.AuditConfiguration;
-import org.hibernate.event.EventType;
-import org.hibernate.spi.Integrator;
+import org.hibernate.integrator.spi.Integrator;
 import org.hibernate.internal.util.config.ConfigurationHelper;
-import org.hibernate.service.event.spi.EventListenerRegistry;
+import org.hibernate.metamodel.source.MetadataImplementor;
+import org.hibernate.event.service.spi.EventListenerRegistry;
 import org.hibernate.service.spi.SessionFactoryServiceRegistry;
 
 /**
  * Provides integration for Envers into Hibernate, which mainly means registering the proper event listeners.
- * 
+ *
  * @author Steve Ebersole
  */
 public class EnversIntegrator implements Integrator {
@@ -74,5 +75,17 @@ public class EnversIntegrator implements Integrator {
 	@Override
 	public void disintegrate(SessionFactoryImplementor sessionFactory, SessionFactoryServiceRegistry serviceRegistry) {
 		// nothing to do afaik
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * @see org.hibernate.integrator.spi.Integrator#integrate(org.hibernate.metamodel.source.MetadataImplementor, org.hibernate.engine.spi.SessionFactoryImplementor, org.hibernate.service.spi.SessionFactoryServiceRegistry)
+	 */
+	@Override
+	public void integrate( MetadataImplementor metadata,
+	                       SessionFactoryImplementor sessionFactory,
+	                       SessionFactoryServiceRegistry serviceRegistry ) {
+	    // TODO: implement
 	}
 }

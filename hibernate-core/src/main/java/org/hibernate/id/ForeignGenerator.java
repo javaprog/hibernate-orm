@@ -29,8 +29,8 @@ import org.hibernate.MappingException;
 import org.hibernate.Session;
 import org.hibernate.TransientObjectException;
 import org.hibernate.dialect.Dialect;
-import org.hibernate.engine.ForeignKeys;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.engine.internal.ForeignKeys;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
@@ -95,7 +95,7 @@ public class ForeignGenerator implements IdentifierGenerator, Configurable {
 		Session session = ( Session ) sessionImplementor;
 
 		final EntityPersister persister = sessionImplementor.getFactory().getEntityPersister( entityName );
-		Object associatedObject = persister.getPropertyValue( object, propertyName, session.getEntityMode() );
+		Object associatedObject = persister.getPropertyValue( object, propertyName );
 		if ( associatedObject == null ) {
 			throw new IdentifierGenerationException(
 					"attempted to assign id from null one-to-one property [" + getRole() + "]"
@@ -117,7 +117,7 @@ public class ForeignGenerator implements IdentifierGenerator, Configurable {
 		try {
 			id = ForeignKeys.getEntityIdentifierIfNotUnsaved(
 					foreignValueSourceType.getAssociatedEntityName(),
-					associatedObject, 
+					associatedObject,
 					sessionImplementor
 			);
 		}

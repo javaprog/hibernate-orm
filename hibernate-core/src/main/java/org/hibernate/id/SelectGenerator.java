@@ -31,8 +31,8 @@ import java.util.Properties;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.dialect.Dialect;
-import org.hibernate.engine.SessionImplementor;
-import org.hibernate.engine.ValueInclusion;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.engine.spi.ValueInclusion;
 import org.hibernate.id.insert.AbstractSelectingDelegate;
 import org.hibernate.id.insert.IdentifierGeneratingInsert;
 import org.hibernate.id.insert.InsertGeneratedIdentifierDelegate;
@@ -134,7 +134,7 @@ public class SelectGenerator extends AbstractPostInsertGenerator implements Conf
 				SessionImplementor session,
 		        PreparedStatement ps,
 		        Object entity) throws SQLException {
-			Object uniqueKeyValue = persister.getPropertyValue( entity, uniqueKeyPropertyName, session.getEntityMode() );
+			Object uniqueKeyValue = persister.getPropertyValue( entity, uniqueKeyPropertyName );
 			uniqueKeyType.nullSafeSet( ps, uniqueKeyValue, 1, session );
 		}
 

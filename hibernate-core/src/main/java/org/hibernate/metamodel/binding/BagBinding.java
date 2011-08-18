@@ -23,13 +23,15 @@
  */
 package org.hibernate.metamodel.binding;
 
+import org.hibernate.metamodel.domain.PluralAttribute;
+
 /**
  * TODO : javadoc
  *
  * @author Steve Ebersole
  */
-public class BagBinding extends PluralAttributeBinding {
-	protected BagBinding(EntityBinding entityBinding) {
-		super( entityBinding );
+public class BagBinding extends AbstractPluralAttributeBinding {
+	protected BagBinding(AttributeBindingContainer container, PluralAttribute attribute, CollectionElementNature nature) {
+		super( container, attribute, nature );
 	}
 }

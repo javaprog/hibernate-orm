@@ -29,14 +29,14 @@ import org.hibernate.AssertionFailure;
 import org.hibernate.action.spi.AfterTransactionCompletionProcess;
 import org.hibernate.action.spi.BeforeTransactionCompletionProcess;
 import org.hibernate.action.spi.Executable;
-import org.hibernate.engine.SessionImplementor;
-import org.hibernate.event.EventSource;
-import org.hibernate.event.EventType;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.event.spi.EventSource;
+import org.hibernate.event.spi.EventType;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.pretty.MessageHelper;
-import org.hibernate.service.event.spi.EventListenerGroup;
-import org.hibernate.service.event.spi.EventListenerRegistry;
+import org.hibernate.event.service.spi.EventListenerGroup;
+import org.hibernate.event.service.spi.EventListenerRegistry;
 
 /**
  * Base class for actions relating to insert/update/delete of an entity
@@ -168,7 +168,7 @@ public abstract class EntityAction
 		}
 		else {
 			//then by id
-			return persister.getIdentifierType().compare( id, action.id, session.getEntityMode() );
+			return persister.getIdentifierType().compare( id, action.id );
 		}
 	}
 

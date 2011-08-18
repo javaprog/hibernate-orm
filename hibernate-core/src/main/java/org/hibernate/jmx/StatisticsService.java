@@ -1,21 +1,21 @@
-//$Id: StatisticsService.java 8262 2005-09-30 07:48:53Z oneovthafew $
 package org.hibernate.jmx;
+
 import javax.naming.InitialContext;
 import javax.naming.NameNotFoundException;
 import javax.naming.NamingException;
 import javax.naming.Reference;
 
-import org.hibernate.internal.CoreMessageLogger;
+import org.jboss.logging.Logger;
+
 import org.hibernate.SessionFactory;
-import org.hibernate.impl.SessionFactoryObjectFactory;
+import org.hibernate.internal.CoreMessageLogger;
+import org.hibernate.internal.SessionFactoryRegistry;
 import org.hibernate.stat.CollectionStatistics;
 import org.hibernate.stat.EntityStatistics;
 import org.hibernate.stat.QueryStatistics;
 import org.hibernate.stat.SecondLevelCacheStatistics;
 import org.hibernate.stat.Statistics;
 import org.hibernate.stat.internal.ConcurrentStatisticsImpl;
-
-import org.jboss.logging.Logger;
 
 /**
  * JMX service for Hibernate statistics<br>
@@ -48,7 +48,9 @@ import org.jboss.logging.Logger;
  * loaded.
  *
  * @author Emmanuel Bernard
+ * @deprecated See <a href="http://opensource.atlassian.com/projects/hibernate/browse/HHH-6190">HHH-6190</a> for details
  */
+@Deprecated
 public class StatisticsService implements StatisticsServiceMBean {
 
     private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, StatisticsService.class.getName());
@@ -64,14 +66,16 @@ public class StatisticsService implements StatisticsServiceMBean {
 	public void setSessionFactoryJNDIName(String sfJNDIName) {
 		this.sfJNDIName = sfJNDIName;
 		try {
-			Object obj = new InitialContext().lookup(sfJNDIName);
-			if (obj instanceof Reference) {
-				Reference ref = (Reference) obj;
-				setSessionFactory( (SessionFactory) SessionFactoryObjectFactory.getInstance( (String) ref.get(0).getContent() ) );
+			final SessionFactory sessionFactory;
+			final Object jndiValue = new InitialContext().lookup( sfJNDIName );
+			if ( jndiValue instanceof Reference ) {
+				final String uuid = (String) ( (Reference) jndiValue ).get( 0 ).getContent();
+				sessionFactory = SessionFactoryRegistry.INSTANCE.getSessionFactory( uuid );
 			}
 			else {
-				setSessionFactory( (SessionFactory) obj );
+				sessionFactory = (SessionFactory) jndiValue;
 			}
+			setSessionFactory( sessionFactory );
 		}
 		catch (NameNotFoundException e) {
             LOG.noSessionFactoryWithJndiName(sfJNDIName, e);

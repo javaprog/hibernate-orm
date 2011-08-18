@@ -24,10 +24,9 @@
 package org.hibernate.test.cache.ehcache;
 
 import java.util.Map;
+
 import org.hibernate.Session;
 import org.hibernate.Transaction;
-import org.hibernate.cache.internal.EhCacheProvider;
-import org.hibernate.cache.ReadWriteCache;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
 import org.hibernate.engine.transaction.internal.jdbc.JdbcTransactionFactory;
@@ -44,8 +43,9 @@ import static org.junit.Assert.fail;
 
 /**
  * @author Emmanuel Bernard
+ * @author Alex Snaps
  */
-public class EhCacheTest extends BaseCoreFunctionalTestCase {
+public abstract class EhCacheTest extends BaseCoreFunctionalTestCase {
 	@Override
 	public String getBaseForMappings() {
 		return "org/hibernate/test/cache/ehcache/";
@@ -68,19 +68,20 @@ public class EhCacheTest extends BaseCoreFunctionalTestCase {
 		cfg.setProperty( Environment.USE_SECOND_LEVEL_CACHE, "true" );
 		cfg.setProperty( Environment.GENERATE_STATISTICS, "true" );
 		cfg.setProperty( Environment.USE_STRUCTURED_CACHE, "true" );
-		cfg.setProperty( Environment.CACHE_PROVIDER, EhCacheProvider.class.getName() );
-		cfg.setProperty( Environment.CACHE_PROVIDER_CONFIG, "ehcache.xml" );
+		configCache( cfg );
 		cfg.setProperty( Environment.TRANSACTION_STRATEGY, JdbcTransactionFactory.class.getName() );
 	}
+
+	protected abstract void configCache(final Configuration cfg);
 
 	@Test
 	public void testQueryCacheInvalidation() {
 		Session s = openSession();
 		Transaction t = s.beginTransaction();
 		Item i = new Item();
-		i.setName("widget");
-		i.setDescription("A really top-quality, full-featured widget.");
-		s.persist(i);
+		i.setName( "widget" );
+		i.setDescription( "A really top-quality, full-featured widget." );
+		s.persist( i );
 		t.commit();
 		s.close();
 
@@ -98,7 +99,7 @@ public class EhCacheTest extends BaseCoreFunctionalTestCase {
 		assertEquals( slcs.getHitCount(), 1 );
 		assertEquals( slcs.getMissCount(), 0 );
 
-		i.setDescription("A bog standard item");
+		i.setDescription( "A bog standard item" );
 
 		t.commit();
 		s.close();
@@ -107,14 +108,9 @@ public class EhCacheTest extends BaseCoreFunctionalTestCase {
 
 		Object entry = slcs.getEntries().get( i.getId() );
 		Map map;
-		if ( entry instanceof ReadWriteCache.Item ) {
-			map = (Map) ( (ReadWriteCache.Item) entry ).getValue();
-		}
-		else {
-			map = (Map) entry;
-		}
-		assertTrue( map.get("description").equals("A bog standard item") );
-		assertTrue( map.get("name").equals("widget") );
+		map = getMapFromCacheEntry( entry );
+		assertTrue( map.get( "description" ).equals( "A bog standard item" ) );
+		assertTrue( map.get( "name" ).equals( "widget" ) );
 
 		// cleanup
 		s = openSession();
@@ -124,17 +120,19 @@ public class EhCacheTest extends BaseCoreFunctionalTestCase {
 		s.close();
 	}
 
+	protected abstract Map getMapFromCacheEntry(final Object entry);
+
 	@Test
 	public void testEmptySecondLevelCacheEntry() throws Exception {
 		sessionFactory().getCache().evictEntityRegion( Item.class.getName() );
 		Statistics stats = sessionFactory().getStatistics();
 		stats.clear();
 		SecondLevelCacheStatistics statistics = stats.getSecondLevelCacheStatistics( Item.class.getName() );
-        Map cacheEntries = statistics.getEntries();
+		Map cacheEntries = statistics.getEntries();
 		assertEquals( 0, cacheEntries.size() );
 	}
 
-	@SuppressWarnings( {"UnnecessaryBoxing", "UnnecessaryUnboxing", "UnusedAssignment"})
+	@SuppressWarnings( { "UnnecessaryBoxing", "UnnecessaryUnboxing", "UnusedAssignment" })
 	@Test
 	public void testStaleWritesLeaveCacheConsistent() {
 		Session s = openSession();
@@ -159,13 +157,13 @@ public class EhCacheTest extends BaseCoreFunctionalTestCase {
 			s.close();
 			fail( "expected stale write to fail" );
 		}
-		catch( Throwable expected ) {
+		catch ( Throwable expected ) {
 			// expected behavior here
 			if ( txn != null ) {
 				try {
 					txn.rollback();
 				}
-				catch( Throwable ignore ) {
+				catch ( Throwable ignore ) {
 				}
 			}
 		}
@@ -174,7 +172,7 @@ public class EhCacheTest extends BaseCoreFunctionalTestCase {
 				try {
 					s.close();
 				}
-				catch( Throwable ignore ) {
+				catch ( Throwable ignore ) {
 				}
 			}
 		}
@@ -185,12 +183,17 @@ public class EhCacheTest extends BaseCoreFunctionalTestCase {
 
 		Object entry = slcs.getEntries().get( item.getId() );
 		Long cachedVersionValue;
-		if ( entry instanceof ReadWriteCache.Lock ) {
+//		if ( entry instanceof ReadWriteCache.Lock ) {
+//			//FIXME don't know what to test here
+//			cachedVersionValue = Long.valueOf( ((ReadWriteCache.Lock) entry).getUnlockTimestamp() );
+//		} else
+		if ( entry.getClass()
+				.getName()
+				.equals( "org.hibernate.cache.ehcache.internal.strategy.AbstractReadWriteEhcacheAccessStrategy$Lock" ) ) {
 			//FIXME don't know what to test here
-			cachedVersionValue = Long.valueOf( ((ReadWriteCache.Lock) entry).getUnlockTimestamp() );
 		}
 		else {
-			cachedVersionValue = ( Long ) ( (Map) entry ).get( "_version" );
+			cachedVersionValue = (Long) getMapFromCacheEntry( entry ).get( "_version" );
 			assertEquals( initialVersion.longValue(), cachedVersionValue.longValue() );
 		}
 
@@ -198,7 +201,7 @@ public class EhCacheTest extends BaseCoreFunctionalTestCase {
 		// cleanup
 		s = openSession();
 		txn = s.beginTransaction();
-		item = ( VersionedItem ) s.load( VersionedItem.class, item.getId() );
+		item = (VersionedItem) s.load( VersionedItem.class, item.getId() );
 		s.delete( item );
 		txn.commit();
 		s.close();

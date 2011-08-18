@@ -22,13 +22,16 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.service.jdbc.dialect.internal;
+
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 
-import org.hibernate.internal.CoreMessageLogger;
+import org.jboss.logging.Logger;
+
 import org.hibernate.dialect.DB2Dialect;
 import org.hibernate.dialect.DerbyDialect;
 import org.hibernate.dialect.DerbyTenFiveDialect;
+import org.hibernate.dialect.DerbyTenSevenDialect;
 import org.hibernate.dialect.DerbyTenSixDialect;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
@@ -47,8 +50,7 @@ import org.hibernate.dialect.SQLServer2008Dialect;
 import org.hibernate.dialect.SQLServerDialect;
 import org.hibernate.dialect.SybaseASE15Dialect;
 import org.hibernate.dialect.SybaseAnywhereDialect;
-
-import org.jboss.logging.Logger;
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * The standard Hibernate Dialect resolver.
@@ -83,7 +85,10 @@ public class StandardDialectResolver extends AbstractDialectResolver {
 
 		if ( "Apache Derby".equals( databaseName ) ) {
 			final int databaseMinorVersion = metaData.getDatabaseMinorVersion();
-			if ( databaseMajorVersion > 10 || ( databaseMajorVersion == 10 && databaseMinorVersion >= 6 ) ) {
+            if ( databaseMajorVersion > 10 || ( databaseMajorVersion == 10 && databaseMinorVersion >= 7 ) ) {
+				return new DerbyTenSevenDialect();
+			}
+			else if ( databaseMajorVersion == 10 && databaseMinorVersion == 6 ) {
 				return new DerbyTenSixDialect();
 			}
 			else if ( databaseMajorVersion == 10 && databaseMinorVersion == 5 ) {

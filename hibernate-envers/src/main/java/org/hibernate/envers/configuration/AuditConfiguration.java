@@ -30,6 +30,7 @@ import org.hibernate.annotations.common.reflection.ReflectionManager;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.envers.entities.EntitiesConfigurations;
 import org.hibernate.envers.entities.PropertyData;
+import org.hibernate.envers.revisioninfo.ModifiedEntityNamesReader;
 import org.hibernate.envers.revisioninfo.RevisionInfoNumberReader;
 import org.hibernate.envers.revisioninfo.RevisionInfoQueryCreator;
 import org.hibernate.envers.strategy.AuditStrategy;
@@ -50,6 +51,7 @@ public class AuditConfiguration {
     private final EntitiesConfigurations entCfg;
     private final RevisionInfoQueryCreator revisionInfoQueryCreator;
     private final RevisionInfoNumberReader revisionInfoNumberReader;
+    private final ModifiedEntityNamesReader modifiedEntityNamesReader;
 
     public AuditEntitiesConfiguration getAuditEntCfg() {
         return auditEntCfg;
@@ -75,6 +77,10 @@ public class AuditConfiguration {
         return revisionInfoNumberReader;
     }
 
+    public ModifiedEntityNamesReader getModifiedEntityNamesReader() {
+        return modifiedEntityNamesReader;
+    }
+
     public AuditStrategy getAuditStrategy() {
         return auditStrategy;
     }
@@ -83,14 +89,15 @@ public class AuditConfiguration {
         Properties properties = cfg.getProperties();
 
         ReflectionManager reflectionManager = cfg.getReflectionManager();
-        RevisionInfoConfiguration revInfoCfg = new RevisionInfoConfiguration();
+        globalCfg = new GlobalConfiguration(properties);
+        RevisionInfoConfiguration revInfoCfg = new RevisionInfoConfiguration(globalCfg);
         RevisionInfoConfigurationResult revInfoCfgResult = revInfoCfg.configure(cfg, reflectionManager);
         auditEntCfg = new AuditEntitiesConfiguration(properties, revInfoCfgResult.getRevisionInfoEntityName());
-        globalCfg = new GlobalConfiguration(properties);
         auditProcessManager = new AuditProcessManager(revInfoCfgResult.getRevisionInfoGenerator());
         revisionInfoQueryCreator = revInfoCfgResult.getRevisionInfoQueryCreator();
         revisionInfoNumberReader = revInfoCfgResult.getRevisionInfoNumberReader();
-        auditStrategy = initializeAuditStrategy(revInfoCfgResult.getRevisionInfoClass(), 
+        modifiedEntityNamesReader = revInfoCfgResult.getModifiedEntityNamesReader();
+        auditStrategy = initializeAuditStrategy(revInfoCfgResult.getRevisionInfoClass(),
         		revInfoCfgResult.getRevisionInfoTimestampData());
         entCfg = new EntitiesConfigurator().configure(cfg, reflectionManager, globalCfg, auditEntCfg, auditStrategy,
                 revInfoCfgResult.getRevisionInfoXmlMapping(), revInfoCfgResult.getRevisionInfoRelationMapping());
@@ -98,14 +105,14 @@ public class AuditConfiguration {
 
 	private AuditStrategy initializeAuditStrategy(Class<?> revisionInfoClass, PropertyData revisionInfoTimestampData) {
 		AuditStrategy strategy;
-		
+
 		try {
             Class<?> auditStrategyClass = Thread.currentThread().getContextClassLoader().loadClass(auditEntCfg.getAuditStrategyName());
             strategy = (AuditStrategy) auditStrategyClass.newInstance();
         } catch (Exception e) {
            throw new MappingException(String.format("Unable to create AuditStrategy[%s] instance." , auditEntCfg.getAuditStrategyName()));
         }
-        
+
         if (strategy instanceof ValidityAuditStrategy) {
         	// further initialization required
         	Getter revisionTimestampGetter = ReflectionTools.getGetter(revisionInfoClass, revisionInfoTimestampData);
@@ -126,7 +133,7 @@ public class AuditConfiguration {
         if (verCfg == null) {
             verCfg = new AuditConfiguration(cfg);
             cfgs.put(cfg, verCfg);
-            
+
             cfg.buildMappings();
         }
 

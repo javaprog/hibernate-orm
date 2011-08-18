@@ -28,21 +28,21 @@ import java.io.Serializable;
 import org.hibernate.AssertionFailure;
 import org.hibernate.HibernateException;
 import org.hibernate.cache.CacheException;
-import org.hibernate.cache.CacheKey;
-import org.hibernate.cache.access.SoftLock;
-import org.hibernate.cache.entry.CacheEntry;
-import org.hibernate.engine.EntityEntry;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.SessionImplementor;
-import org.hibernate.engine.Status;
-import org.hibernate.engine.Versioning;
-import org.hibernate.event.EventType;
-import org.hibernate.event.PostUpdateEvent;
-import org.hibernate.event.PostUpdateEventListener;
-import org.hibernate.event.PreUpdateEvent;
-import org.hibernate.event.PreUpdateEventListener;
+import org.hibernate.cache.spi.CacheKey;
+import org.hibernate.cache.spi.access.SoftLock;
+import org.hibernate.cache.spi.entry.CacheEntry;
+import org.hibernate.engine.internal.Versioning;
+import org.hibernate.engine.spi.EntityEntry;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.engine.spi.Status;
+import org.hibernate.event.spi.EventType;
+import org.hibernate.event.spi.PostUpdateEvent;
+import org.hibernate.event.spi.PostUpdateEventListener;
+import org.hibernate.event.spi.PreUpdateEvent;
+import org.hibernate.event.spi.PreUpdateEventListener;
 import org.hibernate.persister.entity.EntityPersister;
-import org.hibernate.service.event.spi.EventListenerGroup;
+import org.hibernate.event.service.spi.EventListenerGroup;
 import org.hibernate.type.TypeHelper;
 
 public final class EntityUpdateAction extends EntityAction {
@@ -93,7 +93,7 @@ public final class EntityUpdateAction extends EntityAction {
 			// we need to grab the version value from the entity, otherwise
 			// we have issues with generated-version entities that may have
 			// multiple actions queued during the same flush
-			previousVersion = persister.getVersion( instance, session.getEntityMode() );
+			previousVersion = persister.getVersion( instance );
 		}
 		
 		final CacheKey ck;
@@ -153,7 +153,7 @@ public final class EntityUpdateAction extends EntityAction {
 		}
 
 		if ( persister.hasCache() ) {
-			if ( persister.isCacheInvalidationRequired() || entry.getStatus()!=Status.MANAGED ) {
+			if ( persister.isCacheInvalidationRequired() || entry.getStatus()!= Status.MANAGED ) {
 				persister.getCacheAccessStrategy().remove( ck );
 			}
 			else {
@@ -161,7 +161,7 @@ public final class EntityUpdateAction extends EntityAction {
 				CacheEntry ce = new CacheEntry(
 						state, 
 						persister, 
-						persister.hasUninitializedLazyProperties( instance, session.getEntityMode() ), 
+						persister.hasUninitializedLazyProperties( instance ),
 						nextVersion,
 						getSession(),
 						instance

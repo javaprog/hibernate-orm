@@ -25,7 +25,10 @@ package org.hibernate;
 
 import java.util.Map;
 
+import org.jboss.logging.Logger;
+
 import org.hibernate.cfg.Environment;
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * Describes the methods for multi-tenancy understood by Hibernate.
@@ -33,6 +36,7 @@ import org.hibernate.cfg.Environment;
  * @author Steve Ebersole
  */
 public enum MultiTenancyStrategy {
+
 	/**
 	 * Multi-tenancy implemented by use of discriminator columns.
 	 */
@@ -49,7 +53,10 @@ public enum MultiTenancyStrategy {
 	 * No multi-tenancy
 	 */
 	NONE;
-
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger(
+			CoreMessageLogger.class,
+			MultiTenancyStrategy.class.getName()
+	);
 	public static MultiTenancyStrategy determineMultiTenancyStrategy(Map properties) {
 		final Object strategy = properties.get( Environment.MULTI_TENANT );
 		if ( strategy == null ) {
@@ -61,20 +68,11 @@ public enum MultiTenancyStrategy {
 		}
 
 		final String strategyName = strategy.toString();
-		if ( MultiTenancyStrategy.DISCRIMINATOR.name().equals( strategyName ) ) {
-			return MultiTenancyStrategy.DISCRIMINATOR;
+		try {
+			return MultiTenancyStrategy.valueOf( strategyName.toUpperCase() );
 		}
-		else if ( MultiTenancyStrategy.SCHEMA.name().equals( strategyName ) ) {
-			return MultiTenancyStrategy.SCHEMA;
-		}
-		else if ( MultiTenancyStrategy.DATABASE.name().equals( strategyName ) ) {
-			return MultiTenancyStrategy.DATABASE;
-		}
-		else if ( MultiTenancyStrategy.NONE.name().equals( strategyName ) ) {
-			return MultiTenancyStrategy.NONE;
-		}
-		else {
-			// todo log?
+		catch ( RuntimeException e ) {
+			LOG.warn( "Unknown multi tenancy strategy [ " +strategyName +" ], using MultiTenancyStrategy.NONE." );
 			return MultiTenancyStrategy.NONE;
 		}
 	}

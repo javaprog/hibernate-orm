@@ -243,9 +243,36 @@
                             evaluates to true
                         </entry>
                     </row>
+                    <row>
+                        <entry>
+                            <property>org.hibernate.envers.track_entities_changed_in_revision</property>
+                        </entry>
+                        <entry>
+                            false
+                        </entry>
+                        <entry>
+                            Should entity types, that have been modified during each revision, be tracked. The default
+                            implementation creates <literal>REVCHANGES</literal> table that stores entity names
+                            of modified persistent objects. Single record encapsulates the revision identifier
+                            (foreign key to <literal>REVINFO</literal> table) and a string value. For more
+                            information refer to <xref linkend="envers-tracking-modified-entities-revchanges"/>
+                            and <xref linkend="envers-tracking-modified-entities-queries"/>.
+                        </entry>
+                    </row>
                 </tbody>
             </tgroup>
         </table>
+
+        <important>
+            <para>
+                The following configuration options have been added recently and should be regarded as experimental:
+                <orderedlist>
+                    <listitem>
+                        org.hibernate.envers.track_entities_changed_in_revision
+                    </listitem>
+                </orderedlist>
+            </para>
+        </important>
     </section>
 
     <section>
@@ -280,6 +307,13 @@
             dictionary-like entities, which don't change and don't have to be audited), just annotate it with
             <literal>@Audited(targetAuditMode = RelationTargetAuditMode.NOT_AUDITED)</literal>. Then, when reading historic
             versions of your entity, the relation will always point to the "current" related entity.
+        </para>
+
+        <para>
+            If you'd like to audit properties of a superclass of an entity, which are not explicitly audited (which
+            don't have the <literal>@Audited</literal> annotation on any properties or on the class),
+            you can list the superclasses in the <literal>auditParents</literal> attribute of the
+            <interfacename>@Audited</interfacename> annotation.
         </para>
     </section>
 
@@ -445,6 +479,136 @@ public class ExampleListener implements RevisionListener {
 }]]></programlisting>
 
         </example>
+
+        <section id="envers-tracking-modified-entities-revchanges">
+            <title>Tracking entity names modified during revisions</title>
+            <para>
+                By default entity types that have been changed in each revision are not being tracked. This implies the
+                necessity to query all tables storing audited data in order to retrieve changes made during
+                specified revision. Envers provides a simple mechanism that creates <literal>REVCHANGES</literal>
+                table which stores entity names of modified persistent objects. Single record encapsulates the revision
+                identifier (foreign key to <literal>REVINFO</literal> table) and a string value.
+            </para>
+            <para>
+                Tracking of modified entity names can be enabled in three different ways:
+            </para>
+            <orderedlist>
+                <listitem>
+                    Set <property>org.hibernate.envers.track_entities_changed_in_revision</property> parameter to
+                    <literal>true</literal>. In this case
+                    <classname>org.hibernate.envers.DefaultTrackingModifiedEntitiesRevisionEntity</classname> will
+                    be implicitly used as the revision log entity.
+                </listitem>
+                <listitem>
+                    Create a custom revision entity that extends
+                    <classname>org.hibernate.envers.DefaultTrackingModifiedEntitiesRevisionEntity</classname> class.
+                    <programlisting>
+<![CDATA[@Entity
+@RevisionEntity
+public class ExtendedRevisionEntity
+             extends DefaultTrackingModifiedEntitiesRevisionEntity {
+    ...
+}]]></programlisting>
+                </listitem>
+                <listitem>
+                    Mark an appropriate field of a custom revision entity with
+                    <interfacename>@org.hibernate.envers.ModifiedEntityNames</interfacename> annotation. The property is
+                    required to be of <literal><![CDATA[Set<String>]]></literal> type.
+                    <programlisting>
+<![CDATA[@Entity
+@RevisionEntity
+public class AnnotatedTrackingRevisionEntity {
+    ...
+
+    @ElementCollection
+    @JoinTable(name = "REVCHANGES", joinColumns = @JoinColumn(name = "REV"))
+    @Column(name = "ENTITYNAME")
+    @ModifiedEntityNames
+    private Set<String> modifiedEntityNames;
+    
+    ...
+}]]></programlisting>
+                </listitem>
+            </orderedlist>
+            <para>
+                Users, that have chosen one of the approaches listed above, can retrieve all entities modified in a
+                specified revision by utilizing API described in <xref linkend="envers-tracking-modified-entities-queries"/>.
+            </para>
+            <para>
+                Users are also allowed to implement custom mechanism of tracking modified entity types. In this case, they
+                shall pass their own implementation of
+                <interfacename>org.hibernate.envers.EntityTrackingRevisionListener</interfacename> interface as the value
+                of <interfacename>@org.hibernate.envers.RevisionEntity</interfacename> annotation.
+                <interfacename>EntityTrackingRevisionListener</interfacename> interface exposes one method that notifies
+                whenever audited entity instance has been added, modified or removed within current revision boundaries.
+            </para>
+            
+            <example>
+                <title>Custom implementation of tracking entity classes modified during revisions</title>
+                <programlisting>
+                    <filename>CustomEntityTrackingRevisionListener.java</filename>
+<![CDATA[
+public class CustomEntityTrackingRevisionListener
+             implements EntityTrackingRevisionListener {
+    @Override
+    public void entityChanged(Class entityClass, String entityName,
+                              Serializable entityId, RevisionType revisionType,
+                              Object revisionEntity) {
+        String type = entityClass.getName();
+        ((CustomTrackingRevisionEntity)revisionEntity).addModifiedEntityType(type);
+    }
+
+    @Override
+    public void newRevision(Object revisionEntity) {
+    }
+}]]></programlisting>
+                <programlisting>
+                    <filename>CustomTrackingRevisionEntity.java</filename>
+<![CDATA[
+@Entity
+@RevisionEntity(CustomEntityTrackingRevisionListener.class)
+public class CustomTrackingRevisionEntity {
+    @Id
+    @GeneratedValue
+    @RevisionNumber
+    private int customId;
+
+    @RevisionTimestamp
+    private long customTimestamp;
+
+    @OneToMany(mappedBy="revision", cascade={CascadeType.PERSIST, CascadeType.REMOVE})
+    private Set<ModifiedEntityTypeEntity> modifiedEntityTypes =
+                                              new HashSet<ModifiedEntityTypeEntity>();
+    
+    public void addModifiedEntityType(String entityClassName) {
+        modifiedEntityTypes.add(new ModifiedEntityTypeEntity(this, entityClassName));
+    }
+    
+    ...
+}
+]]></programlisting>
+                <programlisting>
+                    <filename>ModifiedEntityTypeEntity.java</filename>
+<![CDATA[
+@Entity
+public class ModifiedEntityTypeEntity {
+    @Id
+    @GeneratedValue
+    private Integer id;
+
+    @ManyToOne
+    private CustomTrackingRevisionEntity revision;
+    
+    private String entityClassName;
+    
+    ...
+}
+]]></programlisting>
+                <programlisting><![CDATA[CustomTrackingRevisionEntity revEntity =
+    getAuditReader().findRevision(CustomTrackingRevisionEntity.class, revisionNumber);
+Set<ModifiedEntityTypeEntity> modifiedEntityTypes = revEntity.getModifiedEntityTypes()]]></programlisting>
+            </example>
+        </section>
 
     </section>
 
@@ -637,6 +801,80 @@ query.add(AuditEntity.relatedId("address").eq(relatedEntityId));]]></programlist
 
         </section>
 
+        <section id="envers-tracking-modified-entities-queries">
+            <title>Querying for entities modified in a given revision</title>
+            <para>
+                The basic query allows retrieving entity names and corresponding Java classes changed in a specified revision:
+            </para>
+            <programlisting><![CDATA[Set<Pair<String, Class>> modifiedEntityTypes = getAuditReader()
+    .getCrossTypeRevisionChangesReader().findEntityTypes(revisionNumber);]]></programlisting>
+            <para>
+                Other queries (also accessible from <interfacename>org.hibernate.envers.CrossTypeRevisionChangesReader</interfacename>):
+            </para>
+            <orderedlist>
+                <listitem>
+                    <firstterm><methodname>List<![CDATA[<Object>]]> findEntities(Number)</methodname></firstterm>
+                    - Returns snapshots of all audited entities changed (added, updated and removed) in a given revision.
+                    Executes <literal>n+1</literal> SQL queries, where <literal>n</literal> is a number of different entity
+                    classes modified within specified revision.
+                </listitem>
+                <listitem>
+                    <firstterm><methodname>List<![CDATA[<Object>]]> findEntities(Number, RevisionType)</methodname></firstterm>
+                    - Returns snapshots of all audited entities changed (added, updated or removed) in a given revision
+                    filtered by modification type. Executes <literal>n+1</literal> SQL queries, where <literal>n</literal>
+                    is a number of different entity classes modified within specified revision.
+                </listitem>
+                <listitem>
+                    <firstterm><methodname><![CDATA[Map<RevisionType, List<Object>>]]> findEntitiesGroupByRevisionType(Number)</methodname></firstterm>
+                    - Returns a map containing lists of entity snapshots grouped by modification operation (e.g.
+                    addition, update and removal). Executes <literal>3n+1</literal> SQL queries, where <literal>n</literal>
+                    is a number of different entity classes modified within specified revision.
+                </listitem>
+            </orderedlist>
+            <para>
+                Note that methods described above can be legally used only when default mechanism of
+                tracking changed entity names is enabled (see <xref linkend="envers-tracking-modified-entities-revchanges"/>).
+            </para>
+        </section>
+
+    </section>
+
+    <section>
+        <title>Conditional auditing</title>
+        <para>
+            Envers persists audit data in reaction to various Hibernate events (e.g. post update, post insert, and
+            so on), using a series of even listeners from the <literal>org.hibernate.envers.event</literal>
+            package. By default, if the Envers jar is in the classpath, the event listeners are auto-registered with
+            Hibernate.
+        </para>
+        <para>
+            Conditional auditing can be implemented by overriding some of the Envers event listeners.
+            To use customized Envers event listeners, the following steps are needed:
+            <orderedlist>
+            <listitem>
+                Turn off automatic Envers event listeners registration by setting the
+                <literal>hibernate.listeners.envers.autoRegister</literal>
+                Hibernate property to <literal>false</literal>.
+            </listitem>
+            <listitem>
+                Create subclasses for appropriate event listeners. For example, if you want to conditionally audit
+                entity insertions, extend the
+                <literal>org.hibernate.envers.eventEnversPostInsertEventListenerImpl</literal>
+                class. Place the conditional-auditing logic in the subclasses, call the super method if auditing
+                should be performed.
+            </listitem>
+            <listitem>
+                Create your own implementation of <literal>org.hibernate.integrator.spi.Integrator</literal>,
+                similar to <literal>org.hibernate.envers.event.EnversIntegrator</literal>. Use your event listener
+                classes instead of the default ones.
+            </listitem>
+            <listitem>
+                For the integrator to be automatically used when Hibernate starts up, you will need to add a
+                <literal>META-INF/services/org.hibernate.integrator.spi.Integrator</literal> file to your jar.
+                The file should contain the fully qualified name of the class implementing the interface.
+            </listitem>
+            </orderedlist>
+        </para>
     </section>
 
     <section>

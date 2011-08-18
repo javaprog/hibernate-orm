@@ -52,9 +52,13 @@ public class Size implements Serializable {
 		}
 	}
 
-	private int precision = - 1;
-	private int scale = -1;
-	private long length = -1;
+	public static final int DEFAULT_LENGTH = 255;
+	public static final int DEFAULT_PRECISION = 19;
+	public static final int DEFAULT_SCALE = 2;
+
+	private long length = DEFAULT_LENGTH;
+	private int precision = DEFAULT_PRECISION;
+	private int scale = DEFAULT_SCALE;
 	private LobMultiplier lobMultiplier = LobMultiplier.NONE;
 
 	public Size() {
@@ -105,6 +109,12 @@ public class Size implements Serializable {
 
 	public LobMultiplier getLobMultiplier() {
 		return lobMultiplier;
+	}
+
+	public void initialize(Size size) {
+		this.precision = size.precision;
+		this.scale =  size.scale;
+		this.length = size.length;
 	}
 
 	public void setPrecision(int precision) {

@@ -12,12 +12,13 @@ allprojects {
 
 buildscript {
     repositories {
+        mavenCentral()
         mavenLocal()
         mavenRepo name: 'jboss-nexus', urls: "https://repository.jboss.org/nexus/content/groups/public/"
         mavenRepo name: "jboss-snapshots", urls: "http://snapshots.jboss.org/maven2/"
     }
     dependencies {
-        classpath 'org.hibernate.build.gradle:gradle-upload-auth-plugin:1.0.0'
+        classpath 'org.hibernate.build.gradle:gradle-upload-auth-plugin:1.0.2'
     }
 }
 
@@ -28,14 +29,18 @@ ideaProject {
         def vcsConfig = node.component.find { it.'@name' == 'VcsDirectoryMappings' }
         vcsConfig.mapping[0].'@vcs' = 'Git'
     }
+    beforeConfigured { module ->
+        module.modulePaths.removeAll { it.filePath.endsWith('hibernate-core.iml') }
+    }
 }
 
 ideaModule {
+    moduleName = 'hibernate-core-root'
 }
 
 // build a map of the dependency artifacts to use.  Allows centralized definition of the version of artifacts to
 // use.  In that respect it serves a role similar to <dependencyManagement> in Maven
-slf4jVersion = '1.5.8'
+slf4jVersion = '1.6.1'
 libraries = [
         // Ant
         ant:            'ant:ant:1.6.5',
@@ -46,6 +51,8 @@ libraries = [
         // Annotations
         commons_annotations:
                         'org.hibernate:hibernate-commons-annotations:3.2.0.Final',
+        jandex:         'org.jboss:jandex:1.0.0.Beta7',
+        classmate:      'com.fasterxml:classmate:0.5.4',
 
         // Jakarta commons-collections  todo : get rid of commons-collections dependency
         commons_collections:
@@ -53,6 +60,9 @@ libraries = [
 
         // Dom4J
         dom4j:          'dom4j:dom4j:1.6.1@jar',
+        jaxb:           'com.sun.xml.bind:jaxb-xjc:2.1.6',
+        jaxb2_basics:   'org.jvnet.jaxb2_commons:jaxb2-basics:0.6.0',
+        jaxb2_ant:      'org.jvnet.jaxb2_commons:jaxb2-basics-ant:0.6.0',
 
         // h2
         h2:             'com.h2database:h2:1.2.145',
@@ -61,10 +71,10 @@ libraries = [
         javassist:      'javassist:javassist:3.12.0.GA',
 
         // javax
-        jpa:            'org.hibernate.javax.persistence:hibernate-jpa-2.0-api:1.0.0.Final',
+        jpa:            'org.hibernate.javax.persistence:hibernate-jpa-2.0-api:1.0.1.Final',
         jta:            'javax.transaction:jta:1.1',
         validation:     'javax.validation:validation-api:1.0.0.GA',
-        validator:      'org.hibernate:hibernate-validator:4.0.2.GA',
+        validator:      'org.hibernate:hibernate-validator:4.2.0.Final',
         jacc:           'org.jboss.javaee:jboss-jacc-api:1.1.0.GA',
 
         // logging
@@ -114,11 +124,14 @@ subprojects { subProject ->
             deployerJars {
                 description = 'Jars needed for doing deployment to JBoss Nexus repo'
             }
+            jaxb {
+                description = 'Dependencies for running ant xjc (jaxb class generation)'
+            }
         }
 
         // appropriately inject the common dependencies into each sub-project
         dependencies {
-		    compile( libraries.logging )
+	        compile( libraries.logging )
             testCompile( libraries.junit )
             testRuntime( libraries.slf4j_api )
             testRuntime( libraries.slf4j_log4j12 )
@@ -127,12 +140,15 @@ subprojects { subProject ->
             testRuntime( libraries.jcl )
             testRuntime( libraries.javassist )
             testRuntime( libraries.h2 )
-		    jbossLoggingTool( libraries.logging_tools )
+            jbossLoggingTool( libraries.logging_tools )
             hibernateJpaModelGenTool( libraries.jpa_modelgen )
+            jaxb( libraries.jaxb )
+            jaxb( libraries.jaxb2_basics )
+            jaxb( libraries.jaxb2_ant )
             deployerJars "org.apache.maven.wagon:wagon-http:1.0-beta-6"
         }
 
-        aptDumpDir = file( buildDirName + "/temp/apt" )
+        aptDumpDir = file( buildDirName + "/tmp/apt" )
 
         sourceSets.main {
             compileClasspath += configurations.provided
@@ -152,6 +168,7 @@ subprojects { subProject ->
                     compilerArgs: [
                             "-nowarn",
                             "-proc:only",
+							"-encoding", "UTF-8",
                             "-processor", "org.jboss.logging.LoggingToolsProcessor",
                             "-s", "$sourceSets.main.generatedLoggingSrcDir.absolutePath"
                     ]
@@ -166,33 +183,7 @@ subprojects { subProject ->
         generateMainLoggingClasses.logging.captureStandardError(LogLevel.INFO)
 
 		compileJava.dependsOn generateMainLoggingClasses
-        compileJava.options.define(compilerArgs: ["-proc:none"])
-
-
-        task generateTestLoggingClasses(type: Compile) {
-		    classpath = compileTestJava.classpath + configurations.jbossLoggingTool
-            source = sourceSets.test.originalJavaSrcDirs
-            destinationDir = aptDumpDir
-		    options.define(
-                    compilerArgs: [
-                            "-nowarn",
-                            "-proc:only",
-                            "-processor", "org.jboss.logging.LoggingToolsProcessor",
-                            "-s", "$sourceSets.test.generatedLoggingSrcDir.absolutePath"
-                    ]
-            );
-            outputs.dir sourceSets.test.generatedLoggingSrcDir;
-            doFirst {
-                sourceSets.test.generatedLoggingSrcDir.mkdirs()
-            }
-        }
-
-        // for the time being eat the annoying output from running the annotation processors
-        generateTestLoggingClasses.logging.captureStandardError(LogLevel.INFO)
-
-		compileTestJava.dependsOn generateTestLoggingClasses
-        compileTestJava.options.define(compilerArgs: ["-proc:none"])
-
+        compileJava.options.define(compilerArgs: ["-proc:none", "-encoding", "UTF-8"])
 
         manifest.mainAttributes(
                 provider: 'gradle',
@@ -224,20 +215,32 @@ subprojects { subProject ->
         sourceCompatibility = "1.6"
 
         ideaModule {
-            // treat our "provided" configuration dependencies as "compile" scope dependencies in IntelliJ
+            beforeConfigured { module ->
+                module.excludeFolders.clear()
+            }
             scopes.COMPILE.plus.add( configurations.provided )
             whenConfigured { module ->
                 module.dependencies*.exported = true
             }
-//	        testSourceDirs.add( file( generatedSrcDirName ) )
-//	        testSourceDirs.add( file( generatedTestSrcDirName ) )
+            excludeDirs = [
+                    file(".gradle"),
+                    file("$buildDir/classes"),
+                    file("$buildDir/dependency-cache"),
+                    file("$buildDir/libs"),
+                    file("$buildDir/reports"),
+                    file("$buildDir/test-results"),
+                    file("$buildDir/tmp")
+            ] as Set
         }
+
 		eclipseClasspath {
 			plusConfigurations.add( configurations.provided )
 		}
 
         // elements used to customize the generated POM used during upload
         def pomConfig = {
+            name 'A Hibernate Core Module'
+            description 'A module of the Hibernate Core project'
             url 'http://hibernate.org'
             organization {
                 name 'Hibernate.org'
@@ -261,6 +264,12 @@ subprojects { subProject ->
                 }
             }
             developers {
+                developer {
+                    id 'hibernate-team'
+                    name 'The Hibernate Development Team'
+                    organization 'Hibernate.org'
+                    organizationUrl 'http://hibernate.org'
+                }
             }
         }
 
@@ -298,10 +307,11 @@ dependsOnChildren()
 
 // This is a task that generates the gradlew scripts, allowing users to run gradle without having gradle installed
 // on their system.
-// This task should be run by "build master" and the resulting ouput committed to source control.  Its outputs include:
+// This task should be run by "build master" and the resulting output committed to source control.  Its outputs include:
 //  1) /gradlew which is the *NIX shell script for executing builds
 //  2) /gradlew.bat which is the windows bat script for for executing builds
 //  3) /wrapper which is a directory named by the "jarPath" config which contains other needed files.
 task wrapper(type: Wrapper) {
-    gradleVersion = '0.9.2'
+    // HHH-6106 - this is needed for IntellJ generation until 1.0-milestone-3 is released.
+    gradleVersion = '1.0-milestone-3-20110411214339+0200'
 }

@@ -29,9 +29,10 @@ import java.sql.Connection;
 import java.util.Map;
 import java.util.Set;
 
-import org.hibernate.engine.FilterDefinition;
+import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.metadata.ClassMetadata;
 import org.hibernate.metadata.CollectionMetadata;
+import org.hibernate.proxy.EntityNotFoundDelegate;
 import org.hibernate.stat.Statistics;
 
 /**
@@ -51,6 +52,14 @@ import org.hibernate.stat.Statistics;
  * @author Steve Ebersole
  */
 public interface SessionFactory extends Referenceable, Serializable {
+
+	public interface SessionFactoryOptions {
+		Interceptor getInterceptor();
+		EntityNotFoundDelegate getEntityNotFoundDelegate();
+	}
+
+	public SessionFactoryOptions getSessionFactoryOptions();
+
 	/**
 	 * Obtain a {@link Session} builder.
 	 *
@@ -73,11 +82,11 @@ public interface SessionFactory extends Referenceable, Serializable {
 
 	/**
 	 * Obtains the current session.  The definition of what exactly "current"
-	 * means controlled by the {@link org.hibernate.context.CurrentSessionContext} impl configured
+	 * means controlled by the {@link org.hibernate.context.spi.CurrentSessionContext} impl configured
 	 * for use.
 	 * <p/>
-	 * Note that for backwards compatibility, if a {@link org.hibernate.context.CurrentSessionContext}
-	 * is not configured but JTA is configured this will default to the {@link org.hibernate.context.JTASessionContext}
+	 * Note that for backwards compatibility, if a {@link org.hibernate.context.spi.CurrentSessionContext}
+	 * is not configured but JTA is configured this will default to the {@link org.hibernate.context.internal.JTASessionContext}
 	 * impl.
 	 *
 	 * @return The current session.
@@ -85,6 +94,13 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @throws HibernateException Indicates an issue locating a suitable current session.
 	 */
 	public Session getCurrentSession() throws HibernateException;
+
+	/**
+	 * Obtain a {@link StatelessSession} builder.
+	 *
+	 * @return The stateless session builder
+	 */
+	public StatelessSessionBuilder withStatelessOptions();
 
 	/**
 	 * Open a new stateless session.

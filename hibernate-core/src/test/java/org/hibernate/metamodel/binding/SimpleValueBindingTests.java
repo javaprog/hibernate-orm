@@ -25,6 +25,10 @@ package org.hibernate.metamodel.binding;
 
 import java.sql.Types;
 
+import org.junit.Test;
+
+import org.hibernate.EntityMode;
+import org.hibernate.internal.util.Value;
 import org.hibernate.metamodel.domain.Entity;
 import org.hibernate.metamodel.domain.SingularAttribute;
 import org.hibernate.metamodel.relational.Column;
@@ -32,8 +36,7 @@ import org.hibernate.metamodel.relational.Datatype;
 import org.hibernate.metamodel.relational.Schema;
 import org.hibernate.metamodel.relational.Size;
 import org.hibernate.metamodel.relational.Table;
-
-import org.junit.Test;
+import org.hibernate.service.classloading.spi.ClassLoadingException;
 
 import org.hibernate.testing.junit4.BaseUnitTestCase;
 
@@ -48,26 +51,43 @@ public class SimpleValueBindingTests extends BaseUnitTestCase {
 	public static final Datatype BIGINT = new Datatype( Types.BIGINT, "BIGINT", Long.class );
 	public static final Datatype VARCHAR = new Datatype( Types.VARCHAR, "VARCHAR", String.class );
 
+
 	@Test
 	public void testBasicMiddleOutBuilding() {
 		Table table = new Table( new Schema( null, null ), "the_table" );
-		Entity entity = new Entity( "TheEntity", null );
-		EntityBinding entityBinding = new EntityBinding();
+		Entity entity = new Entity( "TheEntity", "NoSuchClass", makeJavaType( "NoSuchClass" ), null );
+		EntityBinding entityBinding = new EntityBinding( InheritanceType.NO_INHERITANCE, EntityMode.POJO );
 		entityBinding.setEntity( entity );
-		entityBinding.setBaseTable( table );
+		entityBinding.setPrimaryTable( table );
 
-		SingularAttribute idAttribute = entity.getOrCreateSingularAttribute( "id" );
-		SimpleAttributeBinding attributeBinding = entityBinding.makeSimpleAttributeBinding( "id" );
-		attributeBinding.getHibernateTypeDescriptor().setTypeName( "long" );
+		SingularAttribute idAttribute = entity.createSingularAttribute( "id" );
+		BasicAttributeBinding attributeBinding = entityBinding.makeBasicAttributeBinding( idAttribute );
+		attributeBinding.getHibernateTypeDescriptor().setExplicitTypeName( "long" );
 		assertSame( idAttribute, attributeBinding.getAttribute() );
 
-		entityBinding.getEntityIdentifier().setValueBinding( attributeBinding );
+		entityBinding.getHierarchyDetails().getEntityIdentifier().setValueBinding( attributeBinding );
 
-		Column idColumn = table.createColumn( "id" );
+		Column idColumn = table.locateOrCreateColumn( "id" );
 		idColumn.setDatatype( BIGINT );
 		idColumn.setSize( Size.precision( 18, 0 ) );
 		table.getPrimaryKey().addColumn( idColumn );
 		table.getPrimaryKey().setName( "my_table_pk" );
-		attributeBinding.setValue( idColumn );
+		//attributeBinding.setValue( idColumn );
+	}
+
+	Value<Class<?>> makeJavaType(final String name) {
+		return new Value<Class<?>>(
+				new Value.DeferredInitializer<Class<?>>() {
+					@Override
+					public Class<?> initialize() {
+						try {
+							return Class.forName( name );
+						}
+						catch ( Exception e ) {
+							throw new ClassLoadingException( "Could not load class : " + name, e );
+						}
+					}
+				}
+		);
 	}
 }

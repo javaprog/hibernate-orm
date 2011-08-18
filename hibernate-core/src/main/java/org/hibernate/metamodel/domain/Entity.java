@@ -23,123 +23,34 @@
  */
 package org.hibernate.metamodel.domain;
 
-import org.hibernate.EntityMode;
+import org.hibernate.internal.util.Value;
 
 /**
  * Models the notion of an entity
  *
  * @author Steve Ebersole
+ * @author Hardy Ferentschik
  */
 public class Entity extends AbstractAttributeContainer {
-	private final PojoEntitySpecifics pojoEntitySpecifics = new PojoEntitySpecifics();
-	private final Dom4jEntitySpecifics dom4jEntitySpecifics = new Dom4jEntitySpecifics();
-	private final MapEntitySpecifics mapEntitySpecifics = new MapEntitySpecifics();
-
-
-	public Entity(String name, Hierarchical superType) {
-		super( name, superType );
-	}
-
 	/**
-	 * {@inheritDoc}
+	 * Constructor for the entity
+	 *
+	 * @param entityName The name of the entity
+	 * @param className The name of this entity's java class
+	 * @param classReference The reference to this entity's {@link Class}
+	 * @param superType The super type for this entity. If there is not super type {@code null} needs to be passed.
 	 */
-	public TypeNature getNature() {
-		return TypeNature.ENTITY;
+	public Entity(String entityName, String className, Value<Class<?>> classReference, Hierarchical superType) {
+		super( entityName, className, classReference, superType );
 	}
 
-	public PojoEntitySpecifics getPojoEntitySpecifics() {
-		return pojoEntitySpecifics;
+	@Override
+	public boolean isAssociation() {
+		return true;
 	}
 
-	public Dom4jEntitySpecifics getDom4jEntitySpecifics() {
-		return dom4jEntitySpecifics;
+	@Override
+	public boolean isComponent() {
+		return false;
 	}
-
-	public MapEntitySpecifics getMapEntitySpecifics() {
-		return mapEntitySpecifics;
-	}
-
-	public static interface EntityModeEntitySpecifics {
-		public EntityMode getEntityMode();
-		public String getTuplizerClassName();
-	}
-
-	public static class PojoEntitySpecifics implements EntityModeEntitySpecifics {
-		private String tuplizerClassName;
-		private String className;
-		private String proxyInterfaceName;
-
-		@Override
-		public EntityMode getEntityMode() {
-			return EntityMode.POJO;
-		}
-
-		public String getTuplizerClassName() {
-			return tuplizerClassName;
-		}
-
-		public void setTuplizerClassName(String tuplizerClassName) {
-			this.tuplizerClassName = tuplizerClassName;
-		}
-
-		public String getClassName() {
-			return className;
-		}
-
-		public void setClassName(String className) {
-			this.className = className;
-		}
-
-		public String getProxyInterfaceName() {
-			return proxyInterfaceName;
-		}
-
-		public void setProxyInterfaceName(String proxyInterfaceName) {
-			this.proxyInterfaceName = proxyInterfaceName;
-		}
-	}
-
-	public static class Dom4jEntitySpecifics implements EntityModeEntitySpecifics {
-		private String tuplizerClassName;
-		private String nodeName;
-
-		@Override
-		public EntityMode getEntityMode() {
-			return EntityMode.DOM4J;
-		}
-
-		public String getTuplizerClassName() {
-			return tuplizerClassName;
-		}
-
-		public void setTuplizerClassName(String tuplizerClassName) {
-			this.tuplizerClassName = tuplizerClassName;
-		}
-
-		public String getNodeName() {
-			return nodeName;
-		}
-
-		public void setNodeName(String nodeName) {
-			this.nodeName = nodeName;
-		}
-	}
-
-	public static class MapEntitySpecifics implements EntityModeEntitySpecifics {
-		private String tuplizerClassName;
-
-		@Override
-		public EntityMode getEntityMode() {
-			return EntityMode.MAP;
-		}
-
-		public String getTuplizerClassName() {
-			return tuplizerClassName;
-		}
-
-		public void setTuplizerClassName(String tuplizerClassName) {
-			this.tuplizerClassName = tuplizerClassName;
-		}
-	}
-
 }

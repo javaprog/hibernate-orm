@@ -22,8 +22,10 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.type;
+
 import java.util.Comparator;
-import org.hibernate.engine.SessionImplementor;
+
+import org.hibernate.engine.spi.SessionImplementor;
 
 /**
  * Additional contract for types which may be used to version (and optimistic lock) data.
@@ -55,15 +57,6 @@ public interface VersionType<T> extends Type {
 	 * @return The comparator to use to compare different version values.
 	 */
 	public Comparator<T> getComparator();
-
-	/**
-	 * Are the two version values considered equal?
-	 *
-	 * @param x One value to check.
-	 * @param y The other value to check.
-	 * @return true if the values are equal, false otherwise.
-	 */
-	public boolean isEqual(T x, T y);
 }
 
 

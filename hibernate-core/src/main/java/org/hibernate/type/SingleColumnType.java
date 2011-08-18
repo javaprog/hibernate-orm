@@ -22,11 +22,13 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.type;
+
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
 import org.hibernate.HibernateException;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 
 /**
  * Provide convenient methods for binding and extracting values for use with {@link BasicType}.  Most of this

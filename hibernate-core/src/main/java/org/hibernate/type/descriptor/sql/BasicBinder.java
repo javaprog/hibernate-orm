@@ -22,15 +22,17 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.type.descriptor.sql;
+
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+
+import org.jboss.logging.Logger;
 
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.type.descriptor.JdbcTypeNameMapper;
 import org.hibernate.type.descriptor.ValueBinder;
 import org.hibernate.type.descriptor.WrapperOptions;
 import org.hibernate.type.descriptor.java.JavaTypeDescriptor;
-import org.jboss.logging.Logger;
 
 /**
  * Convenience base implementation of {@link ValueBinder}
@@ -65,14 +67,18 @@ public abstract class BasicBinder<J> implements ValueBinder<J> {
 	 */
 	public final void bind(PreparedStatement st, J value, int index, WrapperOptions options) throws SQLException {
 		if ( value == null ) {
-            LOG.trace(String.format(NULL_BIND_MSG_TEMPLATE, index, JdbcTypeNameMapper.getTypeName(sqlDescriptor.getSqlType())));
+                        if (LOG.isTraceEnabled()) {
+                           LOG.trace(String.format(NULL_BIND_MSG_TEMPLATE, index, JdbcTypeNameMapper.getTypeName(sqlDescriptor.getSqlType())));
+                        }
 			st.setNull( index, sqlDescriptor.getSqlType() );
 		}
 		else {
-            LOG.trace(String.format(BIND_MSG_TEMPLATE,
-                                    index,
-                                    JdbcTypeNameMapper.getTypeName(sqlDescriptor.getSqlType()),
-                                    getJavaDescriptor().extractLoggableRepresentation(value)));
+                        if (LOG.isTraceEnabled()) {
+                           LOG.trace(String.format(BIND_MSG_TEMPLATE,
+                                                   index,
+                                                   JdbcTypeNameMapper.getTypeName(sqlDescriptor.getSqlType()),
+                                                   getJavaDescriptor().extractLoggableRepresentation(value)));
+                        }
 			doBind( st, value, index, options );
 		}
 	}

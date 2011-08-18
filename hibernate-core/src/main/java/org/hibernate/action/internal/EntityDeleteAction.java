@@ -27,19 +27,18 @@ import java.io.Serializable;
 
 import org.hibernate.AssertionFailure;
 import org.hibernate.HibernateException;
-import org.hibernate.cache.CacheKey;
-import org.hibernate.cache.access.SoftLock;
-import org.hibernate.engine.EntityEntry;
-import org.hibernate.engine.PersistenceContext;
-import org.hibernate.engine.SessionImplementor;
-import org.hibernate.event.EventSource;
-import org.hibernate.event.EventType;
-import org.hibernate.event.PostDeleteEvent;
-import org.hibernate.event.PostDeleteEventListener;
-import org.hibernate.event.PreDeleteEvent;
-import org.hibernate.event.PreDeleteEventListener;
+import org.hibernate.cache.spi.CacheKey;
+import org.hibernate.cache.spi.access.SoftLock;
+import org.hibernate.engine.spi.EntityEntry;
+import org.hibernate.engine.spi.PersistenceContext;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.event.spi.EventType;
+import org.hibernate.event.spi.PostDeleteEvent;
+import org.hibernate.event.spi.PostDeleteEventListener;
+import org.hibernate.event.spi.PreDeleteEvent;
+import org.hibernate.event.spi.PreDeleteEventListener;
 import org.hibernate.persister.entity.EntityPersister;
-import org.hibernate.service.event.spi.EventListenerGroup;
+import org.hibernate.event.service.spi.EventListenerGroup;
 
 public final class EntityDeleteAction extends EntityAction {
 	private final Object version;
@@ -76,7 +75,7 @@ public final class EntityDeleteAction extends EntityAction {
 			// we need to grab the version value from the entity, otherwise
 			// we have issues with generated-version entities that may have
 			// multiple actions queued during the same flush
-			version = persister.getVersion( instance, session.getEntityMode() );
+			version = persister.getVersion( instance );
 		}
 
 		final CacheKey ck;
@@ -159,6 +158,9 @@ public final class EntityDeleteAction extends EntityAction {
 				getPersister(),
 				eventSource()
 		);
+		for( PostDeleteEventListener listener : listenerGroup.listeners() ){
+			listener.onPostDelete( event );
+		}
 	}
 
 	@Override

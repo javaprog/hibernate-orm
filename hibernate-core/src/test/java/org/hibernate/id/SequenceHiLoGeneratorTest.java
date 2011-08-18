@@ -29,7 +29,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import org.hibernate.Hibernate;
 import org.hibernate.Session;
 import org.hibernate.TestingDatabaseInfo;
 import org.hibernate.cfg.Configuration;
@@ -38,11 +37,12 @@ import org.hibernate.cfg.NamingStrategy;
 import org.hibernate.cfg.ObjectNameNormalizer;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.impl.SessionImpl;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.internal.SessionImpl;
 import org.hibernate.jdbc.Work;
 import org.hibernate.mapping.SimpleAuxiliaryDatabaseObject;
 import org.hibernate.service.ServiceRegistry;
+import org.hibernate.type.StandardBasicTypes;
 
 import org.junit.After;
 import org.junit.Before;
@@ -91,7 +91,7 @@ public class SequenceHiLoGeneratorTest extends BaseUnitTestCase {
 		Dialect dialect = new H2Dialect();
 
 		generator = new SequenceHiLoGenerator();
-		generator.configure( Hibernate.LONG, properties, dialect );
+		generator.configure( StandardBasicTypes.LONG, properties, dialect );
 
 		cfg = TestingDatabaseInfo.buildBaseConfiguration()
 				.setProperty( Environment.HBM2DDL_AUTO, "create-drop" );

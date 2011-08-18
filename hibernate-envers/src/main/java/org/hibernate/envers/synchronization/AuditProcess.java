@@ -22,6 +22,7 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.envers.synchronization;
+
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -29,7 +30,7 @@ import java.util.Queue;
 import org.hibernate.FlushMode;
 import org.hibernate.Session;
 import org.hibernate.action.spi.BeforeTransactionCompletionProcess;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.envers.revisioninfo.RevisionInfoGenerator;
 import org.hibernate.envers.synchronization.work.AuditWorkUnit;
 import org.hibernate.envers.tools.Pair;
@@ -44,6 +45,7 @@ public class AuditProcess implements BeforeTransactionCompletionProcess {
     private final LinkedList<AuditWorkUnit> workUnits;
     private final Queue<AuditWorkUnit> undoQueue;
     private final Map<Pair<String, Object>, AuditWorkUnit> usedIds;
+    private final EntityChangeNotifier entityChangeNotifier;
 
     private Object revisionData;
 
@@ -54,6 +56,7 @@ public class AuditProcess implements BeforeTransactionCompletionProcess {
         workUnits = new LinkedList<AuditWorkUnit>();
         undoQueue = new LinkedList<AuditWorkUnit>();
         usedIds = new HashMap<Pair<String, Object>, AuditWorkUnit>();
+        entityChangeNotifier = new EntityChangeNotifier(revisionInfoGenerator, session);
     }
 
     private void removeWorkUnit(AuditWorkUnit vwu) {
@@ -98,7 +101,7 @@ public class AuditProcess implements BeforeTransactionCompletionProcess {
 
     private void executeInSession(Session session) {
 		// Making sure the revision data is persisted.
-        getCurrentRevisionData(session, true);
+        Object currentRevisionData = getCurrentRevisionData(session, true);
 
         AuditWorkUnit vwu;
 
@@ -109,6 +112,7 @@ public class AuditProcess implements BeforeTransactionCompletionProcess {
 
         while ((vwu = workUnits.poll()) != null) {
             vwu.perform(session, revisionData);
+            entityChangeNotifier.entityChanged(session, currentRevisionData, vwu);
         }
     }
 

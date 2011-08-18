@@ -48,10 +48,11 @@ import org.hibernate.dialect.DB2Dialect;
 import org.hibernate.dialect.HSQLDialect;
 import org.hibernate.dialect.IngresDialect;
 import org.hibernate.dialect.MySQLDialect;
-import org.hibernate.engine.EntityEntry;
-import org.hibernate.impl.SessionImpl;
+import org.hibernate.engine.spi.EntityEntry;
+import org.hibernate.internal.SessionImpl;
 import org.hibernate.jdbc.AbstractWork;
 import org.hibernate.proxy.HibernateProxy;
+import org.hibernate.type.StandardBasicTypes;
 
 import org.junit.Test;
 
@@ -681,7 +682,7 @@ public class ParentChildTest extends LegacyTestCase {
 		s.createQuery( "select c, c.parent from Child c where c.parent.count=66 order by c.parent.count" ).list();
 		s.createQuery( "select c, c.parent, c.parent.count from Child c order by c.parent.count" ).iterate();
 		List result = s.createQuery( "FROM Parent AS p WHERE p.count = ?" )
-				.setParameter( 0, new Integer(66), Hibernate.INTEGER )
+				.setParameter( 0, new Integer(66), StandardBasicTypes.INTEGER )
 				.list();
 		assertEquals( "1-1 query", 1, result.size() );
 		s.delete(c); s.delete(p);

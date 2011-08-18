@@ -26,9 +26,9 @@ package org.hibernate.loader.collection;
 import java.io.Serializable;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
-import org.hibernate.engine.LoadQueryInfluencers;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.engine.spi.LoadQueryInfluencers;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.loader.Loader;
 import org.hibernate.persister.collection.CollectionPersister;
@@ -69,7 +69,7 @@ public class BatchingCollectionInitializer implements CollectionInitializer {
 	throws HibernateException {
 		
 		Serializable[] batch = session.getPersistenceContext().getBatchFetchQueue()
-			.getCollectionBatch( collectionPersister, id, batchSizes[0], session.getEntityMode() );
+				.getCollectionBatch( collectionPersister, id, batchSizes[0] );
 		
 		for ( int i=0; i<batchSizes.length-1; i++) {
 			final int smallBatchSize = batchSizes[i];

@@ -29,13 +29,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import org.hibernate.EntityMode;
+
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
-import org.hibernate.cache.access.EntityRegionAccessStrategy;
-import org.hibernate.engine.ExecuteUpdateResultCheckStyle;
-import org.hibernate.engine.Mapping;
-import org.hibernate.engine.SessionFactoryImplementor;
+import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
+import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
+import org.hibernate.engine.spi.Mapping;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.internal.util.MarkerObject;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.mapping.Column;
@@ -47,6 +47,14 @@ import org.hibernate.mapping.Selectable;
 import org.hibernate.mapping.Subclass;
 import org.hibernate.mapping.Table;
 import org.hibernate.mapping.Value;
+import org.hibernate.metamodel.binding.AttributeBinding;
+import org.hibernate.metamodel.binding.CustomSQL;
+import org.hibernate.metamodel.binding.EntityBinding;
+import org.hibernate.metamodel.binding.SimpleValueBinding;
+import org.hibernate.metamodel.binding.SingularAttributeBinding;
+import org.hibernate.metamodel.relational.DerivedValue;
+import org.hibernate.metamodel.relational.SimpleValue;
+import org.hibernate.metamodel.relational.TableSpecification;
 import org.hibernate.sql.InFragment;
 import org.hibernate.sql.Insert;
 import org.hibernate.sql.SelectFragment;
@@ -119,6 +127,8 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 
 	private static final Object NULL_DISCRIMINATOR = new MarkerObject("<null discriminator>");
 	private static final Object NOT_NULL_DISCRIMINATOR = new MarkerObject("<not null discriminator>");
+	private static final String NULL_STRING = "null";
+	private static final String NOT_NULL_STRING = "not null";
 
 	//INITIALIZATION:
 
@@ -230,16 +240,16 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 				ArrayHelper.toStringArray( persistentClass.getSynchronizedTables() )
 		);
 		
-		final boolean lazyAvailable = isInstrumented(EntityMode.POJO);
+		final boolean lazyAvailable = isInstrumented();
 
 		boolean hasDeferred = false;
 		ArrayList subclassTables = new ArrayList();
 		ArrayList joinKeyColumns = new ArrayList();
-		ArrayList isConcretes = new ArrayList();
-		ArrayList isDeferreds = new ArrayList();
-		ArrayList isInverses = new ArrayList();
-		ArrayList isNullables = new ArrayList();
-		ArrayList isLazies = new ArrayList();
+		ArrayList<Boolean> isConcretes = new ArrayList<Boolean>();
+		ArrayList<Boolean> isDeferreds = new ArrayList<Boolean>();
+		ArrayList<Boolean> isInverses = new ArrayList<Boolean>();
+		ArrayList<Boolean> isNullables = new ArrayList<Boolean>();
+		ArrayList<Boolean> isLazies = new ArrayList<Boolean>();
 		subclassTables.add( qualifiedTableNames[0] );
 		joinKeyColumns.add( getIdentifierColumnNames() );
 		isConcretes.add(Boolean.TRUE);
@@ -250,11 +260,11 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		joinIter = persistentClass.getSubclassJoinClosureIterator();
 		while ( joinIter.hasNext() ) {
 			Join join = (Join) joinIter.next();
-			isConcretes.add( new Boolean( persistentClass.isClassOrSuperclassJoin(join) ) );
-			isDeferreds.add( new Boolean( join.isSequentialSelect() ) );
-			isInverses.add( new Boolean( join.isInverse() ) );
-			isNullables.add( new Boolean( join.isOptional() ) );
-			isLazies.add( new Boolean( lazyAvailable && join.isLazy() ) );
+			isConcretes.add( persistentClass.isClassOrSuperclassJoin(join) );
+			isDeferreds.add( join.isSequentialSelect() );
+			isInverses.add( join.isInverse() );
+			isNullables.add( join.isOptional() );
+			isLazies.add( lazyAvailable && join.isLazy() );
 			if ( join.isSequentialSelect() && !persistentClass.isClassOrSuperclassJoin(join) ) hasDeferred = true;
 			subclassTables.add( join.getTable().getQualifiedName( 
 					factory.getDialect(), 
@@ -368,7 +378,7 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		iter = persistentClass.getSubclassPropertyClosureIterator();
 		while ( iter.hasNext() ) {
 			Property prop = (Property) iter.next();
-			Integer join = new Integer( persistentClass.getJoinNumber(prop) );
+			Integer join = persistentClass.getJoinNumber(prop);
 			propertyJoinNumbers.add(join);
 
 			//propertyTableNumbersByName.put( prop.getName(), join );
@@ -436,6 +446,280 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		
 		postConstruct(mapping);
 
+	}
+
+	public SingleTableEntityPersister(
+			final EntityBinding entityBinding,
+			final EntityRegionAccessStrategy cacheAccessStrategy,
+			final SessionFactoryImplementor factory,
+			final Mapping mapping) throws HibernateException {
+
+		super( entityBinding, cacheAccessStrategy, factory );
+
+		// CLASS + TABLE
+
+		// TODO: fix when joins are working (HHH-6391)
+		//joinSpan = entityBinding.getJoinClosureSpan() + 1;
+		joinSpan = 1;
+		qualifiedTableNames = new String[joinSpan];
+		isInverseTable = new boolean[joinSpan];
+		isNullableTable = new boolean[joinSpan];
+		keyColumnNames = new String[joinSpan][];
+
+		final TableSpecification table = entityBinding.getPrimaryTable();
+		qualifiedTableNames[0] = table.getQualifiedName( factory.getDialect() );
+		isInverseTable[0] = false;
+		isNullableTable[0] = false;
+		keyColumnNames[0] = getIdentifierColumnNames();
+		cascadeDeleteEnabled = new boolean[joinSpan];
+
+		// Custom sql
+		customSQLInsert = new String[joinSpan];
+		customSQLUpdate = new String[joinSpan];
+		customSQLDelete = new String[joinSpan];
+		insertCallable = new boolean[joinSpan];
+		updateCallable = new boolean[joinSpan];
+		deleteCallable = new boolean[joinSpan];
+		insertResultCheckStyles = new ExecuteUpdateResultCheckStyle[joinSpan];
+		updateResultCheckStyles = new ExecuteUpdateResultCheckStyle[joinSpan];
+		deleteResultCheckStyles = new ExecuteUpdateResultCheckStyle[joinSpan];
+
+		initializeCustomSql( entityBinding.getCustomInsert(), 0, customSQLInsert, insertCallable, insertResultCheckStyles );
+		initializeCustomSql( entityBinding.getCustomUpdate(), 0, customSQLUpdate, updateCallable, updateResultCheckStyles );
+		initializeCustomSql( entityBinding.getCustomDelete(), 0, customSQLDelete, deleteCallable, deleteResultCheckStyles );
+
+		// JOINS
+
+		// TODO: add join stuff when HHH-6391 is working
+
+		constraintOrderedTableNames = new String[qualifiedTableNames.length];
+		constraintOrderedKeyColumnNames = new String[qualifiedTableNames.length][];
+		for ( int i = qualifiedTableNames.length - 1, position = 0; i >= 0; i--, position++ ) {
+			constraintOrderedTableNames[position] = qualifiedTableNames[i];
+			constraintOrderedKeyColumnNames[position] = keyColumnNames[i];
+		}
+
+		spaces = ArrayHelper.join(
+				qualifiedTableNames,
+				ArrayHelper.toStringArray( entityBinding.getSynchronizedTableNames() )
+		);
+
+		final boolean lazyAvailable = isInstrumented();
+
+		boolean hasDeferred = false;
+		ArrayList subclassTables = new ArrayList();
+		ArrayList joinKeyColumns = new ArrayList();
+		ArrayList<Boolean> isConcretes = new ArrayList<Boolean>();
+		ArrayList<Boolean> isDeferreds = new ArrayList<Boolean>();
+		ArrayList<Boolean> isInverses = new ArrayList<Boolean>();
+		ArrayList<Boolean> isNullables = new ArrayList<Boolean>();
+		ArrayList<Boolean> isLazies = new ArrayList<Boolean>();
+		subclassTables.add( qualifiedTableNames[0] );
+		joinKeyColumns.add( getIdentifierColumnNames() );
+		isConcretes.add(Boolean.TRUE);
+		isDeferreds.add(Boolean.FALSE);
+		isInverses.add(Boolean.FALSE);
+		isNullables.add(Boolean.FALSE);
+		isLazies.add(Boolean.FALSE);
+
+		// TODO: add join stuff when HHH-6391 is working
+
+
+		subclassTableSequentialSelect = ArrayHelper.toBooleanArray(isDeferreds);
+		subclassTableNameClosure = ArrayHelper.toStringArray(subclassTables);
+		subclassTableIsLazyClosure = ArrayHelper.toBooleanArray(isLazies);
+		subclassTableKeyColumnClosure = ArrayHelper.to2DStringArray( joinKeyColumns );
+		isClassOrSuperclassTable = ArrayHelper.toBooleanArray(isConcretes);
+		isInverseSubclassTable = ArrayHelper.toBooleanArray(isInverses);
+		isNullableSubclassTable = ArrayHelper.toBooleanArray(isNullables);
+		hasSequentialSelects = hasDeferred;
+
+		// DISCRIMINATOR
+
+		final Object discriminatorValue;
+		if ( entityBinding.isPolymorphic() ) {
+			SimpleValue discriminatorRelationalValue = entityBinding.getHierarchyDetails().getEntityDiscriminator().getBoundValue();
+			if ( discriminatorRelationalValue == null ) {
+				throw new MappingException("discriminator mapping required for single table polymorphic persistence");
+			}
+			forceDiscriminator = entityBinding.getHierarchyDetails().getEntityDiscriminator().isForced();
+			if ( DerivedValue.class.isInstance( discriminatorRelationalValue ) ) {
+				DerivedValue formula = ( DerivedValue ) discriminatorRelationalValue;
+				discriminatorFormula = formula.getExpression();
+				discriminatorFormulaTemplate = getTemplateFromString( formula.getExpression(), factory );
+				discriminatorColumnName = null;
+				discriminatorColumnReaders = null;
+				discriminatorColumnReaderTemplate = null;
+				discriminatorAlias = "clazz_";
+			}
+			else {
+				org.hibernate.metamodel.relational.Column column = ( org.hibernate.metamodel.relational.Column ) discriminatorRelationalValue;
+				discriminatorColumnName = column.getColumnName().encloseInQuotesIfQuoted( factory.getDialect() );
+				discriminatorColumnReaders =
+						column.getReadFragment() == null ?
+								column.getColumnName().encloseInQuotesIfQuoted( factory.getDialect() ) :
+								column.getReadFragment();
+				discriminatorColumnReaderTemplate = getTemplateFromColumn( column, factory );
+				discriminatorAlias = column.getAlias( factory.getDialect() );
+				discriminatorFormula = null;
+				discriminatorFormulaTemplate = null;
+			}
+
+			discriminatorType = entityBinding.getHierarchyDetails()
+					.getEntityDiscriminator()
+					.getExplicitHibernateTypeDescriptor()
+					.getResolvedTypeMapping();
+			if ( entityBinding.getDiscriminatorMatchValue() == null ) {
+				discriminatorValue = NULL_DISCRIMINATOR;
+				discriminatorSQLValue = InFragment.NULL;
+				discriminatorInsertable = false;
+			}
+			else if ( entityBinding.getDiscriminatorMatchValue().equals( NULL_STRING ) ) {
+				discriminatorValue = NOT_NULL_DISCRIMINATOR;
+				discriminatorSQLValue = InFragment.NOT_NULL;
+				discriminatorInsertable = false;
+			}
+			else if ( entityBinding.getDiscriminatorMatchValue().equals( NOT_NULL_STRING ) ) {
+				discriminatorValue = NOT_NULL_DISCRIMINATOR;
+				discriminatorSQLValue = InFragment.NOT_NULL;
+				discriminatorInsertable = false;
+			}
+			else {
+				discriminatorInsertable = entityBinding.getHierarchyDetails().getEntityDiscriminator().isInserted()
+						&& ! DerivedValue.class.isInstance( discriminatorRelationalValue );
+				try {
+					DiscriminatorType dtype = ( DiscriminatorType ) discriminatorType;
+					discriminatorValue = dtype.stringToObject( entityBinding.getDiscriminatorMatchValue() );
+					discriminatorSQLValue = dtype.objectToSQLString( discriminatorValue, factory.getDialect() );
+				}
+				catch (ClassCastException cce) {
+					throw new MappingException("Illegal discriminator type: " + discriminatorType.getName() );
+				}
+				catch (Exception e) {
+					throw new MappingException("Could not format discriminator value to SQL string", e);
+				}
+			}
+		}
+		else {
+			forceDiscriminator = false;
+			discriminatorInsertable = false;
+			discriminatorColumnName = null;
+			discriminatorColumnReaders = null;
+			discriminatorColumnReaderTemplate = null;
+			discriminatorAlias = null;
+			discriminatorType = null;
+			discriminatorValue = null;
+			discriminatorSQLValue = null;
+			discriminatorFormula = null;
+			discriminatorFormulaTemplate = null;
+		}
+
+		// PROPERTIES
+
+		propertyTableNumbers = new int[ getPropertySpan() ];
+		int i=0;
+		for( AttributeBinding attributeBinding : entityBinding.getAttributeBindingClosure() ) {
+			// TODO: fix when joins are working (HHH-6391)
+			//propertyTableNumbers[i++] = entityBinding.getJoinNumber( attributeBinding);
+			if ( attributeBinding == entityBinding.getHierarchyDetails().getEntityIdentifier().getValueBinding() ) {
+				continue; // skip identifier binding
+			}
+			if ( ! attributeBinding.getAttribute().isSingular() ) {
+				continue;
+			}
+			propertyTableNumbers[ i++ ] = 0;
+		}
+
+		//TODO: code duplication with JoinedSubclassEntityPersister
+
+		ArrayList columnJoinNumbers = new ArrayList();
+		ArrayList formulaJoinedNumbers = new ArrayList();
+		ArrayList propertyJoinNumbers = new ArrayList();
+
+		for ( AttributeBinding attributeBinding : entityBinding.getSubEntityAttributeBindingClosure() ) {
+			if ( ! attributeBinding.getAttribute().isSingular() ) {
+				continue;
+			}
+			SingularAttributeBinding singularAttributeBinding = (SingularAttributeBinding) attributeBinding;
+
+			// TODO: fix when joins are working (HHH-6391)
+			//int join = entityBinding.getJoinNumber(singularAttributeBinding);
+			int join = 0;
+			propertyJoinNumbers.add(join);
+
+			//propertyTableNumbersByName.put( singularAttributeBinding.getName(), join );
+			propertyTableNumbersByNameAndSubclass.put(
+					singularAttributeBinding.getContainer().getPathBase() + '.' + singularAttributeBinding.getAttribute().getName(),
+					join
+			);
+
+			for ( SimpleValueBinding simpleValueBinding : singularAttributeBinding.getSimpleValueBindings() ) {
+				if ( DerivedValue.class.isInstance( simpleValueBinding.getSimpleValue() ) ) {
+					formulaJoinedNumbers.add( join );
+				}
+				else {
+					columnJoinNumbers.add( join );
+				}
+			}
+		}
+		subclassColumnTableNumberClosure = ArrayHelper.toIntArray(columnJoinNumbers);
+		subclassFormulaTableNumberClosure = ArrayHelper.toIntArray(formulaJoinedNumbers);
+		subclassPropertyTableNumberClosure = ArrayHelper.toIntArray(propertyJoinNumbers);
+
+		int subclassSpan = entityBinding.getSubEntityBindingClosureSpan() + 1;
+		subclassClosure = new String[subclassSpan];
+		subclassClosure[0] = getEntityName();
+		if ( entityBinding.isPolymorphic() ) {
+			subclassesByDiscriminatorValue.put( discriminatorValue, getEntityName() );
+		}
+
+		// SUBCLASSES
+		if ( entityBinding.isPolymorphic() ) {
+			int k=1;
+			for ( EntityBinding subEntityBinding : entityBinding.getPostOrderSubEntityBindingClosure() ) {
+				subclassClosure[k++] = subEntityBinding.getEntity().getName();
+				if ( subEntityBinding.isDiscriminatorMatchValueNull() ) {
+					subclassesByDiscriminatorValue.put( NULL_DISCRIMINATOR, subEntityBinding.getEntity().getName() );
+				}
+				else if ( subEntityBinding.isDiscriminatorMatchValueNotNull() ) {
+					subclassesByDiscriminatorValue.put( NOT_NULL_DISCRIMINATOR, subEntityBinding.getEntity().getName() );
+				}
+				else {
+					try {
+						DiscriminatorType dtype = (DiscriminatorType) discriminatorType;
+						subclassesByDiscriminatorValue.put(
+							dtype.stringToObject( subEntityBinding.getDiscriminatorMatchValue() ),
+							subEntityBinding.getEntity().getName()
+						);
+					}
+					catch (ClassCastException cce) {
+						throw new MappingException("Illegal discriminator type: " + discriminatorType.getName() );
+					}
+					catch (Exception e) {
+						throw new MappingException("Error parsing discriminator value", e);
+					}
+				}
+			}
+		}
+
+		initLockers();
+
+		initSubclassPropertyAliasesMap( entityBinding );
+
+		postConstruct( mapping );
+	}
+
+	private static void initializeCustomSql(
+			CustomSQL customSql,
+			int i,
+			String[] sqlStrings,
+			boolean[] callable,
+			ExecuteUpdateResultCheckStyle[] checkStyles) {
+		sqlStrings[i] = customSql != null ?  customSql.getSql(): null;
+		callable[i] = sqlStrings[i] != null && customSql.isCallable();
+		checkStyles[i] = customSql != null && customSql.getCheckStyle() != null ?
+				customSql.getCheckStyle() :
+				ExecuteUpdateResultCheckStyle.determineDefault( sqlStrings[i], callable[i] );
 	}
 
 	protected boolean isInverseTable(int j) {
@@ -656,7 +940,7 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		for ( int i=0; i<props.length; i++ ) {
 			int propTableNumber = getSubclassPropertyTableNumber( props[i], classes[i] );
 			if ( isSubclassTableSequentialSelect(propTableNumber) && !isSubclassTableLazy(propTableNumber) ) {
-				tableNumbers.add( new Integer(propTableNumber) );
+				tableNumbers.add( propTableNumber);
 			}
 		}
 		if ( tableNumbers.isEmpty() ) return null;
@@ -665,8 +949,8 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		ArrayList columnNumbers = new ArrayList();
 		final int[] columnTableNumbers = getSubclassColumnTableNumberClosure();
 		for ( int i=0; i<getSubclassColumnClosure().length; i++ ) {
-			if ( tableNumbers.contains( new Integer( columnTableNumbers[i] ) ) ) {
-				columnNumbers.add( new Integer(i) );
+			if ( tableNumbers.contains( columnTableNumbers[i] ) ) {
+				columnNumbers.add( i );
 			}
 		}
 		
@@ -674,8 +958,8 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		ArrayList formulaNumbers = new ArrayList();
 		final int[] formulaTableNumbers = getSubclassColumnTableNumberClosure();
 		for ( int i=0; i<getSubclassFormulaTemplateClosure().length; i++ ) {
-			if ( tableNumbers.contains( new Integer( formulaTableNumbers[i] ) ) ) {
-				formulaNumbers.add( new Integer(i) );
+			if ( tableNumbers.contains( formulaTableNumbers[i] ) ) {
+				formulaNumbers.add( i );
 			}
 		}
 		

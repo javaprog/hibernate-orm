@@ -55,10 +55,10 @@ import org.hibernate.ejb.test.pack.externaljar.Scooter;
 import org.hibernate.ejb.test.pack.spacepar.Bug;
 import org.hibernate.ejb.test.pack.various.Airplane;
 import org.hibernate.ejb.test.pack.various.Seat;
-import org.hibernate.engine.SessionImplementor;
-import org.hibernate.event.EventType;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.event.spi.EventType;
 import org.hibernate.internal.util.ConfigHelper;
-import org.hibernate.service.event.spi.EventListenerRegistry;
+import org.hibernate.event.service.spi.EventListenerRegistry;
 import org.hibernate.stat.Statistics;
 
 import org.junit.Test;

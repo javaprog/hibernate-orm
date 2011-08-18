@@ -22,18 +22,22 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.envers;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+
 import org.hibernate.HibernateException;
+import org.hibernate.envers.exception.AuditException;
 import org.hibernate.envers.exception.NotAuditedException;
 import org.hibernate.envers.exception.RevisionDoesNotExistException;
 import org.hibernate.envers.query.AuditQueryCreator;
 
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * @author Adam Warski (adam at warski dot org)
  * @author Hern&aacute;n Chanfreau
+ * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 public interface AuditReader {
     /**
@@ -189,8 +193,7 @@ public interface AuditReader {
 	/**
 	 * Checks if the entityName was configured to be audited.
 	 * 
-	 * @param entityClass
-	 *            EntityName of the entity asking for audit support.
+	 * @param entityName EntityName of the entity asking for audit support.
 	 * @return true if the entityName is audited.
 	 */
 	boolean isEntityNameAudited(String entityName);	
@@ -206,5 +209,19 @@ public interface AuditReader {
 	 */
 	String getEntityName(Object primaryKey, Number revision, Object entity)
 			throws HibernateException;
-	
+
+    /**
+     * @return Basic implementation of {@link CrossTypeRevisionChangesReader} interface. Raises an exception if the default
+     *         mechanism of tracking entity names modified during revisions has not been enabled. 
+     * @throws AuditException If none of the following conditions is satisfied:
+     *                        <ul>
+     *                        <li><code>org.hibernate.envers.track_entities_changed_in_revision</code>
+     *                            parameter is set to <code>true</code>.</li>
+     *                        <li>Custom revision entity (annotated with {@link RevisionEntity})
+     *                            extends {@link DefaultTrackingModifiedEntitiesRevisionEntity} base class.</li>
+     *                        <li>Custom revision entity (annotated with {@link RevisionEntity}) encapsulates a field
+     *                            marked with {@link ModifiedEntityNames} interface.</li>
+     *                        </ul>
+     */
+    public CrossTypeRevisionChangesReader getCrossTypeRevisionChangesReader() throws AuditException;
 }

@@ -22,6 +22,7 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.type;
+
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.sql.PreparedStatement;
@@ -29,18 +30,19 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Map;
+
 import org.dom4j.Node;
+
 import org.hibernate.EntityMode;
 import org.hibernate.FetchMode;
-import org.hibernate.Hibernate;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.TransientObjectException;
-import org.hibernate.engine.CascadeStyle;
-import org.hibernate.engine.ForeignKeys;
-import org.hibernate.engine.Mapping;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.engine.internal.ForeignKeys;
+import org.hibernate.engine.spi.CascadeStyle;
+import org.hibernate.engine.spi.Mapping;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.metamodel.relational.Size;
 import org.hibernate.persister.entity.Joinable;
@@ -60,7 +62,7 @@ public class AnyType extends AbstractType implements CompositeType, AssociationT
 		this.metaType = metaType;
 	}
 
-	public Object deepCopy(Object value, EntityMode entityMode, SessionFactoryImplementor factory)
+	public Object deepCopy(Object value, SessionFactoryImplementor factory)
 	throws HibernateException {
 		return value;
 	}
@@ -69,11 +71,11 @@ public class AnyType extends AbstractType implements CompositeType, AssociationT
 		return false;
 	}
 
-	public boolean isSame(Object x, Object y, EntityMode entityMode) throws HibernateException {
+	public boolean isSame(Object x, Object y) throws HibernateException {
 		return x==y;
 	}
 
-	public int compare(Object x, Object y, EntityMode entityMode) {
+	public int compare(Object x, Object y) {
 		return 0; //TODO: entities CAN be compared, by PK and entity name, fix this!
 	}
 
@@ -196,10 +198,11 @@ public class AnyType extends AbstractType implements CompositeType, AssociationT
 	public String toLoggableString(Object value, SessionFactoryImplementor factory) 
 	throws HibernateException {
 		//TODO: terrible implementation!
-		return value==null ?
-				"null" :
-				Hibernate.entity( HibernateProxyHelper.getClassWithoutInitializingProxy(value) )
-						.toLoggableString(value, factory);
+		return value == null
+				? "null"
+				: factory.getTypeHelper()
+						.entity( HibernateProxyHelper.getClassWithoutInitializingProxy( value ) )
+						.toLoggableString( value, factory );
 	}
 
 	public Object fromXMLNode(Node xml, Mapping factory) throws HibernateException {
@@ -253,11 +256,11 @@ public class AnyType extends AbstractType implements CompositeType, AssociationT
 		}
 		else {
 			String entityName = session.bestGuessEntityName(original);
-			Serializable id = ForeignKeys.getEntityIdentifierIfNotUnsaved( 
-					entityName, 
-					original, 
-					session 
-				);
+			Serializable id = ForeignKeys.getEntityIdentifierIfNotUnsaved(
+					entityName,
+					original,
+					session
+			);
 			return session.internalLoad( 
 					entityName, 
 					id, 

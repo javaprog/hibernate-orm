@@ -23,7 +23,7 @@
  */
 package org.hibernate.metamodel.relational;
 
-import java.util.ArrayList;
+import org.hibernate.dialect.Dialect;
 
 /**
  * Models what ANSI SQL terms a table specification which is a table or a view or an inline view.
@@ -39,6 +39,13 @@ public interface TableSpecification extends ValueContainer, Loggable {
 	public Schema getSchema();
 
 	/**
+	 * Get the table number.
+	 *
+	 * @return the table number.
+	 */
+	public int getTableNumber();
+
+	/**
 	 * Get the primary key definition for this table spec.
 	 *
 	 * @return The PK definition.
@@ -52,7 +59,7 @@ public interface TableSpecification extends ValueContainer, Loggable {
 	 *
 	 * @return The generated column
 	 */
-	public Column createColumn(String name);
+	public Column locateOrCreateColumn(String name);
 
 	/**
 	 * Factory method for creating a {@link Column} associated with this container.
@@ -70,7 +77,7 @@ public interface TableSpecification extends ValueContainer, Loggable {
 	 *
 	 * @return The generated value.
 	 */
-	public DerivedValue createDerivedValue(String fragment);
+	public DerivedValue locateOrCreateDerivedValue(String fragment);
 
 	public Iterable<ForeignKey> getForeignKeys();
 
@@ -84,11 +91,13 @@ public interface TableSpecification extends ValueContainer, Loggable {
 
 	public UniqueKey getOrCreateUniqueKey(String name);
 
-	public Iterable<String> getCheckConstraints();
+	public Iterable<CheckConstraint> getCheckConstraints();
 
 	public void addCheckConstraint(String checkCondition);
 
 	public Iterable<String> getComments();
 
 	public void addComment(String comment);
+
+	public String getQualifiedName(Dialect dialect);
 }

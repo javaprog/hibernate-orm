@@ -66,6 +66,9 @@ import org.hibernate.AnnotationException;
 import org.hibernate.DuplicateMappingException;
 import org.hibernate.EmptyInterceptor;
 import org.hibernate.HibernateException;
+import org.hibernate.engine.spi.FilterDefinition;
+import org.hibernate.engine.spi.Mapping;
+import org.hibernate.engine.spi.NamedQueryDefinition;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.Interceptor;
 import org.hibernate.InvalidMappingException;
@@ -83,17 +86,14 @@ import org.hibernate.cfg.annotations.reflection.JPAMetadataProvider;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.MySQLDialect;
 import org.hibernate.dialect.function.SQLFunction;
-import org.hibernate.engine.FilterDefinition;
-import org.hibernate.engine.Mapping;
-import org.hibernate.engine.NamedQueryDefinition;
-import org.hibernate.engine.NamedSQLQueryDefinition;
+import org.hibernate.engine.spi.NamedSQLQueryDefinition;
 import org.hibernate.engine.ResultSetMappingDefinition;
 import org.hibernate.id.IdentifierGenerator;
 import org.hibernate.id.IdentifierGeneratorAggregator;
 import org.hibernate.id.PersistentIdentifierGenerator;
 import org.hibernate.id.factory.DefaultIdentifierGeneratorFactory;
 import org.hibernate.id.factory.IdentifierGeneratorFactory;
-import org.hibernate.impl.SessionFactoryImpl;
+import org.hibernate.internal.SessionFactoryImpl;
 import org.hibernate.internal.util.ConfigHelper;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.internal.util.SerializationHelper;
@@ -128,8 +128,9 @@ import org.hibernate.mapping.Table;
 import org.hibernate.mapping.TypeDef;
 import org.hibernate.mapping.UniqueKey;
 import org.hibernate.proxy.EntityNotFoundDelegate;
-import org.hibernate.secure.JACCConfiguration;
+import org.hibernate.secure.internal.JACCConfiguration;
 import org.hibernate.service.ServiceRegistry;
+import org.hibernate.service.ServiceRegistryBuilder;
 import org.hibernate.service.internal.BasicServiceRegistryImpl;
 import org.hibernate.tool.hbm2ddl.DatabaseMetadata;
 import org.hibernate.tool.hbm2ddl.IndexMetadata;
@@ -158,24 +159,19 @@ import org.hibernate.usertype.UserType;
  *
  * @author Gavin King
  * @see org.hibernate.SessionFactory
+ *
+ * @deprecated use {@link ServiceRegistryBuilder} and {@link org.hibernate.metamodel.MetadataSources} instead.  See
+ * <a href="http://opensource.atlassian.com/projects/hibernate/browse/HHH-6183">HHH-6183</a> and
+ * <a href="http://opensource.atlassian.com/projects/hibernate/browse/HHH-2578">HHH-2578</a> for details
  */
+@Deprecated
 public class Configuration implements Serializable {
 
     private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, Configuration.class.getName());
 
-	/**
-	 * Setting used to give the name of the default {@link org.hibernate.annotations.CacheConcurrencyStrategy}
-	 * to use when either {@link javax.persistence.Cacheable @Cacheable} or
-	 * {@link org.hibernate.annotations.Cache @Cache} is used.  {@link org.hibernate.annotations.Cache @Cache(strategy="..")} is used to override.
-	 */
-	public static final String DEFAULT_CACHE_CONCURRENCY_STRATEGY = "hibernate.cache.default_cache_concurrency_strategy";
+	public static final String DEFAULT_CACHE_CONCURRENCY_STRATEGY = AvailableSettings.DEFAULT_CACHE_CONCURRENCY_STRATEGY;
 
-	/**
-	 * Setting which indicates whether or not the new {@link org.hibernate.id.IdentifierGenerator} are used
-	 * for AUTO, TABLE and SEQUENCE.
-	 * Default to false to keep backward compatibility.
-	 */
-	public static final String USE_NEW_ID_GENERATOR_MAPPINGS = "hibernate.id.new_generator_mappings";
+	public static final String USE_NEW_ID_GENERATOR_MAPPINGS = AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS;
 
 	public static final String ARTEFACT_PROCESSING_ORDER = "hibernate.mapping.precedence";
 
@@ -767,7 +763,7 @@ public class Configuration implements Serializable {
 	 * @throws MappingException in case there is an error in the mapping data
 	 */
 	public Configuration addPackage(String packageName) throws MappingException {
-        LOG.mappingPackage(packageName);
+        LOG.debugf( "Mapping Package %s", packageName );
 		try {
 			AnnotationBinder.bindPackage( packageName, createMappings() );
 			return this;
@@ -1744,7 +1740,7 @@ public class Configuration implements Serializable {
 	public SessionFactory buildSessionFactory() throws HibernateException {
 		Environment.verifyProperties( properties );
 		ConfigurationHelper.resolvePlaceHolders( properties );
-		final ServiceRegistry serviceRegistry =  new BasicServiceRegistryImpl( properties );
+		final ServiceRegistry serviceRegistry =  new ServiceRegistryBuilder( properties ).buildServiceRegistry();
 		setSessionFactoryObserver(
 				new SessionFactoryObserver() {
 					@Override
@@ -3041,7 +3037,7 @@ public class Configuration implements Serializable {
 		@SuppressWarnings({ "UnnecessaryUnboxing" })
 		public boolean useNewGeneratorMappings() {
 			if ( useNewGeneratorMappings == null ) {
-				final String booleanName = getConfigurationProperties().getProperty( USE_NEW_ID_GENERATOR_MAPPINGS );
+				final String booleanName = getConfigurationProperties().getProperty( AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS );
 				useNewGeneratorMappings = Boolean.valueOf( booleanName );
 			}
 			return useNewGeneratorMappings.booleanValue();

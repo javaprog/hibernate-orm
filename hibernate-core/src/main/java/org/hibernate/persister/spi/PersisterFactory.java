@@ -24,13 +24,16 @@
 package org.hibernate.persister.spi;
 
 import org.hibernate.HibernateException;
-import org.hibernate.cache.access.CollectionRegionAccessStrategy;
-import org.hibernate.cache.access.EntityRegionAccessStrategy;
+import org.hibernate.cache.spi.access.CollectionRegionAccessStrategy;
+import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
 import org.hibernate.cfg.Configuration;
-import org.hibernate.engine.Mapping;
-import org.hibernate.engine.SessionFactoryImplementor;
+import org.hibernate.engine.spi.Mapping;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.mapping.Collection;
 import org.hibernate.mapping.PersistentClass;
+import org.hibernate.metamodel.binding.EntityBinding;
+import org.hibernate.metamodel.binding.PluralAttributeBinding;
+import org.hibernate.metamodel.source.MetadataImplementor;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.service.Service;
@@ -42,7 +45,7 @@ import org.hibernate.service.Service;
  */
 public interface PersisterFactory extends Service {
 
-	// TODO: is it really neceassry to provide Configuration to CollectionPersisters ?
+	// TODO: is it really necessary to provide Configuration to CollectionPersisters ?
 	// Should it not be enough with associated class ? or why does EntityPersister's not get access to configuration ?
 	//
 	// The only reason I could see that Configuration gets passed to collection persisters
@@ -70,6 +73,24 @@ public interface PersisterFactory extends Service {
 			Mapping cfg) throws HibernateException;
 
 	/**
+	 * Create an entity persister instance.
+	 *
+	 * @param model The O/R mapping metamodel definition for the entity
+	 * @param cacheAccessStrategy The caching strategy for this entity
+	 * @param factory The session factory
+	 * @param cfg The overall mapping
+	 *
+	 * @return An appropriate entity persister instance.
+	 *
+	 * @throws HibernateException Indicates a problem building the persister.
+	 */
+	public EntityPersister createEntityPersister(
+			EntityBinding model,
+			EntityRegionAccessStrategy cacheAccessStrategy,
+			SessionFactoryImplementor factory,
+			Mapping cfg) throws HibernateException;
+
+	/**
 	 * Create a collection persister instance.
 	 *
 	 * @param cfg The configuration
@@ -86,4 +107,23 @@ public interface PersisterFactory extends Service {
 			Collection model,
 			CollectionRegionAccessStrategy cacheAccessStrategy,
 			SessionFactoryImplementor factory) throws HibernateException;
+
+	/**
+	 * Create a collection persister instance.
+	 *
+	 * @param metadata The metadata
+	 * @param model The O/R mapping metamodel definition for the collection
+	 * @param cacheAccessStrategy The caching strategy for this collection
+	 * @param factory The session factory
+	 *
+	 * @return An appropriate collection persister instance.
+	 *
+	 * @throws HibernateException Indicates a problem building the persister.
+	 */
+	public CollectionPersister createCollectionPersister(
+			MetadataImplementor metadata,
+			PluralAttributeBinding model,
+			CollectionRegionAccessStrategy cacheAccessStrategy,
+			SessionFactoryImplementor factory) throws HibernateException;
+
 }

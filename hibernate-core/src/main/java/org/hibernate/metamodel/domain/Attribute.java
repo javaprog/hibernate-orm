@@ -24,7 +24,7 @@
 package org.hibernate.metamodel.domain;
 
 /**
- * Desribes an attribute.
+ * Describes an attribute.
  *
  * @author Steve Ebersole
  */

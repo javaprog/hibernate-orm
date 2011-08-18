@@ -33,16 +33,15 @@ import javax.validation.Validation;
 import javax.validation.Validator;
 import javax.validation.ValidatorFactory;
 import org.hibernate.EntityMode;
+import org.hibernate.event.spi.PreDeleteEvent;
+import org.hibernate.event.spi.PreInsertEventListener;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.cfg.Configuration;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.event.Initializable;
-import org.hibernate.event.PreDeleteEvent;
-import org.hibernate.event.PreDeleteEventListener;
-import org.hibernate.event.PreInsertEvent;
-import org.hibernate.event.PreInsertEventListener;
-import org.hibernate.event.PreUpdateEvent;
-import org.hibernate.event.PreUpdateEventListener;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.event.spi.PreDeleteEventListener;
+import org.hibernate.event.spi.PreInsertEvent;
+import org.hibernate.event.spi.PreUpdateEvent;
+import org.hibernate.event.spi.PreUpdateEventListener;
 import org.hibernate.persister.entity.EntityPersister;
 
 import org.jboss.logging.Logger;
@@ -54,8 +53,8 @@ import org.jboss.logging.Logger;
  * @author Hardy Ferentschik
  */
 //FIXME review exception model
-public class BeanValidationEventListener implements
-		PreInsertEventListener, PreUpdateEventListener, PreDeleteEventListener, Initializable {
+public class BeanValidationEventListener
+		implements PreInsertEventListener, PreUpdateEventListener, PreDeleteEventListener {
 
     private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
                                                                        BeanValidationEventListener.class.getName());
@@ -92,7 +91,7 @@ public class BeanValidationEventListener implements
 
 	public boolean onPreInsert(PreInsertEvent event) {
 		validate(
-				event.getEntity(), event.getSession().getEntityMode(), event.getPersister(),
+				event.getEntity(), event.getPersister().getEntityMode(), event.getPersister(),
 				event.getSession().getFactory(), GroupsPerOperation.Operation.INSERT
 		);
 		return false;
@@ -100,7 +99,7 @@ public class BeanValidationEventListener implements
 
 	public boolean onPreUpdate(PreUpdateEvent event) {
 		validate(
-				event.getEntity(), event.getSession().getEntityMode(), event.getPersister(),
+				event.getEntity(), event.getPersister().getEntityMode(), event.getPersister(),
 				event.getSession().getFactory(), GroupsPerOperation.Operation.UPDATE
 		);
 		return false;
@@ -108,7 +107,7 @@ public class BeanValidationEventListener implements
 
 	public boolean onPreDelete(PreDeleteEvent event) {
 		validate(
-				event.getEntity(), event.getSession().getEntityMode(), event.getPersister(),
+				event.getEntity(), event.getPersister().getEntityMode(), event.getPersister(),
 				event.getSession().getFactory(), GroupsPerOperation.Operation.DELETE
 		);
 		return false;

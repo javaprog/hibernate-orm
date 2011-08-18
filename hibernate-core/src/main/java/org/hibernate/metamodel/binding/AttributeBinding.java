@@ -23,17 +23,13 @@
  */
 package org.hibernate.metamodel.binding;
 
-import java.util.Map;
+import java.util.Set;
 
-import org.hibernate.FetchMode;
-import org.hibernate.mapping.MetaAttribute;
 import org.hibernate.metamodel.domain.Attribute;
-import org.hibernate.metamodel.relational.SimpleValue;
-import org.hibernate.metamodel.relational.TableSpecification;
-import org.hibernate.metamodel.relational.Value;
+import org.hibernate.metamodel.source.MetaAttributeContext;
 
 /**
- * The basic contract for binding between an {@link #getAttribute() attribute} and a {@link #getValue() value}
+ * The basic contract for binding a {@link #getAttribute() attribute} from the domain model to the relational model.
  *
  * @author Steve Ebersole
  */
@@ -43,7 +39,7 @@ public interface AttributeBinding {
 	 *
 	 * @return The entity binding.
 	 */
-	public EntityBinding getEntityBinding();
+	public AttributeBindingContainer getContainer();
 
 	/**
 	 * Obtain the attribute bound.
@@ -53,75 +49,41 @@ public interface AttributeBinding {
 	public Attribute getAttribute();
 
 	/**
-	 * Set the attribute being bound.
-	 *
-	 * @param attribute The attribute
-	 */
-	public void setAttribute(Attribute attribute);
-
-	/**
-	 * Obtain the value bound
-	 *
-	 * @return The value
-	 */
-	public Value getValue();
-
-	/**
-	 * Set the value being bound.
-	 *
-	 * @param value The value
-	 */
-	public void setValue(Value value);
-
-	/**
-	 * Obtain the descriptor for the Hibernate Type for this binding.
+	 * Obtain the descriptor for the Hibernate {@link org.hibernate.type.Type} for this binding.
+	 * <p/>
+	 * For information about the Java type, query the {@link Attribute} obtained from {@link #getAttribute()}
+	 * instead.
 	 *
 	 * @return The type descriptor
 	 */
 	public HibernateTypeDescriptor getHibernateTypeDescriptor();
 
+	public boolean isAssociation();
+
+	public boolean isBasicPropertyAccessor();
+
+	public String getPropertyAccessorName();
+
+	public void setPropertyAccessorName(String propertyAccessorName);
+
+	public boolean isIncludedInOptimisticLocking();
+
+	public void setIncludedInOptimisticLocking(boolean includedInOptimisticLocking);
+
 	/**
-	 * Obtain the map of meta attributes associated with this binding
+	 * Obtain the meta attributes associated with this binding
 	 *
 	 * @return The meta attributes
 	 */
-	public Map<String, MetaAttribute> getMetaAttributes();
-
-	/**
-	 * Set the meta attribute map associated with this binding
-	 *
-	 * @param metaAttributes The meta attributes
-	 */
-	public void setMetaAttributes(Map<String, MetaAttribute> metaAttributes);
-
-	/**
-	 * In the case that {@link #getValue()} represnets a {@link org.hibernate.metamodel.relational.Tuple} this method
-	 * gives access to its compound values.  In the case of {@link org.hibernate.metamodel.relational.SimpleValue},
-	 * we return an Iterable over that single simple value.
-	 *
-	 * @return
-	 */
-	public Iterable<SimpleValue> getValues();
-
-	/**
-	 * @deprecated Use {@link #getValue()}.{@link Value#getTable() getTable()} instead; to be removed on completion of new metamodel code
-	 * @return
-	 */
-	@Deprecated
-	public TableSpecification getTable();
-
-	public FetchMode getFetchMode();
-	public void setFetchMode(FetchMode fetchMode);
-
-	/**
-	 *
-	 * @return
-	 */
-	public boolean hasFormula();
+	public MetaAttributeContext getMetaAttributeContext();
 
 	public boolean isAlternateUniqueKey();
-	public boolean isNullable();
-	public boolean[] getColumnUpdateability();
-	public boolean[] getColumnInsertability();
-	public boolean isSimpleValue();
+
+	public boolean isLazy();
+
+	public void addEntityReferencingAttributeBinding(SingularAssociationAttributeBinding attributeBinding);
+
+	public Set<SingularAssociationAttributeBinding> getEntityReferencingAttributeBindings();
+
+	public void validate();
 }

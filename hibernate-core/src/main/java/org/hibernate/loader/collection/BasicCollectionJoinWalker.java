@@ -29,15 +29,16 @@ import java.util.List;
 import org.hibernate.FetchMode;
 import org.hibernate.LockMode;
 import org.hibernate.MappingException;
-import org.hibernate.engine.CascadeStyle;
-import org.hibernate.engine.LoadQueryInfluencers;
-import org.hibernate.engine.SessionFactoryImplementor;
+import org.hibernate.engine.spi.CascadeStyle;
+import org.hibernate.engine.spi.LoadQueryInfluencers;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.loader.BasicLoader;
 import org.hibernate.loader.OuterJoinableAssociation;
 import org.hibernate.loader.PropertyPath;
 import org.hibernate.persister.collection.QueryableCollection;
 import org.hibernate.persister.entity.OuterJoinLoadable;
 import org.hibernate.sql.JoinFragment;
+import org.hibernate.sql.JoinType;
 import org.hibernate.sql.Select;
 import org.hibernate.type.AssociationType;
 import org.hibernate.internal.util.StringHelper;
@@ -138,7 +139,7 @@ public class BasicCollectionJoinWalker extends CollectionJoinWalker {
 		sql = select.toStatementString();
 	}
 
-	protected int getJoinType(
+	protected JoinType getJoinType(
 			OuterJoinLoadable persister,
 			PropertyPath path,
 			int propertyNumber,
@@ -149,7 +150,7 @@ public class BasicCollectionJoinWalker extends CollectionJoinWalker {
 			String[] lhsColumns,
 			boolean nullable,
 			int currentDepth) throws MappingException {
-		int joinType = super.getJoinType(
+		JoinType joinType = super.getJoinType(
 				persister,
 				path,
 				propertyNumber,
@@ -162,8 +163,8 @@ public class BasicCollectionJoinWalker extends CollectionJoinWalker {
 				currentDepth
 		);
 		//we can use an inner join for the many-to-many
-		if ( joinType==JoinFragment.LEFT_OUTER_JOIN && path.isRoot() ) {
-			joinType=JoinFragment.INNER_JOIN;
+		if ( joinType==JoinType.LEFT_OUTER_JOIN && path.isRoot() ) {
+			joinType=JoinType.INNER_JOIN;
 		}
 		return joinType;
 	}

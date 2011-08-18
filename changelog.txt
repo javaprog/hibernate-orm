@@ -5,8 +5,361 @@ match the actual issue resolution (i.e. a bug might not be a bug). Please
 refer to the particular case on JIRA using the issue tracking number to learn
 more about each case.
 
+
+Changes in version 4.0.0.CR1 (2011.08.17)
+------------------------------------------------------------------------------------------------------------------------
+https://hibernate.onjira.com/browse/HHH/fixforversion/11350
+
+** Bug
+    * [HHH-6543] - JBoss AS7 transaction manager jndi lookup is wrong
+    * [HHH-6547] - Basic properties cannot be made nullable in HBM XML
+    * [HHH-6560] - Discriminator match value is not initialized in root EntityBinding
+    * [HHH-6563] - NullPointerException using annotations source if a unique constraint is not mapped with a constraint name
+    * [HHH-6564] - JBoss AS6 and earlier transaction manager jndi lookup is wrong
+    * [HHH-6565] - Unique constraint columns that already exist in the table are not found
+
+** Improvement
+    * [HHH-6573] - change to use ClassLoaderService to locate service initiator
+
+** Patch
+    * [HHH-6370] - HSQLDB dialect - fixes reported issues and adds minor enhancement (Fred Toussi)
+
+** Task
+    * [HHH-6268] - Plumb MetadataImplementor into integrators
+    * [HHH-6337] - Add EntityBinding methods to support single-table inheritance
+    * [HHH-6410] - Update EntityBinding.getAttributeBindingClosureSpan() and getAttributeBindingClosure() to work for subclass EntityBindings
+    * [HHH-6498] - Update entity persisters and tuplizers to use EntityBinding superclass and subclass information
+
+
+Changes in version 4.0.0.Beta5 (2011.08.03)
+------------------------------------------------------------------------------------------------------------------------
+https://hibernate.onjira.com/browse/HHH/fixforversion/11251
+
+** Sub-task
+    * [HHH-6202] - Bind inheritance type
+    * [HHH-6212] - Handle secondary tables
+    * [HHH-6393] - Implement attribute overrides for embeddables
+    * [HHH-6430] - MappedAttribute should make use of HibernateTypeDescriptor
+    * [HHH-6476] - Implement AttributeSource.getPropertyAccessorName
+    * [HHH-6485] - Add support for @DiscriminatorFormula
+    * [HHH-6488] - Implement SimpleIdentifierSource#getIdentifierGeneratorDescriptor
+    * [HHH-6489] - Support @javax.persistence.Temporal
+    * [HHH-6490] - Support @javax.persistence.Lob
+    * [HHH-6501] - Support @org.hibernate.annotations.Parent
+    * [HHH-6520] - if no @GeneratedValue on an simple @Id property, then the generator strategy should be assigned
+    * [HHH-6521] - Column name is not quoted even the global quote identifier property is enabled
+    * [HHH-6535] - Support @org.hibernate.annotations.Target
+
+** Bug
+    * [HHH-1780] - negation of EXISTS in hql query does not work
+    * [HHH-4648] - Mapping exception when one class maps to multiple tables.
+    * [HHH-6469] - build error when using open jdk
+    * [HHH-6471] - Redesign how EntityBinding models hierarchy-shared information
+    * [HHH-6478] - Code cleanup in metamodel package
+    * [HHH-6479] - Split notions of locating and creating an attribute
+    * [HHH-6480] - Develop component binding for new metamodel
+    * [HHH-6495] - Components not handled correctly from annotations
+    * [HHH-6499] - NPE can be thrown by some implementations of Helper.ValueSourcesAdapter.isIncludedInInsertByDefault() and isIncludedInUpdateByDefault()
+    * [HHH-6500] - EntityBinding.getEntity().getSuperType() is null for subclass EntityBinding
+    * [HHH-6506] - Descriminator type is not resolved
+    * [HHH-6529] - Type is not resolved for plural attributes
+
+** Improvement
+    * [HHH-6472] - Implementing EntityDiscriminator and discriminator match value
+    * [HHH-6482] - ddl from schema export is not correctly formatted
+
+
+Changes in version 4.0.0.Beta4 (2011.07.20)
+------------------------------------------------------------------------------------------------------------------------
+https://hibernate.onjira.com/browse/HHH/fixforversion/11242
+
+** Sub-task
+    * [HHH-6392] - Implement attribute overrides for mapped super classes
+
+** Bug
+    * [HHH-2614] - Blob Length Set to 255 By Default With Derby DB
+    * [HHH-6380] - Annotations source maps SingleColumnType values to Tuple
+    * [HHH-6381] - using @SecondaryTable with optional=true not handled for joined subclasses (@Inheritance(strategy = InheritanceType.JOINED)
+    * [HHH-6401] - Create @OptimisticLocking annotation
+    * [HHH-6418] - org.hibernate.metamodel.relational.AuxiliaryDatabaseObject extends org.hibernate.mapping.RelationalModel
+    * [HHH-6419] - Thread Local bound session proxy does not let SessionImplementor#getFactory() go through on inactive transactions
+    * [HHH-6442] - JarVisitorFactory is reconstructing URLs without the URLStreamHandler association
+    * [HHH-6451] - adapt hibernate-ehcache to the new api
+    * [HHH-6456] - Test failure in CachedPropertyRefCollectionTest behind a proxy
+    * [HHH-6460] - AbstractEntityPersister is missing simple property information
+    * [HHH-6467] - Non-association attributes are not dirty-checked
+
+** Deprecation
+    * [HHH-6395] - Deprecate org.hibernate.annotations.Entity
+
+** Improvement
+    * [HHH-6417] - Make EventType more debugger friendly by implementing toString
+    * [HHH-6421] - Reduce log level of LazyInitializationException from ERROR to TRACE
+    * [HHH-6437] - Improve Database to track default Schema object
+    * [HHH-6447] - Develop shared binding creation approach
+
+** New Feature
+    * [HHH-6397] - Create @DynamicInsert annotation
+    * [HHH-6398] - Create @DynamicUpdate annotation
+    * [HHH-6399] - Create @SelectBeforeUpdate annotation
+    * [HHH-6400] - Create @Polymorphism annotation
+
+** Patch
+    * [HHH-4630] - Criteria join on composite identifier generates wrong alias, SQL error
+
+** Remove Feature
+    * [HHH-6402] - Remove previously deprecated annotations
+
+** Task
+    * [HHH-6257] - Add IdentifierGenerator to EntityIdentifier binding
+    * [HHH-6355] - Have attribute bindings return single, aggregated CascadeStyle
+    * [HHH-6357] - Add AttributeBinding.getFetchMode()
+    * [HHH-6371] - Develop metamodel binding creation using a push approach
+    * [HHH-6416] - Move AuxiliaryDatabaseObject into Database
+    * [HHH-6420] - SQL Server dialect is broken (Tomaz Cerar)
+    * [HHH-6444] - Integrate new metamodel into SchemaExport
+    * [HHH-6449] - Change Exportable.sqlCreateStrings/sqlDropStrings(MetadataImplementor) to take Dialect argument instead
+    * [HHH-6450] - Change length argument of Dialect.getTypeName() and TypeNames size/capacity to long
+    * [HHH-6453] - Enable new metamodel in BaseCoreFunctionalTestCase
+    * [HHH-6462] - Build fetch profiles, caches, current session context and transaction environment from new metadata
+
+
+Changes in version 4.0.0.Beta3 (2011.07.07)
+------------------------------------------------------------------------------------------------------------------------
+http://opensource.atlassian.com/projects/hibernate/browse/HHH/fixforversion/11241
+
+** Sub-task
+    * [HHH-6173] - Implement embedded entities (component) mapping
+    * [HHH-6201] - Handle mapped super classes
+    * [HHH-6352] - Add EntityBinding.getAttributeBindingClosureSpan() and getAttributeBindingClosure()
+    * [HHH-6358] - Integrate new metamodel into EntityMetamodel
+    * [HHH-6359] - Integrate new metamodel into entity tuplizers
+    * [HHH-6360] - Build basic properties from an AttributeBinding
+    * [HHH-6364] - Add AttributeBinding,getValuesSpan() and Tuple.valuesSpan()
+    * [HHH-6365] - Use Identifier.toIdentifier() to create column names
+    * [HHH-6366] - Add integer value to uniquely identify Table and InLineView objects for column aliases
+    * [HHH-6387] - Add EntityBinding.getFilterDefinitions() and addFilterDefinition()
+    * [HHH-6389] - Add TableSpecification.getQualifiedName(Dialect) and implement in subclasses
+    * [HHH-6411] - Integrate new metamodel into SingleTableEntityPersister
+** Bug
+    * [HHH-5917] - Envers doesnt track all columns anymore
+    * [HHH-6289] - Review log level for o.h.m.s.AnnotationBinder and related binder classes
+    * [HHH-6386] - sybase improvement
+    * [HHH-6394] - org.hibernate.metamodel.source.annotations.global.QueryBinder handles resultClass paramter of @NamedNativeQuery wrong
+    * [HHH-6408] - An empty (ie not null) hibernate.connection.isolation raises a java.lang.NumberFormatException
+Improvement
+    * [HHH-6406] - Move JBoss Transaction dependency from 4.14 to 4.15.1 (no more dependency hell)
+** Task
+    * [HHH-6278] - quote all db identifiers
+    * [HHH-6350] - Integrate new metamodel for a root entity with simple attributes and no joins
+    * [HHH-6368] - remove deprecated hibernate annotations
+    * [HHH-6372] - Provide a temporary way to initialize basic types in metamodel
+    * [HHH-6404] - Move Hibernate Search integrator from Hibernate Core to Hibernate Search
+    * [HHH-6407] - Add SimpleValue.getAlias(Dialect) and implement in subclasses
+
+
+Changes in version 4.0.0.Beta2 (2011.06.22)
+------------------------------------------------------------------------------------------------------------------------
+http://opensource.atlassian.com/projects/hibernate/browse/HHH/fixforversion/11231
+
+** Sub-task
+    * [HHH-5671] - Apply entity-mode information to the logical model
+    * [HHH-6319] - Add getter for attribute node name
+    * [HHH-6320] - Add boolean values and getters to EntityIdentifier indicating if an ID is embedded or "identifier mapper"
+    * [HHH-6321] - Add org.hibernate.metamodel.binding.CascadeType.toCascadeStyle()
+    * [HHH-6341] - Add AttributeBinding.isBasicPropertyAccessor()
+    * [HHH-6342] - Add EntityModeEntitySpecifics.getTuplizerClass()
+    * [HHH-6346] - Add EntityBinding.entityTuplizerClass(); change getEntityPersisterClass() to return Class<EntityPersister>
+
+** Bug
+    * [HHH-6177] - Envers - problem with mapping relation when using mixed inheritance strategy
+    * [HHH-6327] - NPE when using JDBC connection pool C3pO
+    * [HHH-6348] - POST_COMMIT_DELETE listener does not get executed
+
+** Remove Feature
+    * [HHH-6330] - Remove entity mode switching capability
+
+** Task
+    * [HHH-6297] - remove legacy cache api
+    * [HHH-6300] - Create EntityBindingState implementation for annotations
+    * [HHH-6301] - Metamodel changes in preparation for integrating metamodel into persisters
+    * [HHH-6307] - Upgrade to slf4j 1.6.1
+    * [HHH-6308] - Upgrade to Hibernate Validator 4.2.0.Final
+    * [HHH-6318] - Change EntityIdentifier.attributeBinding to be type SimpleAttributeBinding
+    * [HHH-6322] - upgrade to hibernate-jpa-2.0-api-1.0.1.Final
+    * [HHH-6333] - Create DeferredInitializationValue
+    * [HHH-6334] - Create JavaType for the metamodel
+    * [HHH-6335] - Change PojoEntitySpecifics to use JavaType for entity and proxy classes
+    * [HHH-6340] - Revisit EntityBindingState
+    * [HHH-6343] - Remove JavaClassNameResolver because it is not used
+
+
+Changes in version 4.0.0.Beta1 (2011.06.08)
+------------------------------------------------------------------------------------------------------------------------
+http://opensource.atlassian.com/projects/hibernate/browse/HHH/fixforversion/11222
+
+** Sub-task
+    * [HHH-6113] - Write orm.xml parser
+    * [HHH-6132] - Process and bind global configuration annotations
+    * [HHH-6133] - Enhance annotation based Jandex index with configuration extracted from orm.xml
+    * [HHH-6171] - Implement SimpleAttributeBinding relational and domain state using annotations
+    * [HHH-6174] - Create table binding
+    * [HHH-6207] - Bind o.h.a.Cache and j.p.Cachable
+    * [HHH-6246] - ConfiguredClass should honor default access from persistence-metadata-unit
+    * [HHH-6261] - Bind @GeneratedValue
+    * [HHH-6263] - Bind o.h.a.Proxy
+    * [HHH-6264] - Bind typedef information
+    * [HHH-6265] - Bind fetch profiles
+    * [HHH-6266] - Bind filter definitions
+    * [HHH-6273] - Bind identifier-generator definitions
+    * [HHH-6279] - Bind database object definitions
+    * [HHH-6281] - Basic HbmBinder cleanup
+
+** Bug
+    * [HHH-2176] - DB2 setMaxResults problem in Hibernate 3.1.3
+    * [HHH-2225] - NPE when eager fetching joined component with native SQL query
+    * [HHH-4760] - NotAuditedException occurs when auditReader.getRevisions() is called for javassist proxies
+    * [HHH-4943] - ilike support is incomplete
+    * [HHH-5572] - clean up Sybase job failures
+    * [HHH-5808] - ObjectNotFoundException for an audited optional association. Envers is creating a proxy even when the association is null.
+    * [HHH-5967] - Envers Fetching Indexed Collection - Duplicate Row Exception
+    * [HHH-6119] - NullPointerException in AbstractPathImpl without source path
+    * [HHH-6176] - Envers ignores custom comparators for SortedSets
+    * [HHH-6206] - Explicitly add antlr jar to transitive dependencies
+    * [HHH-6211] - Fix bad pull request merge
+    * [HHH-6217] - Create EntityBindingState for initializing entity-specific binding data
+    * [HHH-6219] - Memory leak with Infinispan cache
+    * [HHH-6242] - no Types.BINARY type mapping in PostgresqlDialect
+    * [HHH-6243] - JBPAPP-3312 org.hibernate.test.legacy.CustomSQLTest fails
+    * [HHH-6250] - Some classes still using SLF4J
+    * [HHH-6272] - More logging fix ups
+    * [HHH-6274] - Logging format error causes many test failures
+    * [HHH-6276] - org.hibernate.test.cache.ehcache.EhCacheRegionFactoryImpl fails due to no slf4j in test configuration
+
+** Improvement
+    * [HHH-4489] - need method "refresh(String entityName, Object obj)"
+    * [HHH-5025] - Support caching audit queries using ehcache's DiskStore.
+    * [HHH-5598] - sybase integration improvement
+    * [HHH-5649] - improve eclipse support with migration to gradle
+    * [HHH-6062] - Infinispan as JTA synchronization participant
+    * [HHH-6237] - Remove Service proxy code
+    * [HHH-6247] - Log (warn) inability for EM to join transaction only when user explicitly asked for join
+    * [HHH-6248] - Ominous-sounding WARN message from SessionFactoryObjectFactory
+    * [HHH-6258] - Performance improvement work
+    * [HHH-6291] - Basic MetadataImpl redesign
+    * [HHH-6292] - avoid Boolean instance creation
+    * [HHH-6294] - use enum instead of constant
+
+** New Feature
+    * [HHH-5580] - tracking entity names in a revision
+    * [HHH-6078] - Conditional auditing support
+    * [HHH-6293] - avoid create unnesserary Integer object
+
+** Patch
+    * [HHH-5434] - org.hibernate.test.filter.DynamicFilterTest testSqlSyntaxOfFiltersWithUnions fails with Ingres dialect
+    * [HHH-6228] - Build is platform dependent
+
+** Task
+    * [HHH-6110] - Initial work to integrate new metamodel into persisters
+    * [HHH-6156] - Deprecate Configuration
+    * [HHH-6186] - Upgrade Hibernate 4 to Infinispan 5.0.0.CRx
+    * [HHH-6213] - Move domain and relational state interfaces into org.hibernate.metamodel.state
+    * [HHH-6214] - Make RegionFactory a service
+    * [HHH-6229] - Clean up MappingDefaults
+    * [HHH-6230] - Rework attribute binding using state objects
+    * [HHH-6232] - Add discriminator value to DiscriminatorBindingState
+    * [HHH-6239] - Add service for access to configuration options/settings map
+    * [HHH-6240] - Add access to configuration options targetting metamodel building
+    * [HHH-6251] - Create CollectionElement subclasses for element, composite-element, one-to-many, many-to-many, many-to-any
+    * [HHH-6267] - Plumb MetadataImplementor into service initiators registered in SessionFactoryServiceRegistry
+    * [HHH-6282] - clean out-of-date config files in etc dir
+    * [HHH-6290] - Add EntityBinder.isRoot() to indicate if the EntityBinding is for a "root" entity
+
+
+Changes in version 4.0.0.Alpha3 (2011.05.04)
+------------------------------------------------------------------------------------------------------------------------
+http://opensource.atlassian.com/projects/hibernate/browse/HHH/fixforversion/11163
+
+** Sub-task
+    * [HHH-6114] - Preprocess annotation configuration
+    * [HHH-6148] - Resolve generic type parameters
+    * [HHH-6161] - Integrate annotation based configuration processing into MetadataSource
+
+** Bug
+    * [HHH-468] - MysqlDialect incorrectly maps java.lang.Boolean to SQL BIT
+    * [HHH-2049] - LEFT OUTER JOIN subcriteria filters children
+    * [HHH-4073] - discriminator formula creates problem in hibernate envers
+    * [HHH-4787] - AuditProperty.isNull() doesn't generate "tab.col is null" SQL clause as expected
+    * [HHH-5276] - Table REVINFO created in the default schema even if the property is otherwise set
+    * [HHH-5887] - Document typo hibernate.hbm2ddl.import_files
+    * [HHH-6069] - Escape entity fields name when required
+    * [HHH-6093] - Account for tenant identifier on QueryKey
+    * [HHH-6094] - Test failures in hibernate-infinispan dealing with query caching
+    * [HHH-6095] - Improve the way AbstractEntityManagerImpl.flush checks for an active transaction, should apply to other AbstractEntityManagerImpl methods that also check for an active tx
+    * [HHH-6163] - Need to fix location of envers integrator service file
+    * [HHH-6164] - Prefer regsitering JTA syncs via TransactionManager
+
+** Deprecation
+    * [HHH-6158] - Deprecate SessionFactoryStub
+    * [HHH-6181] - Deprecate EJB3Configuration
+    * [HHH-6183] - Deprecate Configuration
+
+** Improvement
+    * [HHH-2578] - redesign SessionFactory building
+    * [HHH-2579] - scope bytecode provider selection to session factory
+    * [HHH-5914] - Remove deprecated Hibernate type constants from org.hibernate.Hibernate and manuals
+    * [HHH-6064] - Skip regsitration of envers listeners if AuditConfiguration says no auditing annotations were found
+    * [HHH-6080] - Migrate from DTD to XSD for hbm.xml files
+    * [HHH-6096] - H2Dialect should use CACHED option for temporary table creation
+    * [HHH-6097] - Review log levels, especially related to i18n messages
+    * [HHH-6102] - ISE should be thrown when EM is colsed and joinTransaction is called, even with RESOURCE-LOCAL TX
+    * [HHH-6106] - Fix up IntelliJ project generation
+    * [HHH-6117] - Figure out best way to handle SessionFactoryObjectFactory dealing with JNDI
+    * [HHH-6118] - Make Metadata more user-friendly API
+    * [HHH-6128] - Create simplier LobCreator access from Session
+    * [HHH-6129] - org.hibernate.LobHelper#createNClob can now return NClob
+    * [HHH-6144] - Introduce ServiceRegistryBuilder
+    * [HHH-6154] - Add a README for describing build
+
+** New Feature
+    * [HHH-6140] - Allow disabling of JAXP validation
+
+** Patch
+    * [HHH-6169] - Prevent unnecessary calls to JDBC metadata methods.
+
+** Task
+    * [HHH-5652] - Create "Take It Further" tasks for the JPA chapter of the GSG
+    * [HHH-6014] - Migrate hibernate-envers tests to JUnit4
+    * [HHH-6023] - Create "Take It Further" tasks for the Envers chapter of the GSG
+    * [HHH-6092] - Create domain and relational state APIs for SimpleAttributeBinding and implement for XML mappings
+    * [HHH-6098] - Slight naming changes in regards to new logging classes
+    * [HHH-6101] - Clean up checks for java 1.3 versus 1.4
+    * [HHH-6107] - Metamodel dependence on ServiceRegistry
+    * [HHH-6111] - Switch to use JAX for xml parsing
+    * [HHH-6115] - jaxb generation should follow directory pattern
+    * [HHH-6131] - JAXB generated classes should have a prefix to distinguish then easier from model classes
+    * [HHH-6134] - Migrate processing hbm.xml files to use Jaxb-generated classes
+    * [HHH-6138] - Implement addition of annotated classes and packages in MetadataSources
+    * [HHH-6141] - Develop scheme for ordered processing of MetadataSources sources
+    * [HHH-6142] - Integrate JAXB-based binding code and MetadataSources
+    * [HHH-6146] - remove SF.setTenantIdentifier, add to withOptions selections
+    * [HHH-6147] - Add support for multi-tenancy to StatelessSession building
+    * [HHH-6155] - Migrate o.h.impl package to o.h.internal
+    * [HHH-6168] - Create an attribute binding for many-to-one and implement DomainState and RelationalState for HBM XML
+    * [HHH-6191] - repackage org.hibernate.cache per api/spi/internal split
+    * [HHH-6192] - Split org.hibernate.collection package up into api/sip/internal
+    * [HHH-6193] - Split org.hibernate.context package into api/spi/internal
+    * [HHH-6194] - Better jaxb task to leverage Gradle up-to-date checking
+    * [HHH-6196] - Split org.hibernate.engine package into api/spi/internal
+    * [HHH-6198] - Split org.hibernate.event package into api/spi/internal
+    * [HHH-6199] - Split org.hibernate.exception package into api/spi/internal
+    * [HHH-6200] - Split org.hibernate.hql package into api/spi/internal
+
+
+
 Changes in version 4.0.0.Alpha2 (2011.04.06)
 ------------------------------------------------------------------------------------------------------------------------
+http://opensource.atlassian.com/projects/hibernate/browse/HHH/fixforversion/11162
 
 ** Bug
     * [HHH-4999] - createSQLQuery(query).list() result screw up when when columns in different tables have same name
@@ -283,7 +636,7 @@ http://opensource.atlassian.com/projects/hibernate/browse/HHH/fixforversion/1114
     * [HHH-5512] - JndiInfinispanRegionFactory shouldn't try to stop CacheManager
     * [HHH-5517] - Switch uuid generation in SessionFactory to org.hibernate.id.UUIDGenerator instead
     * [HHH-5519] - VersionedItem should not extend Item, otherwise query cache results are confusing
-    * [HHH-5520] - Per org.hibernate.cache.RegionFactory javadocs, implementors should be allowed to use no-arg constructor
+    * [HHH-5520] - Per org.hibernate.cache.spi.RegionFactory javadocs, implementors should be allowed to use no-arg constructor
 
 ** Deprecation
     * [HHH-5489] - Deprecate jbosscache as a second level cache provider, in favor of infinispan

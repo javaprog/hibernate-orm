@@ -23,7 +23,9 @@
  */
 package org.hibernate.metamodel.binding;
 
+import org.hibernate.AssertionFailure;
 import org.hibernate.metamodel.relational.ForeignKey;
+import org.hibernate.metamodel.relational.TableSpecification;
 
 /**
  * TODO : javadoc
@@ -31,16 +33,42 @@ import org.hibernate.metamodel.relational.ForeignKey;
  * @author Steve Ebersole
  */
 public class CollectionKey {
-	private final PluralAttributeBinding collection;
+	private final AbstractPluralAttributeBinding pluralAttributeBinding;
 
 	private ForeignKey foreignKey;
 	private boolean inverse;
 	private HibernateTypeDescriptor hibernateTypeDescriptor;
 
 // todo : this would be nice to have but we do not always know it, especially in HBM case.
-//	private SimpleAttributeBinding otherSide;
+//	private BasicAttributeBinding otherSide;
 
-	public CollectionKey(PluralAttributeBinding collection) {
-		this.collection = collection;
+	public CollectionKey(AbstractPluralAttributeBinding pluralAttributeBinding) {
+		this.pluralAttributeBinding = pluralAttributeBinding;
+	}
+
+	public AbstractPluralAttributeBinding getPluralAttributeBinding() {
+		return pluralAttributeBinding;
+	}
+
+	public void prepareForeignKey(String foreignKeyName, String targetTableName) {
+		if ( foreignKey != null ) {
+			throw new AssertionFailure( "Foreign key already initialized" );
+		}
+		final TableSpecification collectionTable = pluralAttributeBinding.getCollectionTable();
+		if ( collectionTable == null ) {
+			throw new AssertionFailure( "Collection table not yet bound" );
+		}
+
+		final TableSpecification targetTable = pluralAttributeBinding.getContainer()
+				.seekEntityBinding()
+				.locateTable( targetTableName );
+
+		// todo : handle implicit fk names...
+
+		foreignKey = collectionTable.createForeignKey( targetTable, foreignKeyName );
+	}
+
+	public ForeignKey getForeignKey() {
+		return foreignKey;
 	}
 }

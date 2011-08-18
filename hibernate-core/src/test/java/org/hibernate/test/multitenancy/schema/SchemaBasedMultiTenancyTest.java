@@ -29,19 +29,17 @@ import java.sql.SQLException;
 import org.hibernate.HibernateException;
 import org.hibernate.MultiTenancyStrategy;
 import org.hibernate.Session;
-import org.hibernate.SessionFactory;
-import org.hibernate.cache.HashtableCacheProvider;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.mapping.PersistentClass;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.mapping.RootClass;
-import org.hibernate.service.internal.BasicServiceRegistryImpl;
+import org.hibernate.service.ServiceRegistryBuilder;
 import org.hibernate.service.jdbc.connections.internal.DriverManagerConnectionProviderImpl;
 import org.hibernate.service.jdbc.connections.spi.AbstractMultiTenantConnectionProvider;
 import org.hibernate.service.jdbc.connections.spi.ConnectionProvider;
 import org.hibernate.service.jdbc.connections.spi.MultiTenantConnectionProvider;
 import org.hibernate.service.spi.ServiceRegistryImplementor;
+import org.hibernate.testing.cache.CachingRegionFactory;
 import org.hibernate.tool.hbm2ddl.ConnectionHelper;
 import org.hibernate.tool.hbm2ddl.SchemaExport;
 
@@ -88,7 +86,7 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 
 		Configuration cfg = new Configuration();
 		cfg.getProperties().put( Environment.MULTI_TENANT, MultiTenancyStrategy.DATABASE );
-		cfg.setProperty( Environment.CACHE_PROVIDER, HashtableCacheProvider.class.getName() );
+		cfg.setProperty( Environment.CACHE_REGION_FACTORY, CachingRegionFactory.class.getName() );
 		cfg.setProperty( Environment.GENERATE_STATISTICS, "true" );
 		cfg.addAnnotatedClass( Customer.class );
 
@@ -152,8 +150,9 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 				false	// do not *just* perform the create
 		);
 
-		serviceRegistry = new BasicServiceRegistryImpl( cfg.getProperties() );
-		serviceRegistry.registerService( MultiTenantConnectionProvider.class, multiTenantConnectionProvider );
+		serviceRegistry = (ServiceRegistryImplementor) new ServiceRegistryBuilder( cfg.getProperties() )
+				.addService( MultiTenantConnectionProvider.class, multiTenantConnectionProvider )
+				.buildServiceRegistry();
 
 		sessionFactory = (SessionFactoryImplementor) cfg.buildSessionFactory( serviceRegistry );
 	}
@@ -174,23 +173,17 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 		}
 	}
 
-	private Session openSession() {
-		return sessionFactory.openSession();
-	}
-
 	@Test
 	public void testBasicExpectedBehavior() {
-		Session session = openSession();
-		session.setTenantIdentifier( "jboss" );
+		Session session = sessionFactory.withOptions().tenantIdentifier( "jboss" ).openSession();
 		session.beginTransaction();
 		Customer steve = new Customer( 1L, "steve" );
 		session.save( steve );
 		session.getTransaction().commit();
 		session.close();
 
-		session = openSession();
+		session = sessionFactory.withOptions().tenantIdentifier( "acme" ).openSession();
 		try {
-			session.setTenantIdentifier( "acme" );
 			session.beginTransaction();
 			Customer check = (Customer) session.get( Customer.class, steve.getId() );
 			Assert.assertNull( "tenancy not properly isolated", check );
@@ -200,8 +193,7 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 			session.close();
 		}
 
-		session = openSession();
-		session.setTenantIdentifier( "jboss" );
+		session = sessionFactory.withOptions().tenantIdentifier( "jboss" ).openSession();
 		session.beginTransaction();
 		session.delete( steve );
 		session.getTransaction().commit();
@@ -211,8 +203,7 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 	@Test
 	public void testSameIdentifiers() {
 		// create a customer 'steve' in jboss
-		Session session = openSession();
-		session.setTenantIdentifier( "jboss" );
+		Session session = sessionFactory.withOptions().tenantIdentifier( "jboss" ).openSession();
 		session.beginTransaction();
 		Customer steve = new Customer( 1L, "steve" );
 		session.save( steve );
@@ -220,8 +211,7 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 		session.close();
 
 		// now, create a customer 'john' in acme
-		session = openSession();
-		session.setTenantIdentifier( "acme" );
+		session = sessionFactory.withOptions().tenantIdentifier( "acme" ).openSession();
 		session.beginTransaction();
 		Customer john = new Customer( 1L, "john" );
 		session.save( john );
@@ -233,8 +223,7 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 		// make sure we get the correct people back, from cache
 		// first, jboss
 		{
-			session = openSession();
-			session.setTenantIdentifier( "jboss" );
+			session = sessionFactory.withOptions().tenantIdentifier( "jboss" ).openSession();
 			session.beginTransaction();
 			Customer customer = (Customer) session.load( Customer.class, 1L );
 			Assert.assertEquals( "steve", customer.getName() );
@@ -246,8 +235,7 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 		sessionFactory.getStatisticsImplementor().clear();
 		// then, acme
 		{
-			session = openSession();
-			session.setTenantIdentifier( "acme" );
+			session = sessionFactory.withOptions().tenantIdentifier( "acme" ).openSession();
 			session.beginTransaction();
 			Customer customer = (Customer) session.load( Customer.class, 1L );
 			Assert.assertEquals( "john", customer.getName() );
@@ -262,8 +250,7 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 		sessionFactory.getCache().evictEntityRegions();
 		// first jboss
 		{
-			session = openSession();
-			session.setTenantIdentifier( "jboss" );
+			session = sessionFactory.withOptions().tenantIdentifier( "jboss" ).openSession();
 			session.beginTransaction();
 			Customer customer = (Customer) session.load( Customer.class, 1L );
 			Assert.assertEquals( "steve", customer.getName() );
@@ -275,8 +262,7 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 		sessionFactory.getStatisticsImplementor().clear();
 		// then, acme
 		{
-			session = openSession();
-			session.setTenantIdentifier( "acme" );
+			session = sessionFactory.withOptions().tenantIdentifier( "acme" ).openSession();
 			session.beginTransaction();
 			Customer customer = (Customer) session.load( Customer.class, 1L );
 			Assert.assertEquals( "john", customer.getName() );
@@ -286,15 +272,13 @@ public class SchemaBasedMultiTenancyTest extends BaseUnitTestCase {
 			session.close();
 		}
 
-		session = openSession();
-		session.setTenantIdentifier( "jboss" );
+		session = sessionFactory.withOptions().tenantIdentifier( "jboss" ).openSession();
 		session.beginTransaction();
 		session.delete( steve );
 		session.getTransaction().commit();
 		session.close();
 
-		session = openSession();
-		session.setTenantIdentifier( "acme" );
+		session = sessionFactory.withOptions().tenantIdentifier( "acme" ).openSession();
 		session.beginTransaction();
 		session.delete( john );
 		session.getTransaction().commit();

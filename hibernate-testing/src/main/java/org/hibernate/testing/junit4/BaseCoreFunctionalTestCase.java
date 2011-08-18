@@ -37,13 +37,13 @@ import java.util.Properties;
 import org.hibernate.HibernateException;
 import org.hibernate.Interceptor;
 import org.hibernate.Session;
-import org.hibernate.cache.HashtableCacheProvider;
+import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
 import org.hibernate.cfg.Mappings;
 import org.hibernate.dialect.Dialect;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.jdbc.AbstractReturningWork;
 import org.hibernate.jdbc.Work;
@@ -51,6 +51,10 @@ import org.hibernate.mapping.Collection;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.mapping.Property;
 import org.hibernate.mapping.SimpleValue;
+import org.hibernate.metamodel.MetadataSources;
+import org.hibernate.metamodel.source.MetadataImplementor;
+import org.hibernate.service.BasicServiceRegistry;
+import org.hibernate.service.config.spi.ConfigurationService;
 import org.hibernate.service.internal.BasicServiceRegistryImpl;
 
 import org.junit.After;
@@ -61,6 +65,7 @@ import org.hibernate.testing.BeforeClassOnce;
 import org.hibernate.testing.OnExpectedFailure;
 import org.hibernate.testing.OnFailure;
 import org.hibernate.testing.SkipLog;
+import org.hibernate.testing.cache.CachingRegionFactory;
 
 import static org.junit.Assert.fail;
 
@@ -71,8 +76,11 @@ import static org.junit.Assert.fail;
  */
 public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 	public static final String VALIDATE_DATA_CLEANUP = "hibernate.test.validateDataCleanup";
+	public static final String USE_NEW_METADATA_MAPPINGS = "hibernate.test.new_metadata_mappings";
+
 	public static final Dialect DIALECT = Dialect.getDialect();
 
+	private boolean isMetadataUsed;
 	private Configuration configuration;
 	private BasicServiceRegistryImpl serviceRegistry;
 	private SessionFactoryImplementor sessionFactory;
@@ -111,26 +119,60 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 	@BeforeClassOnce
 	@SuppressWarnings( {"UnusedDeclaration"})
 	private void buildSessionFactory() {
-		configuration = buildConfiguration();
+		// for now, build the configuration to get all the property settings
+		configuration = constructAndConfigureConfiguration();
 		serviceRegistry = buildServiceRegistry( configuration );
-		sessionFactory = (SessionFactoryImplementor) configuration.buildSessionFactory( serviceRegistry );
+		isMetadataUsed = serviceRegistry.getService( ConfigurationService.class ).getSetting(
+				USE_NEW_METADATA_MAPPINGS,
+				new ConfigurationService.Converter<Boolean>() {
+					@Override
+					public Boolean convert(Object value) {
+						return Boolean.parseBoolean( ( String ) value );
+					}
+				},
+				false
+		);
+		if ( isMetadataUsed ) {
+			sessionFactory = ( SessionFactoryImplementor ) buildMetadata( serviceRegistry ).buildSessionFactory();
+		}
+		else {
+			// this is done here because Configuration does not currently support 4.0 xsd
+			afterConstructAndConfigureConfiguration( configuration );
+			sessionFactory = ( SessionFactoryImplementor ) configuration.buildSessionFactory( serviceRegistry );
+		}
 		afterSessionFactoryBuilt();
 	}
 
+	private MetadataImplementor buildMetadata(BasicServiceRegistry serviceRegistry) {
+		 	MetadataSources sources = new MetadataSources( serviceRegistry );
+			addMappings( sources );
+			return (MetadataImplementor) sources.buildMetadata();
+	}
+
+	// TODO: is this still needed?
 	protected Configuration buildConfiguration() {
+		Configuration cfg = constructAndConfigureConfiguration();
+		afterConstructAndConfigureConfiguration( cfg );
+		return cfg;
+	}
+
+	private Configuration constructAndConfigureConfiguration() {
 		Configuration cfg = constructConfiguration();
 		configure( cfg );
+		return cfg;
+	}
+
+	private void afterConstructAndConfigureConfiguration(Configuration cfg) {
 		addMappings( cfg );
 		cfg.buildMappings();
 		applyCacheSettings( cfg );
 		afterConfigurationBuilt( cfg );
-		return cfg;
 	}
 
 	protected Configuration constructConfiguration() {
 		Configuration configuration = new Configuration()
-				.setProperty( Environment.CACHE_PROVIDER, HashtableCacheProvider.class.getName() );
-		configuration.setProperty( Configuration.USE_NEW_ID_GENERATOR_MAPPINGS, "true" );
+				.setProperty(Environment.CACHE_REGION_FACTORY, CachingRegionFactory.class.getName()  );
+		configuration.setProperty( AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS, "true" );
 		if ( createSchema() ) {
 			configuration.setProperty( Environment.HBM2DDL_AUTO, "create-drop" );
 		}
@@ -168,6 +210,36 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 			for ( String xmlFile : xmlFiles ) {
 				InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream( xmlFile );
 				configuration.addInputStream( is );
+			}
+		}
+	}
+
+	protected void addMappings(MetadataSources sources) {
+		String[] mappings = getMappings();
+		if ( mappings != null ) {
+			for ( String mapping : mappings ) {
+				sources.addResource(
+						getBaseForMappings() + mapping
+				);
+			}
+		}
+		Class<?>[] annotatedClasses = getAnnotatedClasses();
+		if ( annotatedClasses != null ) {
+			for ( Class<?> annotatedClass : annotatedClasses ) {
+				sources.addAnnotatedClass( annotatedClass );
+			}
+		}
+		String[] annotatedPackages = getAnnotatedPackages();
+		if ( annotatedPackages != null ) {
+			for ( String annotatedPackage : annotatedPackages ) {
+				sources.addPackage( annotatedPackage );
+			}
+		}
+		String[] xmlFiles = getXmlFiles();
+		if ( xmlFiles != null ) {
+			for ( String xmlFile : xmlFiles ) {
+				InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream( xmlFile );
+				sources.addInputStream( is );
 			}
 		}
 	}
@@ -248,7 +320,7 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 		properties.putAll( configuration.getProperties() );
 		Environment.verifyProperties( properties );
 		ConfigurationHelper.resolvePlaceHolders( properties );
-		BasicServiceRegistryImpl serviceRegistry = new BasicServiceRegistryImpl( properties );
+		BasicServiceRegistryImpl serviceRegistry = (BasicServiceRegistryImpl) new org.hibernate.service.ServiceRegistryBuilder( properties ).buildServiceRegistry();
 		applyServices( serviceRegistry );
 		return serviceRegistry;
 	}
@@ -295,7 +367,13 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 		serviceRegistry.destroy();
 
 		serviceRegistry = buildServiceRegistry( configuration );
-		sessionFactory = (SessionFactoryImplementor) configuration.buildSessionFactory( serviceRegistry );
+		if ( isMetadataUsed ) {
+			// need to rebuild metadata because serviceRegistry was recreated
+			sessionFactory = ( SessionFactoryImplementor ) buildMetadata( serviceRegistry ).buildSessionFactory();
+		}
+		else {
+			sessionFactory = ( SessionFactoryImplementor ) configuration.buildSessionFactory( serviceRegistry );
+		}
 		afterSessionFactoryBuilt();
 	}
 
@@ -408,5 +486,4 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 			return true;
 		}
 	}
-
 }

@@ -26,7 +26,7 @@ package org.hibernate.service;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.hibernate.service.event.internal.EventListenerServiceInitiator;
+import org.hibernate.event.service.internal.EventListenerServiceInitiator;
 import org.hibernate.service.spi.SessionFactoryServiceInitiator;
 import org.hibernate.stat.internal.StatisticsInitiator;
 

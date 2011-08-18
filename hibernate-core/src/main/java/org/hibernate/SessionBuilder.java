@@ -79,15 +79,6 @@ public interface SessionBuilder {
 	public SessionBuilder connectionReleaseMode(ConnectionReleaseMode connectionReleaseMode);
 
 	/**
-	 * Use a specific entity mode for these session options
-	 *
-	 * @param entityMode The entity mode to use.
-	 *
-	 * @return {@code this}, for method chaining
-	 */
-	public SessionBuilder entityMode(EntityMode entityMode);
-
-	/**
 	 * Should the session built automatically join in any ongoing JTA transactions
 	 *
 	 * @param autoJoinTransactions Should JTA transactions be automatically joined
@@ -113,4 +104,13 @@ public interface SessionBuilder {
 	 * @return {@code this}, for method chaining
 	 */
 	public SessionBuilder flushBeforeCompletion(boolean flushBeforeCompletion);
+
+	/**
+	 * Define the tenant identifier to be associated with the opened session.
+	 *
+	 * @param tenantIdentifier The tenant identifier.
+	 *
+	 * @return {@code this}, for method chaining
+	 */
+	public SessionBuilder tenantIdentifier(String tenantIdentifier);
 }

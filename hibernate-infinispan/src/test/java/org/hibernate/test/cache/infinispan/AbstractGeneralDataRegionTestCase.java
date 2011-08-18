@@ -28,13 +28,13 @@ import java.util.Set;
 import org.infinispan.transaction.tm.BatchModeTransactionManager;
 import org.jboss.logging.Logger;
 
-import org.hibernate.cache.GeneralDataRegion;
-import org.hibernate.cache.QueryResultsRegion;
-import org.hibernate.cache.Region;
+import org.hibernate.cache.spi.GeneralDataRegion;
+import org.hibernate.cache.spi.QueryResultsRegion;
+import org.hibernate.cache.spi.Region;
 import org.hibernate.cache.infinispan.InfinispanRegionFactory;
 import org.hibernate.cache.infinispan.util.CacheAdapter;
 import org.hibernate.cfg.Configuration;
-import org.hibernate.service.internal.BasicServiceRegistryImpl;
+import org.hibernate.service.ServiceRegistryBuilder;
 
 import org.junit.Test;
 
@@ -79,7 +79,7 @@ public abstract class AbstractGeneralDataRegionTestCase extends AbstractRegionIm
 	private void evictOrRemoveTest() throws Exception {
 		Configuration cfg = createConfiguration();
 		InfinispanRegionFactory regionFactory = CacheTestUtil.startRegionFactory(
-				new BasicServiceRegistryImpl( cfg.getProperties() ),
+				new ServiceRegistryBuilder( cfg.getProperties() ).buildServiceRegistry(),
 				cfg,
 				getCacheTestSupport()
 		);
@@ -96,7 +96,7 @@ public abstract class AbstractGeneralDataRegionTestCase extends AbstractRegionIm
 
 		cfg = createConfiguration();
 		regionFactory = CacheTestUtil.startRegionFactory(
-				new BasicServiceRegistryImpl( cfg.getProperties() ),
+				new ServiceRegistryBuilder( cfg.getProperties() ).buildServiceRegistry(),
 				cfg,
 				getCacheTestSupport()
 		);
@@ -142,7 +142,7 @@ public abstract class AbstractGeneralDataRegionTestCase extends AbstractRegionIm
 	private void evictOrRemoveAllTest(String configName) throws Exception {
 		Configuration cfg = createConfiguration();
 		InfinispanRegionFactory regionFactory = CacheTestUtil.startRegionFactory(
-				new BasicServiceRegistryImpl( cfg.getProperties() ),
+				new ServiceRegistryBuilder( cfg.getProperties() ).buildServiceRegistry(),
 				cfg,
 				getCacheTestSupport()
 		);
@@ -160,7 +160,7 @@ public abstract class AbstractGeneralDataRegionTestCase extends AbstractRegionIm
 
 		cfg = createConfiguration();
 		regionFactory = CacheTestUtil.startRegionFactory(
-				new BasicServiceRegistryImpl( cfg.getProperties() ),
+				new ServiceRegistryBuilder( cfg.getProperties() ).buildServiceRegistry(),
 				cfg,
 				getCacheTestSupport()
 		);

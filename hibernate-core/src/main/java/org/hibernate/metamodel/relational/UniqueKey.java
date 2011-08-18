@@ -23,6 +23,9 @@
  */
 package org.hibernate.metamodel.relational;
 
+import org.hibernate.dialect.Dialect;
+import org.hibernate.internal.util.StringHelper;
+
 /**
  * Models a SQL <tt>INDEX</tt> defined as UNIQUE
  *
@@ -32,5 +35,74 @@ package org.hibernate.metamodel.relational;
 public class UniqueKey extends AbstractConstraint implements Constraint {
 	protected UniqueKey(Table table, String name) {
 		super( table, name );
+	}
+
+	@Override
+	public String getExportIdentifier() {
+		StringBuilder sb = new StringBuilder( getTable().getLoggableValueQualifier() );
+		sb.append( ".UK" );
+		for ( Column column : getColumns() ) {
+			sb.append( '_' ).append( column.getColumnName().getName() );
+		}
+		return sb.toString();
+	}
+
+	public boolean isCreationVetoed(Dialect dialect) {
+		if ( dialect.supportsNotNullUnique() ) {
+			return false;
+		}
+
+		for ( Column column : getColumns() ) {
+			if ( column.isNullable() ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public String sqlConstraintStringInCreateTable(Dialect dialect) {
+		StringBuffer buf = new StringBuffer( "unique (" );
+		boolean hadNullableColumn = false;
+		boolean first = true;
+		for ( Column column : getColumns() ) {
+			if ( first ) {
+				first = false;
+			}
+			else {
+				buf.append( ", " );
+			}
+			if ( !hadNullableColumn && column.isNullable() ) {
+				hadNullableColumn = true;
+			}
+			buf.append( column.getColumnName().encloseInQuotesIfQuoted( dialect ) );
+		}
+		//do not add unique constraint on DB not supporting unique and nullable columns
+		return !hadNullableColumn || dialect.supportsNotNullUnique() ?
+				buf.append( ')' ).toString() :
+				null;
+	}
+
+	public String sqlConstraintStringInAlterTable(Dialect dialect) {
+		StringBuffer buf = new StringBuffer(
+				dialect.getAddPrimaryKeyConstraintString( getName() )
+		).append( '(' );
+		boolean nullable = false;
+		boolean first = true;
+		for ( Column column : getColumns() ) {
+			if ( first ) {
+				first = false;
+			}
+			else {
+				buf.append( ", " );
+			}
+			if ( !nullable && column.isNullable() ) {
+				nullable = true;
+			}
+			buf.append( column.getColumnName().encloseInQuotesIfQuoted( dialect ) );
+		}
+		return !nullable || dialect.supportsNotNullUnique() ?
+				StringHelper.replace( buf.append( ')' ).toString(), "primary key", "unique" ) :
+				//TODO: improve this hack!
+				null;
 	}
 }

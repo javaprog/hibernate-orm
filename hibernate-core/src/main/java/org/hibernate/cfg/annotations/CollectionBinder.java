@@ -49,7 +49,6 @@ import org.hibernate.MappingException;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CollectionId;
-import org.hibernate.annotations.CollectionOfElements;
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.FilterJoinTable;
@@ -91,7 +90,7 @@ import org.hibernate.cfg.PropertyHolderBuilder;
 import org.hibernate.cfg.PropertyInferredData;
 import org.hibernate.cfg.PropertyPreloadedData;
 import org.hibernate.cfg.SecondPass;
-import org.hibernate.engine.ExecuteUpdateResultCheckStyle;
+import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.mapping.Any;
 import org.hibernate.mapping.Backref;
@@ -376,8 +375,7 @@ public abstract class CollectionBinder {
         collection.setRole(role);
 		collection.setNodeName( propertyName );
 
-		if ( (property.isAnnotationPresent( org.hibernate.annotations.MapKey.class )
-				|| property.isAnnotationPresent( MapKeyColumn.class ) )
+		if ( property.isAnnotationPresent( MapKeyColumn.class )
 			&& mapKeyPropertyName != null ) {
 			throw new AnnotationException(
 					"Cannot mix @javax.persistence.MapKey and @MapKeyColumn or @org.hibernate.annotations.MapKey "
@@ -450,23 +448,23 @@ public abstract class CollectionBinder {
 		Loader loader = property.getAnnotation( Loader.class );
 		if ( sqlInsert != null ) {
 			collection.setCustomSQLInsert( sqlInsert.sql().trim(), sqlInsert.callable(),
-					ExecuteUpdateResultCheckStyle.parse( sqlInsert.check().toString().toLowerCase() )
+					ExecuteUpdateResultCheckStyle.fromExternalName( sqlInsert.check().toString().toLowerCase() )
 			);
 
 		}
 		if ( sqlUpdate != null ) {
 			collection.setCustomSQLUpdate( sqlUpdate.sql(), sqlUpdate.callable(),
-					ExecuteUpdateResultCheckStyle.parse( sqlUpdate.check().toString().toLowerCase() )
+					ExecuteUpdateResultCheckStyle.fromExternalName( sqlUpdate.check().toString().toLowerCase() )
 			);
 		}
 		if ( sqlDelete != null ) {
 			collection.setCustomSQLDelete( sqlDelete.sql(), sqlDelete.callable(),
-					ExecuteUpdateResultCheckStyle.parse( sqlDelete.check().toString().toLowerCase() )
+					ExecuteUpdateResultCheckStyle.fromExternalName( sqlDelete.check().toString().toLowerCase() )
 			);
 		}
 		if ( sqlDeleteAll != null ) {
 			collection.setCustomSQLDeleteAll( sqlDeleteAll.sql(), sqlDeleteAll.callable(),
-					ExecuteUpdateResultCheckStyle.parse( sqlDeleteAll.check().toString().toLowerCase() )
+					ExecuteUpdateResultCheckStyle.fromExternalName( sqlDeleteAll.check().toString().toLowerCase() )
 			);
 		}
 		if ( loader != null ) {
@@ -505,7 +503,6 @@ public abstract class CollectionBinder {
 				tableBinder, mappings
 		);
 		if ( collectionType.isAnnotationPresent( Embeddable.class )
-				|| property.isAnnotationPresent( CollectionOfElements.class ) //legacy hibernate
 				|| property.isAnnotationPresent( ElementCollection.class ) //JPA 2
 				) {
 			// do it right away, otherwise @ManyToOne on composite element call addSecondPass
@@ -542,7 +539,6 @@ public abstract class CollectionBinder {
 		Fetch fetch = property.getAnnotation( Fetch.class );
 		OneToMany oneToMany = property.getAnnotation( OneToMany.class );
 		ManyToMany manyToMany = property.getAnnotation( ManyToMany.class );
-		CollectionOfElements collectionOfElements = property.getAnnotation( CollectionOfElements.class ); //legacy hibernate
 		ElementCollection elementCollection = property.getAnnotation( ElementCollection.class ); //jpa 2
 		ManyToAny manyToAny = property.getAnnotation( ManyToAny.class );
 		FetchType fetchType;
@@ -554,9 +550,6 @@ public abstract class CollectionBinder {
 		}
 		else if ( elementCollection != null ) {
 			fetchType = elementCollection.fetch();
-		}
-		else if ( collectionOfElements != null ) {
-			fetchType = collectionOfElements.fetch();
 		}
 		else if ( manyToAny != null ) {
 			fetchType = FetchType.LAZY;
@@ -746,7 +739,7 @@ public abstract class CollectionBinder {
 			column.setJoins( joins );
 			collection.setCollectionTable( column.getTable() );
 		}
-        LOG.mappingCollection(collection.getRole(), collection.getCollectionTable().getName());
+        LOG.debugf( "Mapping collection: %s -> %s", collection.getRole(), collection.getCollectionTable().getName() );
 		bindFilters( false );
 		bindCollectionSecondPass( collection, null, fkJoinColumns, cascadeDeleteEnabled, property, mappings );
 		if ( !collection.isInverse()

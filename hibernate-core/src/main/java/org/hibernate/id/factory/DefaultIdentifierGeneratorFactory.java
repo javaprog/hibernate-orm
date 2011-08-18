@@ -22,11 +22,16 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.id.factory;
+
 import java.io.Serializable;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.hibernate.internal.CoreMessageLogger;
+import javax.persistence.GenerationType;
+
+import org.jboss.logging.Logger;
+
+import org.hibernate.AssertionFailure;
 import org.hibernate.MappingException;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.id.Assigned;
@@ -36,6 +41,7 @@ import org.hibernate.id.GUIDGenerator;
 import org.hibernate.id.IdentifierGenerator;
 import org.hibernate.id.IdentityGenerator;
 import org.hibernate.id.IncrementGenerator;
+import org.hibernate.id.MultipleHiLoPerTableGenerator;
 import org.hibernate.id.SelectGenerator;
 import org.hibernate.id.SequenceGenerator;
 import org.hibernate.id.SequenceHiLoGenerator;
@@ -45,9 +51,9 @@ import org.hibernate.id.UUIDGenerator;
 import org.hibernate.id.UUIDHexGenerator;
 import org.hibernate.id.enhanced.SequenceStyleGenerator;
 import org.hibernate.id.enhanced.TableGenerator;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
 
 /**
  * Basic <tt>templated</tt> support for {@link IdentifierGeneratorFactory} implementations.
@@ -61,6 +67,16 @@ public class DefaultIdentifierGeneratorFactory implements IdentifierGeneratorFac
 
 	private transient Dialect dialect;
 	private ConcurrentHashMap<String, Class> generatorStrategyToClassNameMap = new ConcurrentHashMap<String, Class>();
+
+	/**
+	 * Constructs a new DefaultIdentifierGeneratorFactory
+	 *
+	 * @param dialect The dialect.
+	 */
+	public DefaultIdentifierGeneratorFactory(Dialect dialect) {
+		this();
+		this.dialect = dialect;
+	}
 
 	/**
 	 * Constructs a new DefaultIdentifierGeneratorFactory.
@@ -83,43 +99,42 @@ public class DefaultIdentifierGeneratorFactory implements IdentifierGeneratorFac
 		register( "enhanced-table", TableGenerator.class );
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	public void register(String strategy, Class generatorClass) {
+		LOG.debugf( "Registering IdentifierGenerator strategy [%s] -> [%s]", strategy, generatorClass.getName() );
+		final Class previous = generatorStrategyToClassNameMap.put( strategy, generatorClass );
+		if ( previous != null ) {
+			LOG.debugf( "    - overriding [%s]", previous.getName() );
+		}
+	}
+
+	@Override
+	public Dialect getDialect() {
+		return dialect;
+	}
+
+	@Override
 	public void setDialect(Dialect dialect) {
-        LOG.debugf("Setting dialect [%s]", dialect);
+        LOG.debugf( "Setting dialect [%s]", dialect );
 		this.dialect = dialect;
 	}
 
-	public void register(String strategy, Class generatorClass) {
-		Object old = generatorStrategyToClassNameMap.put( strategy, generatorClass );
-        String msg = "Registering IdentifierGenerator strategy [" + strategy + "] -> [" + generatorClass + "]";
-        if (old != null) msg += ", overriding [" + old + "]";
-        LOG.debugf(msg);
-	}
-
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public IdentifierGenerator createIdentifierGenerator(String strategy, Type type, Properties config) {
 		try {
 			Class clazz = getIdentifierGeneratorClass( strategy );
-			IdentifierGenerator idgen = ( IdentifierGenerator ) clazz.newInstance();
-			if ( idgen instanceof Configurable ) {
-				( ( Configurable ) idgen ).configure( type, config, dialect );
+			IdentifierGenerator identifierGenerator = ( IdentifierGenerator ) clazz.newInstance();
+			if ( identifierGenerator instanceof Configurable ) {
+				( ( Configurable ) identifierGenerator ).configure( type, config, dialect );
 			}
-			return idgen;
+			return identifierGenerator;
 		}
 		catch ( Exception e ) {
-			String msg = "Could not instantiate id generator [entity-name="
-					+ config.get( IdentifierGenerator.ENTITY_NAME ) + "]";
-			throw new MappingException( msg, e );
+			final String entityName = config.getProperty( IdentifierGenerator.ENTITY_NAME );
+			throw new MappingException( String.format( "Could not instantiate id generator [entity-name=%s]", entityName ), e );
 		}
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public Class getIdentifierGeneratorClass(String strategy) {
 		if ( "native".equals( strategy ) ) {
 			return dialect.getNativeIdentifierGeneratorClass();
@@ -132,7 +147,7 @@ public class DefaultIdentifierGeneratorFactory implements IdentifierGeneratorFac
 			}
 		}
 		catch ( ClassNotFoundException e ) {
-			throw new MappingException( "Could not interpret id generator strategy [" + strategy + "]" );
+			throw new MappingException( String.format( "Could not interpret id generator strategy [%s]", strategy ) );
 		}
 		return generatorClass;
 	}

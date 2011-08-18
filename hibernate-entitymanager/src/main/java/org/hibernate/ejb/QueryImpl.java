@@ -50,11 +50,11 @@ import org.hibernate.SQLQuery;
 import org.hibernate.TypeMismatchException;
 import org.hibernate.ejb.internal.EntityManagerMessageLogger;
 import org.hibernate.ejb.util.LockModeTypeHelper;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.query.NamedParameterDescriptor;
-import org.hibernate.engine.query.OrdinalParameterDescriptor;
-import org.hibernate.hql.QueryExecutionRequestException;
-import org.hibernate.impl.AbstractQueryImpl;
+import org.hibernate.engine.query.spi.NamedParameterDescriptor;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.query.spi.OrdinalParameterDescriptor;
+import org.hibernate.hql.internal.QueryExecutionRequestException;
+import org.hibernate.internal.AbstractQueryImpl;
 import org.jboss.logging.Logger;
 
 /**
@@ -235,12 +235,12 @@ public class QueryImpl<X> extends org.hibernate.ejb.AbstractQueryImpl<X> impleme
 
 	@Override
     protected boolean canApplyLockModes() {
-		return org.hibernate.impl.QueryImpl.class.isInstance( query );
+		return org.hibernate.internal.QueryImpl.class.isInstance( query );
 	}
 
 	@Override
 	protected void applyAliasSpecificLockMode(String alias, LockMode lockMode) {
-		( (org.hibernate.impl.QueryImpl) query ).getLockOptions().setAliasSpecificLockMode( alias, lockMode );
+		( (org.hibernate.internal.QueryImpl) query ).getLockOptions().setAliasSpecificLockMode( alias, lockMode );
 	}
 
 	/**
@@ -624,7 +624,7 @@ public class QueryImpl<X> extends org.hibernate.ejb.AbstractQueryImpl<X> impleme
 			throw new IllegalStateException( "Not a JPAQL/Criteria query" );
 		}
 		this.jpaLockMode = lockModeType;
-		( (org.hibernate.impl.QueryImpl) query ).getLockOptions().setLockMode(
+		( (org.hibernate.internal.QueryImpl) query ).getLockOptions().setLockMode(
 				LockModeTypeHelper.getLockMode( lockModeType )
 		);
 		return this;

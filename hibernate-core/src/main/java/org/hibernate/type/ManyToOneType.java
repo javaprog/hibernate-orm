@@ -32,10 +32,10 @@ import java.util.Arrays;
 import org.hibernate.AssertionFailure;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
-import org.hibernate.engine.EntityKey;
-import org.hibernate.engine.ForeignKeys;
-import org.hibernate.engine.Mapping;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.engine.internal.ForeignKeys;
+import org.hibernate.engine.spi.EntityKey;
+import org.hibernate.engine.spi.Mapping;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.metamodel.relational.Size;
 import org.hibernate.persister.entity.EntityPersister;
 
@@ -211,9 +211,9 @@ public class ManyToOneType extends EntityType {
 		else {
 			// cache the actual id of the object, not the value of the
 			// property-ref, which might not be initialized
-			Object id = ForeignKeys.getEntityIdentifierIfNotUnsaved( 
-					getAssociatedEntityName(), 
-					value, 
+			Object id = ForeignKeys.getEntityIdentifierIfNotUnsaved(
+					getAssociatedEntityName(),
+					value,
 					session
 			);
 			if ( id == null ) {
@@ -269,7 +269,7 @@ public class ManyToOneType extends EntityType {
 			Object old,
 			Object current,
 			SessionImplementor session) throws HibernateException {
-		if ( isSame( old, current, session.getEntityMode() ) ) {
+		if ( isSame( old, current ) ) {
 			return false;
 		}
 		Object oldid = getIdentifier( old, session );
@@ -286,7 +286,7 @@ public class ManyToOneType extends EntityType {
 			return isDirty( old, current, session );
 		}
 		else {
-			if ( isSame( old, current, session.getEntityMode() ) ) {
+			if ( isSame( old, current ) ) {
 				return false;
 			}
 			Object oldid = getIdentifier( old, session );

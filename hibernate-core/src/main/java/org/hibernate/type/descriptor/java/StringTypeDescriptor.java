@@ -22,10 +22,12 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.type.descriptor.java;
+
 import java.io.Reader;
 import java.io.StringReader;
 import java.sql.Clob;
 import java.sql.SQLException;
+
 import org.hibernate.HibernateException;
 import org.hibernate.type.descriptor.CharacterStream;
 import org.hibernate.type.descriptor.WrapperOptions;
@@ -59,10 +61,10 @@ public class StringTypeDescriptor extends AbstractTypeDescriptor<String> {
 			return (X) value;
 		}
 		if ( Reader.class.isAssignableFrom( type ) ) {
-			return (X) new StringReader( (String) value );
+			return (X) new StringReader( value );
 		}
 		if ( CharacterStream.class.isAssignableFrom( type ) ) {
-			return (X) new CharacterStreamImpl( (String) value );
+			return (X) new CharacterStreamImpl( value );
 		}
 		if ( Clob.class.isAssignableFrom( type ) ) {
 			return (X) options.getLobCreator().createClob( value );

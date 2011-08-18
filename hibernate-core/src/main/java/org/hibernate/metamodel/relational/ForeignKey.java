@@ -24,12 +24,14 @@
 package org.hibernate.metamodel.relational;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
-import org.hibernate.internal.CoreMessageLogger;
+import org.hibernate.AssertionFailure;
+import org.hibernate.MappingException;
+import org.hibernate.dialect.Dialect;
 
 import org.jboss.logging.Logger;
-import org.jboss.logging.Logger.Level;
 
 /**
  * Models the notion of a foreign key.
@@ -41,13 +43,16 @@ import org.jboss.logging.Logger.Level;
  * @author Steve Ebersole
  */
 public class ForeignKey extends AbstractConstraint implements Constraint, Exportable {
+    private static final Logger LOG = Logger.getLogger( ForeignKey.class );
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, AbstractConstraint.class.getName());
+	private static final String ON_DELETE = " on delete ";
+	private static final String ON_UPDATE = " on update ";
 
 	private final TableSpecification targetTable;
 	private List<Column> targetColumns;
+
 	private ReferentialAction deleteRule = ReferentialAction.NO_ACTION;
-	public ReferentialAction updateRule = ReferentialAction.NO_ACTION;
+	private ReferentialAction updateRule = ReferentialAction.NO_ACTION;
 
 	protected ForeignKey(TableSpecification sourceTable, TableSpecification targetTable, String name) {
 		super( sourceTable, name );
@@ -84,17 +89,41 @@ public class ForeignKey extends AbstractConstraint implements Constraint, Export
 	public void addColumnMapping(Column sourceColumn, Column targetColumn) {
 		if ( targetColumn == null ) {
 			if ( targetColumns != null ) {
-				if (LOG.isEnabled( Level.WARN )) LOG.attemptToMapColumnToNoTargetColumn(sourceColumn.toLoggableString(), getName());
+				LOG.debugf(
+						"Attempt to map column [%s] to no target column after explicit target column(s) named for FK [name=%s]",
+						sourceColumn.toLoggableString(),
+						getName()
+				);
 			}
 		}
 		else {
+			checkTargetTable( targetColumn );
 			if ( targetColumns == null ) {
-				if (!internalColumnAccess().isEmpty()) LOG.valueMappingMismatch(getTable().toLoggableString(), getName(), sourceColumn.toLoggableString());
+				if (!internalColumnAccess().isEmpty()) {
+					LOG.debugf(
+							"Value mapping mismatch as part of FK [table=%s, name=%s] while adding source column [%s]",
+							getTable().toLoggableString(),
+							getName(),
+							sourceColumn.toLoggableString()
+					);
+				}
 				targetColumns = new ArrayList<Column>();
 			}
 			targetColumns.add( targetColumn );
 		}
-		internalColumnAccess().add( sourceColumn );
+		internalAddColumn( sourceColumn );
+	}
+
+	private void checkTargetTable(Column targetColumn) {
+		if ( targetColumn.getTable() != getTargetTable() ) {
+			throw new AssertionFailure(
+					String.format(
+							"Unable to add column to constraint; tables [%s, %s] did not match",
+							targetColumn.getTable().toLoggableString(),
+							getTargetTable().toLoggableString()
+					)
+			);
+		}
 	}
 
 	@Override
@@ -118,11 +147,70 @@ public class ForeignKey extends AbstractConstraint implements Constraint, Export
 		this.updateRule = updateRule;
 	}
 
+	@Override
+	public String[] sqlDropStrings(Dialect dialect) {
+		return new String[] {
+				"alter table " +
+						getTable().getQualifiedName( dialect ) +
+						dialect.getDropForeignKeyString() +
+						getName()
+		};
+	}
+
+	public String sqlConstraintStringInAlterTable(Dialect dialect) {
+		String[] columnNames = new String[ getColumnSpan() ];
+		String[] targetColumnNames = new String[ getColumnSpan() ];
+		int i=0;
+		Iterator<Column> itTargetColumn = getTargetColumns().iterator();
+		for ( Column column : getColumns() ) {
+			if ( ! itTargetColumn.hasNext() ) {
+				throw new MappingException( "More constraint columns that foreign key target columns." );
+			}
+			columnNames[i] = column.getColumnName().encloseInQuotesIfQuoted( dialect );
+			targetColumnNames[i] = ( itTargetColumn.next() ).getColumnName().encloseInQuotesIfQuoted( dialect );
+			i++;
+		}
+		if ( itTargetColumn.hasNext() ) {
+			throw new MappingException( "More foreign key target columns than constraint columns." );
+		}
+		StringBuilder sb =
+				new StringBuilder(
+						dialect.getAddForeignKeyConstraintString(
+								getName(),
+								columnNames,
+								targetTable.getQualifiedName( dialect ),
+								targetColumnNames,
+								this.targetColumns == null
+						)
+				);
+		// TODO: If a dialect does not support cascade-delete, can it support other actions? (HHH-6428)
+		// For now, assume not.
+		if ( dialect.supportsCascadeDelete() ) {
+			if ( deleteRule != ReferentialAction.NO_ACTION ) {
+				sb.append( ON_DELETE ).append( deleteRule.getActionString() );
+			}
+			if ( updateRule != ReferentialAction.NO_ACTION ) {
+				sb.append( ON_UPDATE ).append( updateRule.getActionString() );
+			}
+		}
+		return sb.toString();
+	}
+
 	public static enum ReferentialAction {
-		NO_ACTION,
-		CASCADE,
-		SET_NULL,
-		SET_DEFAULT,
-		RESTRICT
+		NO_ACTION( "no action" ),
+		CASCADE( "cascade" ),
+		SET_NULL( "set null" ),
+		SET_DEFAULT( "set default" ),
+		RESTRICT( "restrict" );
+
+		private final String actionString;
+
+		private ReferentialAction(String actionString) {
+			this.actionString = actionString;
+		}
+
+		public String getActionString() {
+			return actionString;
+		}
 	}
 }

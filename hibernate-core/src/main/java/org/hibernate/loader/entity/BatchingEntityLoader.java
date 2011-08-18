@@ -30,9 +30,9 @@ import java.util.List;
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
 import org.hibernate.MappingException;
-import org.hibernate.engine.LoadQueryInfluencers;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.engine.spi.LoadQueryInfluencers;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.loader.Loader;
 import org.hibernate.persister.entity.EntityPersister;
@@ -68,7 +68,6 @@ public class BatchingEntityLoader implements UniqueEntityLoader {
 			final boolean equal = idType.isEqual(
 					id,
 					session.getContextEntityIdentifier(obj),
-					session.getEntityMode(),
 					session.getFactory()
 			);
 			if ( equal ) return obj;
@@ -86,8 +85,8 @@ public class BatchingEntityLoader implements UniqueEntityLoader {
 
 	public Object load(Serializable id, Object optionalObject, SessionImplementor session, LockOptions lockOptions) {
 		Serializable[] batch = session.getPersistenceContext()
-			.getBatchFetchQueue()
-			.getEntityBatch( persister, id, batchSizes[0], session.getEntityMode() );
+				.getBatchFetchQueue()
+				.getEntityBatch( persister, id, batchSizes[0], persister.getEntityMode() );
 
 		for ( int i=0; i<batchSizes.length-1; i++) {
 			final int smallBatchSize = batchSizes[i];

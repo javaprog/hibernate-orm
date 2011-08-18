@@ -27,6 +27,8 @@ import java.sql.Types;
 
 import org.junit.Test;
 
+import org.hibernate.dialect.Dialect;
+import org.hibernate.dialect.H2Dialect;
 import org.hibernate.testing.junit4.BaseUnitTestCase;
 
 import static org.junit.Assert.assertEquals;
@@ -52,7 +54,7 @@ public class TableManipulationTests extends BaseUnitTestCase {
 		assertNull( table.getPrimaryKey().getName() );
 		assertFalse( table.values().iterator().hasNext() );
 
-		Column idColumn = table.createColumn( "id" );
+		Column idColumn = table.locateOrCreateColumn( "id" );
 		idColumn.setDatatype( INTEGER );
 		idColumn.setSize( Size.precision( 18, 0 ) );
 		table.getPrimaryKey().addColumn( idColumn );
@@ -60,14 +62,14 @@ public class TableManipulationTests extends BaseUnitTestCase {
 		assertEquals( "my_table_pk", table.getPrimaryKey().getName() );
 		assertEquals( "my_table.PK", table.getPrimaryKey().getExportIdentifier() );
 
-		Column col_1 = table.createColumn( "col_1" );
+		Column col_1 = table.locateOrCreateColumn( "col_1" );
 		col_1.setDatatype( VARCHAR );
 		col_1.setSize( Size.length( 512 ) );
 
 		for ( Value value : table.values() ) {
 			assertTrue( Column.class.isInstance( value ) );
 			Column column = ( Column ) value;
-			if ( column.getName().equals( "id" ) ) {
+			if ( column.getColumnName().getName().equals( "id" ) ) {
 				assertEquals( INTEGER, column.getDatatype() );
 				assertEquals( 18, column.getSize().getPrecision() );
 				assertEquals( 0, column.getSize().getScale() );
@@ -75,7 +77,7 @@ public class TableManipulationTests extends BaseUnitTestCase {
 				assertNull( column.getSize().getLobMultiplier() );
 			}
 			else {
-				assertEquals( "col_1", column.getName() );
+				assertEquals( "col_1", column.getColumnName().getName() );
 				assertEquals( VARCHAR, column.getDatatype() );
 				assertEquals( -1, column.getSize().getPrecision() );
 				assertEquals( -1, column.getSize().getScale() );
@@ -86,11 +88,26 @@ public class TableManipulationTests extends BaseUnitTestCase {
 	}
 
 	@Test
+	public void testTableSpecificationCounter() {
+		Schema schema = new Schema( null, null );
+		Table table = schema.createTable( Identifier.toIdentifier( "my_table" ) );
+		InLineView inLineView = schema.createInLineView( "my_inlineview", "subselect" );
+		InLineView otherInLineView = schema.createInLineView( "my_other_inlineview", "other subselect" );
+		Table otherTable = schema.createTable( Identifier.toIdentifier( "my_other_table" ) );
+
+		int firstTableNumber = table.getTableNumber();
+		assertEquals( firstTableNumber, table.getTableNumber() );
+		assertEquals( firstTableNumber + 1, inLineView.getTableNumber() );
+		assertEquals( firstTableNumber + 2, otherInLineView.getTableNumber() );
+		assertEquals( firstTableNumber + 3, otherTable.getTableNumber() );
+	}
+
+	@Test
 	public void testBasicForeignKeyDefinition() {
 		Schema schema = new Schema( null, null );
 		Table book = schema.createTable( Identifier.toIdentifier( "BOOK" ) );
 
-		Column bookId = book.createColumn( "id" );
+		Column bookId = book.locateOrCreateColumn( "id" );
 		bookId.setDatatype( INTEGER );
 		bookId.setSize( Size.precision( 18, 0 ) );
 		book.getPrimaryKey().addColumn( bookId );
@@ -98,13 +115,13 @@ public class TableManipulationTests extends BaseUnitTestCase {
 
 		Table page = schema.createTable( Identifier.toIdentifier( "PAGE" ) );
 
-		Column pageId = page.createColumn( "id" );
+		Column pageId = page.locateOrCreateColumn( "id" );
 		pageId.setDatatype( INTEGER );
 		pageId.setSize( Size.precision( 18, 0 ) );
 		page.getPrimaryKey().addColumn( pageId );
 		page.getPrimaryKey().setName( "PAGE_PK" );
 
-		Column pageBookId = page.createColumn( "BOOK_ID" );
+		Column pageBookId = page.locateOrCreateColumn( "BOOK_ID" );
 		pageId.setDatatype( INTEGER );
 		pageId.setSize( Size.precision( 18, 0 ) );
 		ForeignKey pageBookFk = page.createForeignKey( book, "PAGE_BOOK_FK" );
@@ -112,5 +129,23 @@ public class TableManipulationTests extends BaseUnitTestCase {
 
 		assertEquals( page, pageBookFk.getSourceTable() );
 		assertEquals( book, pageBookFk.getTargetTable() );
+	}
+
+	@Test
+	public void testQualifiedName() {
+		Dialect dialect = new H2Dialect();
+		Schema schema = new Schema( Identifier.toIdentifier( "schema" ), Identifier.toIdentifier( "`catalog`" ) );
+		Table table = schema.createTable( Identifier.toIdentifier( "my_table" ) );
+		assertEquals( "my_table", table.getTableName().getName() );
+		assertEquals( "my_table", table.getTableName().toString() );
+		assertEquals( "schema.\"catalog\".my_table", table.getQualifiedName( dialect ) );
+
+		table = schema.createTable( Identifier.toIdentifier( "`my_table`" ) );
+		assertEquals( "my_table", table.getTableName().getName() );
+		assertEquals( "`my_table`", table.getTableName().toString() );
+		assertEquals( "schema.\"catalog\".\"my_table\"", table.getQualifiedName( dialect ) );
+
+		InLineView inLineView = schema.createInLineView( "my_inlineview", "select ..." );
+		assertEquals( "( select ... )", inLineView.getQualifiedName( dialect ) );
 	}
 }

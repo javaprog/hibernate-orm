@@ -26,12 +26,16 @@ package org.hibernate.metamodel.relational;
 import java.util.List;
 import java.util.ArrayList;
 
+import org.hibernate.AssertionFailure;
+import org.hibernate.dialect.Dialect;
+
 /**
  * Support for writing {@link Constraint} implementations
  *
  * @todo do we need to support defining these on particular schemas/catalogs?
  *
  * @author Steve Ebersole
+ * @author Gail Badner
  */
 public abstract class AbstractConstraint implements Constraint {
 	private final TableSpecification table;
@@ -55,14 +59,64 @@ public abstract class AbstractConstraint implements Constraint {
 		return columns;
 	}
 
+	protected int getColumnSpan() {
+		return columns.size();
+	}
+
 	protected List<Column> internalColumnAccess() {
 		return columns;
 	}
 
 	public void addColumn(Column column) {
+		internalAddColumn( column );
+	}
+
+	protected void internalAddColumn(Column column) {
 		if ( column.getTable() != getTable() ) {
-			throw new IllegalArgumentException( "Unable to add column to constraint; tables did not match" );
+			throw new AssertionFailure(
+					String.format(
+							"Unable to add column to constraint; tables [%s, %s] did not match",
+							column.getTable().toLoggableString(),
+							getTable().toLoggableString()
+					)
+			);
 		}
 		columns.add( column );
+	}
+
+	protected boolean isCreationVetoed(Dialect dialect) {
+		return false;
+	}
+
+	protected abstract String sqlConstraintStringInAlterTable(Dialect dialect);
+
+	public String[] sqlDropStrings(Dialect dialect) {
+		if ( isCreationVetoed( dialect ) ) {
+			return null;
+		}
+		else {
+			return new String[] {
+					new StringBuffer()
+						.append( "alter table " )
+						.append( getTable().getQualifiedName( dialect ) )
+						.append( " drop constraint " )
+						.append( dialect.quote( getName() ) )
+						.toString()
+			};
+		}
+	}
+
+	public String[] sqlCreateStrings(Dialect dialect) {
+		if ( isCreationVetoed( dialect ) ) {
+			return null;
+		}
+		else {
+			return new String[] {
+					new StringBuilder( "alter table " )
+							.append( getTable().getQualifiedName( dialect ) )
+							.append( sqlConstraintStringInAlterTable( dialect ) )
+							.toString()
+			};
+		}
 	}
 }

@@ -32,7 +32,8 @@ public enum TypeNature {
 	BASIC( "basic" ),
 	COMPONENT( "component" ),
 	ENTITY( "entity" ),
-	SUPERCLASS( "superclass" );
+	SUPERCLASS( "superclass" ),
+	NON_ENTITY( "non-entity" );
 
 	private final String name;
 

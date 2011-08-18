@@ -57,8 +57,6 @@ import org.hibernate.HibernateException;
 public class WebSphereExtendedJtaPlatform extends AbstractJtaPlatform {
 	public static final String UT_NAME = "java:comp/UserTransaction";
 
-	private final JtaSynchronizationStrategy synchronizationStrategy = new TransactionManagerBasedSynchronizationStrategy( this );
-
 	@Override
 	protected boolean canCacheTransactionManager() {
 		return true;
@@ -79,11 +77,6 @@ public class WebSphereExtendedJtaPlatform extends AbstractJtaPlatform {
 	public Object getTransactionIdentifier(Transaction transaction) {
 		// WebSphere, however, is not a sane JEE/JTA container...
 		return Integer.valueOf( transaction.hashCode() );
-	}
-
-	@Override
-	protected JtaSynchronizationStrategy getSynchronizationStrategy() {
-		return synchronizationStrategy;
 	}
 
 	public class TransactionManagerAdapter implements TransactionManager {
@@ -242,7 +235,7 @@ public class WebSphereExtendedJtaPlatform extends AbstractJtaPlatform {
 
 			@Override
 			public int getStatus() {
-				return new Integer(0).equals( getLocalId() ) ?
+				return Integer.valueOf( 0 ).equals( getLocalId() ) ?
 						Status.STATUS_NO_TRANSACTION : Status.STATUS_ACTIVE;
 			}
 

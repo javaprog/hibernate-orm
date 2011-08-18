@@ -31,14 +31,12 @@ import org.infinispan.util.logging.LogFactory;
 
 import org.hibernate.Session;
 import org.hibernate.Transaction;
-import org.hibernate.cache.entry.CacheEntry;
+import org.hibernate.cache.spi.entry.CacheEntry;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.stat.SecondLevelCacheStatistics;
 import org.hibernate.stat.Statistics;
 
 import org.junit.Test;
-
-import org.hibernate.testing.FailureExpected;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -320,7 +318,6 @@ public class BasicTransactionalTestCase extends SingleNodeTestCase {
 	}
 
 	@Test
-	@FailureExpected( jiraKey = "HHH-6094" )
 	public void testQueryCache() throws Exception {
 		Statistics stats = sessionFactory().getStatistics();
 		stats.clear();
@@ -378,7 +375,6 @@ public class BasicTransactionalTestCase extends SingleNodeTestCase {
 	}
 
 	@Test
-	@FailureExpected( jiraKey = "HHH-6094" )
 	public void testQueryCacheHitInSameTransaction() throws Exception {
 		Statistics stats = sessionFactory().getStatistics();
 		stats.clear();

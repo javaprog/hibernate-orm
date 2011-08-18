@@ -41,6 +41,18 @@ import org.jboss.logging.Logger;
 
 import org.hibernate.AssertionFailure;
 import org.hibernate.HibernateException;
+import org.hibernate.cache.spi.QueryCache;
+import org.hibernate.cache.spi.QueryKey;
+import org.hibernate.engine.internal.TwoPhaseLoad;
+import org.hibernate.engine.spi.EntityKey;
+import org.hibernate.engine.spi.PersistenceContext;
+import org.hibernate.engine.spi.QueryParameters;
+import org.hibernate.engine.spi.RowSelection;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.engine.spi.SubselectFetch;
+import org.hibernate.event.spi.EventSource;
+import org.hibernate.event.spi.PreLoadEvent;
+import org.hibernate.hql.internal.HolderInstantiator;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
@@ -49,28 +61,16 @@ import org.hibernate.ScrollMode;
 import org.hibernate.ScrollableResults;
 import org.hibernate.StaleObjectStateException;
 import org.hibernate.WrongClassException;
-import org.hibernate.cache.FilterKey;
-import org.hibernate.cache.QueryCache;
-import org.hibernate.cache.QueryKey;
-import org.hibernate.collection.PersistentCollection;
+import org.hibernate.cache.spi.FilterKey;
+import org.hibernate.collection.spi.PersistentCollection;
 import org.hibernate.dialect.Dialect;
-import org.hibernate.engine.EntityKey;
-import org.hibernate.engine.EntityUniqueKey;
-import org.hibernate.engine.PersistenceContext;
-import org.hibernate.engine.QueryParameters;
-import org.hibernate.engine.RowSelection;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.SessionImplementor;
-import org.hibernate.engine.SubselectFetch;
-import org.hibernate.engine.TwoPhaseLoad;
-import org.hibernate.engine.TypedValue;
+import org.hibernate.engine.spi.EntityUniqueKey;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.TypedValue;
 import org.hibernate.engine.jdbc.ColumnNameCache;
-import org.hibernate.event.EventSource;
-import org.hibernate.event.PostLoadEvent;
-import org.hibernate.event.PreLoadEvent;
-import org.hibernate.hql.HolderInstantiator;
-import org.hibernate.impl.FetchingScrollableResultsImpl;
-import org.hibernate.impl.ScrollableResultsImpl;
+import org.hibernate.event.spi.PostLoadEvent;
+import org.hibernate.internal.FetchingScrollableResultsImpl;
+import org.hibernate.internal.ScrollableResultsImpl;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.entity.EntityPersister;
@@ -758,14 +758,6 @@ public abstract class Loader {
 		}
 	}
 
-	private Serializable determineResultId(SessionImplementor session, Serializable optionalId, Type idType, Serializable resolvedId) {
-		final boolean idIsResultId = optionalId != null
-				&& resolvedId != null
-				&& idType.isEqual( optionalId, resolvedId, session.getEntityMode(), factory );
-		final Serializable resultId = idIsResultId ? optionalId : resolvedId;
-		return resultId;
-	}
-
 	protected void applyPostLoadLocks(Object[] row, LockMode[] lockModesArray, SessionImplementor session) {
 	}
 
@@ -854,12 +846,16 @@ public abstract class Loader {
 
 			EntityKey[] keys = new EntityKey[entitySpan]; //we can reuse it for each row
 
-            LOG.trace("Processing result set");
+                        if (LOG.isTraceEnabled()) {
+                           LOG.trace("Processing result set");
+                        }
 
 			int count;
 			for ( count = 0; count < maxRows && rs.next(); count++ ) {
 
-                LOG.debugf("Result set row: %s", count);
+                                if (LOG.isDebugEnabled()) {
+                                   LOG.debugf("Result set row: %s", count);
+                                }
 
 				Object result = getRowFromResultSet(
 						rs,
@@ -881,7 +877,9 @@ public abstract class Loader {
 
 			}
 
-            LOG.trace("Done processing result set (" + count + " rows)");
+                        if (LOG.isTraceEnabled()) {
+                           LOG.trace("Done processing result set (" + count + " rows)");
+                        }
 
 		}
 		finally {
@@ -1292,7 +1290,7 @@ public abstract class Loader {
 
 			final boolean idIsResultId = id != null &&
 					resultId != null &&
-					idType.isEqual( id, resultId, session.getEntityMode(), factory );
+					idType.isEqual( id, resultId, factory );
 
 			if ( idIsResultId ) resultId = id; //use the id passed in
 		}
@@ -1412,15 +1410,15 @@ public abstract class Loader {
 	 * The entity instance is already in the session cache
 	 */
 	private void instanceAlreadyLoaded(
-	        final ResultSet rs,
+			final ResultSet rs,
 	        final int i,
 	        final Loadable persister,
 	        final EntityKey key,
 	        final Object object,
 	        final LockMode lockMode,
 	        final SessionImplementor session)
-	throws HibernateException, SQLException {
-		if ( !persister.isInstance( object, session.getEntityMode() ) ) {
+			throws HibernateException, SQLException {
+		if ( !persister.isInstance( object ) ) {
 			throw new WrongClassException(
 					"loaded object was of wrong class " + object.getClass(),
 					key.getIdentifier(),
@@ -1582,8 +1580,9 @@ public abstract class Loader {
 						ukName,
 						type.semiResolve( values[index], session, object ),
 						type,
-						session.getEntityMode(), session.getFactory()
-					);
+						persister.getEntityMode(),
+						session.getFactory()
+				);
 				session.getPersistenceContext().addEntity( euk, object );
 			}
 		}
@@ -1597,7 +1596,7 @@ public abstract class Loader {
 				lockMode,
 				!eagerPropertyFetch,
 				session
-			);
+		);
 
 	}
 
@@ -2338,10 +2337,7 @@ public abstract class Loader {
 		return QueryKey.generateQueryKey(
 				getSQLString(),
 				queryParameters,
-				FilterKey.createFilterKeys(
-						session.getLoadQueryInfluencers().getEnabledFilters(),
-						session.getEntityMode()
-				),
+				FilterKey.createFilterKeys( session.getLoadQueryInfluencers().getEnabledFilters() ),
 				session,
 				createCacheableResultTransformer( queryParameters )
 		);

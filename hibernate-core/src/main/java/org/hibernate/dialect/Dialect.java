@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import org.hibernate.HibernateException;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
@@ -55,11 +56,10 @@ import org.hibernate.dialect.lock.PessimisticForceIncrementLockingStrategy;
 import org.hibernate.dialect.lock.PessimisticReadSelectLockingStrategy;
 import org.hibernate.dialect.lock.PessimisticWriteSelectLockingStrategy;
 import org.hibernate.dialect.lock.SelectLockingStrategy;
-import org.hibernate.engine.SessionImplementor;
 import org.hibernate.engine.jdbc.LobCreator;
-import org.hibernate.exception.SQLExceptionConverter;
-import org.hibernate.exception.SQLStateConverter;
-import org.hibernate.exception.ViolatedConstraintNameExtracter;
+import org.hibernate.exception.spi.SQLExceptionConverter;
+import org.hibernate.exception.internal.SQLStateConverter;
+import org.hibernate.exception.spi.ViolatedConstraintNameExtracter;
 import org.hibernate.id.IdentityGenerator;
 import org.hibernate.id.SequenceGenerator;
 import org.hibernate.id.TableHiLoGenerator;
@@ -144,10 +144,40 @@ public abstract class Dialect {
 
 		registerFunction( "str", new SQLFunctionTemplate(StandardBasicTypes.STRING, "cast(?1 as char)") );
 
+		registerColumnType( Types.BIT, "bit" );
+		registerColumnType( Types.BOOLEAN, "boolean" );
+		registerColumnType( Types.TINYINT, "tinyint" );
+		registerColumnType( Types.SMALLINT, "smallint" );
+		registerColumnType( Types.INTEGER, "integer" );
+		registerColumnType( Types.BIGINT, "bigint" );
+		registerColumnType( Types.FLOAT, "float($p)" );
+		registerColumnType( Types.DOUBLE, "double precision" );
+		registerColumnType( Types.NUMERIC, "numeric($p,$s)" );
+		registerColumnType( Types.REAL, "real" );
+
+		registerColumnType( Types.DATE, "date" );
+		registerColumnType( Types.TIME, "time" );
+		registerColumnType( Types.TIMESTAMP, "timestamp" );
+
+		registerColumnType( Types.VARBINARY, "bit varying($l)" );
+		registerColumnType( Types.LONGVARBINARY, "bit varying($l)" );
+		registerColumnType( Types.BLOB, "blob" );
+
+		registerColumnType( Types.CHAR, "char($l)" );
+		registerColumnType( Types.VARCHAR, "varchar($l)" );
+		registerColumnType( Types.LONGVARCHAR, "varchar($l)" );
+		registerColumnType( Types.CLOB, "clob" );
+
+		registerColumnType( Types.NCHAR, "nchar($l)" );
+		registerColumnType( Types.NVARCHAR, "nvarchar($l)" );
+		registerColumnType( Types.LONGNVARCHAR, "nvarchar($l)" );
+		registerColumnType( Types.NCLOB, "nclob" );
+
         // register hibernate types for default use in scalar sqlquery type auto detection
 		registerHibernateType( Types.BIGINT, StandardBasicTypes.BIG_INTEGER.getName() );
 		registerHibernateType( Types.BINARY, StandardBasicTypes.BINARY.getName() );
 		registerHibernateType( Types.BIT, StandardBasicTypes.BOOLEAN.getName() );
+		registerHibernateType( Types.BOOLEAN, StandardBasicTypes.BOOLEAN.getName() );
 		registerHibernateType( Types.CHAR, StandardBasicTypes.CHARACTER.getName() );
 		registerHibernateType( Types.DATE, StandardBasicTypes.DATE.getName() );
 		registerHibernateType( Types.DOUBLE, StandardBasicTypes.DOUBLE.getName() );
@@ -256,7 +286,7 @@ public abstract class Dialect {
 	 * @return the database type name
 	 * @throws HibernateException If no mapping was specified for that type.
 	 */
-	public String getTypeName(int code, int length, int precision, int scale) throws HibernateException {
+	public String getTypeName(int code, long length, int precision, int scale) throws HibernateException {
 		String result = typeNames.get( code, length, precision, scale );
 		if ( result == null ) {
 			throw new HibernateException(
@@ -289,7 +319,7 @@ public abstract class Dialect {
 	 * @param capacity The maximum length of database type
 	 * @param name The database type name
 	 */
-	protected void registerColumnType(int code, int capacity, String name) {
+	protected void registerColumnType(int code, long capacity, String name) {
 		typeNames.put( code, capacity, name );
 	}
 
@@ -320,9 +350,7 @@ public abstract class Dialect {
 	 *         if there is no override, then <code>sqlTypeDescriptor</code> is returned.
 	 * @throws IllegalArgumentException if <code>sqlTypeDescriptor</code> is null.
 	 *
-	 * @see {@link SqlTypeDescriptor}
 	 * @see {@link #getSqlTypeDescriptorOverride}
-	 * @see {@link StandardBasicTypes#isStandardBasicSqlTypeDescriptor(org.hibernate.type.descriptor.sql.SqlTypeDescriptor)}
 	 */
 	public SqlTypeDescriptor remapSqlTypeDescriptor(SqlTypeDescriptor sqlTypeDescriptor) {
 		if ( sqlTypeDescriptor == null ) {
@@ -344,9 +372,6 @@ public abstract class Dialect {
 	 * @param sqlCode A {@link Types} constant indicating the SQL column type
 	 * @return The {@link SqlTypeDescriptor} that should override the
 	 * "standard basic" SQL type descriptor, or null, if there is no override.
-	 *
-	 * @see {@link SqlTypeDescriptor}
-	 * @see {@link StandardBasicTypes#isStandardBasicSqlTypeDescriptor(org.hibernate.type.descriptor.sql.SqlTypeDescriptor)}
 	 */
 	protected SqlTypeDescriptor getSqlTypeDescriptorOverride(int sqlCode) {
 		SqlTypeDescriptor descriptor;
@@ -555,7 +580,7 @@ public abstract class Dialect {
 	 * @param capacity The maximum length of database type
 	 * @param name The Hibernate {@link org.hibernate.type.Type} name
 	 */
-	protected void registerHibernateType(int code, int capacity, String name) {
+	protected void registerHibernateType(int code, long capacity, String name) {
 		hibernateTypeNames.put( code, capacity, name);
 	}
 
@@ -1076,22 +1101,20 @@ public abstract class Dialect {
 	 * @since 3.2
 	 */
 	public LockingStrategy getLockingStrategy(Lockable lockable, LockMode lockMode) {
-		if ( lockMode==LockMode.PESSIMISTIC_FORCE_INCREMENT) {
-			return new PessimisticForceIncrementLockingStrategy( lockable, lockMode);
-		}
-		else if ( lockMode==LockMode.PESSIMISTIC_WRITE) {
-			return new PessimisticWriteSelectLockingStrategy( lockable, lockMode);
-		}
-		else if ( lockMode==LockMode.PESSIMISTIC_READ) {
-			return new PessimisticReadSelectLockingStrategy( lockable, lockMode);
-		}
-		else if ( lockMode==LockMode.OPTIMISTIC) {
-			return new OptimisticLockingStrategy( lockable, lockMode);
-		}
-		else if ( lockMode==LockMode.OPTIMISTIC_FORCE_INCREMENT) {
-			return new OptimisticForceIncrementLockingStrategy( lockable, lockMode);
-		}
-		return new SelectLockingStrategy( lockable, lockMode );
+        switch ( lockMode ) {
+            case PESSIMISTIC_FORCE_INCREMENT:
+                return new PessimisticForceIncrementLockingStrategy( lockable, lockMode );
+            case PESSIMISTIC_WRITE:
+                return new PessimisticWriteSelectLockingStrategy( lockable, lockMode );
+            case PESSIMISTIC_READ:
+                return new PessimisticReadSelectLockingStrategy( lockable, lockMode );
+            case OPTIMISTIC:
+                return new OptimisticLockingStrategy( lockable, lockMode );
+            case OPTIMISTIC_FORCE_INCREMENT:
+                return new OptimisticForceIncrementLockingStrategy( lockable, lockMode );
+            default:
+                return new SelectLockingStrategy( lockable, lockMode );
+        }
 	}
 
 	/**
@@ -1101,26 +1124,26 @@ public abstract class Dialect {
 	 * @return The appropriate for update fragment.
 	 */
 	public String getForUpdateString(LockOptions lockOptions) {
-		LockMode lockMode = lockOptions.getLockMode();
-		if ( lockMode==LockMode.UPGRADE) {
-			return getForUpdateString();
-		}
-		else if( lockMode==LockMode.PESSIMISTIC_READ ) {
-			return getReadLockString(lockOptions.getTimeOut());
-		}
-		else if( lockMode==LockMode.PESSIMISTIC_WRITE ) {
-			return getWriteLockString(lockOptions.getTimeOut());
-		}
-		else if ( lockMode==LockMode.UPGRADE_NOWAIT ) {
-			return getForUpdateNowaitString();
-		}
-		else if ( lockMode==LockMode.FORCE || lockMode==LockMode.PESSIMISTIC_FORCE_INCREMENT) {
-			return getForUpdateNowaitString();
-		}
-		else {
-			return "";
-		}
+        LockMode lockMode = lockOptions.getLockMode();
+        return getForUpdateString( lockMode, lockOptions.getTimeOut() );
 	}
+
+    private String getForUpdateString(LockMode lockMode, int timeout){
+       switch ( lockMode ) {
+            case UPGRADE:
+                return getForUpdateString();
+            case PESSIMISTIC_READ:
+                return getReadLockString( timeout );
+            case PESSIMISTIC_WRITE:
+                return getWriteLockString( timeout );
+            case UPGRADE_NOWAIT:
+            case FORCE:
+            case PESSIMISTIC_FORCE_INCREMENT:
+                return getForUpdateNowaitString();
+            default:
+                return "";
+        }
+    }
 
 	/**
 	 * Given a lock mode, determine the appropriate for update fragment to use.
@@ -1129,24 +1152,7 @@ public abstract class Dialect {
 	 * @return The appropriate for update fragment.
 	 */
 	public String getForUpdateString(LockMode lockMode) {
-		if ( lockMode==LockMode.UPGRADE ) {
-			return getForUpdateString();
-		}
-		else if( lockMode==LockMode.PESSIMISTIC_READ ) {
-			return getReadLockString(LockOptions.WAIT_FOREVER);
-		}
-		else if( lockMode==LockMode.PESSIMISTIC_WRITE ) {
-			return getWriteLockString(LockOptions.WAIT_FOREVER);
-		}
-		else if ( lockMode==LockMode.UPGRADE_NOWAIT ) {
-			return getForUpdateNowaitString();
-		}
-		else if ( lockMode==LockMode.FORCE || lockMode==LockMode.PESSIMISTIC_FORCE_INCREMENT) {
-			return getForUpdateNowaitString();
-		}
-		else {
-			return "";
-		}
+		return getForUpdateString( lockMode, LockOptions.WAIT_FOREVER );
 	}
 
 	/**
@@ -1579,6 +1585,21 @@ public abstract class Dialect {
 	 */
 	public String getLowercaseFunction() {
 		return "lower";
+	}
+
+	/**
+	 * The name of the SQL function that can do case insensitive <b>like</b> comparison.
+	 * @return  The dialect-specific "case insensitive" like function.
+	 */
+	public String getCaseInsensitiveLike(){
+		return "like";
+	}
+
+	/**
+	 * Does the underlying Database supports case insensitive like comparison.
+	 */
+	public boolean supportsCaseInsensitiveLike(){
+		return false;
 	}
 
 	/**

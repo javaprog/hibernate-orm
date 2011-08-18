@@ -57,8 +57,8 @@ public final class CollectionHelper {
 	 * @param size The size to make the map.
 	 * @return The sized map.
 	 */
-	public static Map mapOfSize(int size) {
-		return new HashMap( determineProperSizing( size ), LOAD_FACTOR );
+	public static <K,V> Map<K,V> mapOfSize(int size) {
+		return new HashMap<K,V>( determineProperSizing( size ), LOAD_FACTOR );
 	}
 
 	/**
@@ -127,4 +127,20 @@ public final class CollectionHelper {
 	public static <T> List<T> arrayList(int anticipatedSize) {
 		return new ArrayList<T>( anticipatedSize );
 	}
+
+    public static boolean isEmpty(Collection collection) {
+        return collection == null || collection.isEmpty();
+    }
+
+    public static boolean isEmpty(Map map) {
+        return map == null || map.isEmpty();
+    }
+
+    public static boolean isNotEmpty(Collection collection) {
+        return !isEmpty( collection );
+    }
+
+    public static boolean isNotEmpty(Map map) {
+        return !isEmpty( map );
+    }
 }

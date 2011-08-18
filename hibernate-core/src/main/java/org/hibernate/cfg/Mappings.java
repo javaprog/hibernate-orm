@@ -35,9 +35,9 @@ import org.hibernate.MappingException;
 import org.hibernate.annotations.AnyMetaDef;
 import org.hibernate.annotations.common.reflection.ReflectionManager;
 import org.hibernate.annotations.common.reflection.XClass;
-import org.hibernate.engine.FilterDefinition;
-import org.hibernate.engine.NamedQueryDefinition;
-import org.hibernate.engine.NamedSQLQueryDefinition;
+import org.hibernate.engine.spi.FilterDefinition;
+import org.hibernate.engine.spi.NamedQueryDefinition;
+import org.hibernate.engine.spi.NamedSQLQueryDefinition;
 import org.hibernate.engine.ResultSetMappingDefinition;
 import org.hibernate.id.factory.DefaultIdentifierGeneratorFactory;
 import org.hibernate.mapping.AuxiliaryDatabaseObject;
@@ -740,7 +740,7 @@ public interface Mappings {
 
 	/**
 	 * Should we use the new generator strategy mappings.  This is controlled by the
-	 * {@link Configuration#USE_NEW_ID_GENERATOR_MAPPINGS} setting.
+	 * {@link AvailableSettings#USE_NEW_ID_GENERATOR_MAPPINGS} setting.
 	 *
 	 * @return True if the new generators should be used, false otherwise.
 	 */

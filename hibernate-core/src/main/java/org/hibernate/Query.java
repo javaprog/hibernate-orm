@@ -177,7 +177,7 @@ public interface Query {
 	 * read-only/modifiable setting was not initialized, then the default
 	 * read-only/modifiable setting for the persistence context is returned instead.
 	 * @see Query#setReadOnly(boolean)
-	 * @see org.hibernate.engine.PersistenceContext#isDefaultReadOnly()
+	 * @see org.hibernate.engine.spi.PersistenceContext#isDefaultReadOnly()
 	 *
 	 * The read-only/modifiable setting has no impact on entities/proxies returned by the
 	 * query that existed in the session before the query was executed.
@@ -191,11 +191,11 @@ public interface Query {
 	 * Set the read-only/modifiable mode for entities and proxies
 	 * loaded by this Query. This setting overrides the default setting
 	 * for the persistence context.
-	 * @see org.hibernate.engine.PersistenceContext#isDefaultReadOnly()
+	 * @see org.hibernate.engine.spi.PersistenceContext#isDefaultReadOnly()
 	 *
 	 * To set the default read-only/modifiable setting used for
 	 * entities and proxies that are loaded into the session:
-	 * @see org.hibernate.engine.PersistenceContext#setDefaultReadOnly(boolean)
+	 * @see org.hibernate.engine.spi.PersistenceContext#setDefaultReadOnly(boolean)
 	 * @see org.hibernate.Session#setDefaultReadOnly(boolean)
 	 *
 	 * Read-only entities are not dirty-checked and snapshots of persistent
@@ -405,8 +405,28 @@ public interface Query {
 	public Query setBigDecimal(String name, BigDecimal number);
 	public Query setBigInteger(String name, BigInteger number);
 
+        /**
+         * Bind the date (time is truncated) of a given Date object to a named query parameter.
+         * 
+	 * @param name The name of the parameter
+	 * @param date The date object
+         */
 	public Query setDate(String name, Date date);
+
+        /**
+         * Bind the time (date is truncated) of a given Date object to a named query parameter.
+         * 
+	 * @param name The name of the parameter
+	 * @param date The date object
+         */
 	public Query setTime(String name, Date date);
+
+        /**
+         * Bind the date and the time of a given Date object to a named query parameter.
+         *
+	 * @param name The name of the parameter
+	 * @param date The date object
+         */
 	public Query setTimestamp(String name, Date date);
 
 	public Query setCalendar(String name, Calendar calendar);

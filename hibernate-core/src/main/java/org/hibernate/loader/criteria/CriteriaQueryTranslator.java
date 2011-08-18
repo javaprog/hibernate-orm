@@ -44,19 +44,19 @@ import org.hibernate.criterion.CriteriaQuery;
 import org.hibernate.criterion.Criterion;
 import org.hibernate.criterion.EnhancedProjection;
 import org.hibernate.criterion.Projection;
-import org.hibernate.engine.QueryParameters;
-import org.hibernate.engine.RowSelection;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.TypedValue;
-import org.hibernate.hql.ast.util.SessionFactoryHelper;
-import org.hibernate.impl.CriteriaImpl;
+import org.hibernate.engine.spi.QueryParameters;
+import org.hibernate.engine.spi.RowSelection;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.TypedValue;
+import org.hibernate.hql.internal.ast.util.SessionFactoryHelper;
+import org.hibernate.internal.CriteriaImpl;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.persister.entity.Loadable;
 import org.hibernate.persister.entity.PropertyMapping;
 import org.hibernate.persister.entity.Queryable;
+import org.hibernate.sql.JoinType;
 import org.hibernate.type.AssociationType;
 import org.hibernate.type.CollectionType;
-import org.hibernate.type.ComponentType;
 import org.hibernate.type.StringRepresentableType;
 import org.hibernate.type.Type;
 import org.hibernate.internal.util.StringHelper;
@@ -80,7 +80,7 @@ public class CriteriaQueryTranslator implements CriteriaQuery {
 	private final Map criteriaSQLAliasMap = new HashMap();
 	private final Map aliasCriteriaMap = new HashMap();
 	private final Map associationPathCriteriaMap = new LinkedHashMap();
-	private final Map associationPathJoinTypesMap = new LinkedHashMap();
+	private final Map<String,JoinType> associationPathJoinTypesMap = new LinkedHashMap<String,JoinType>();
 	private final Map withClauseMap = new HashMap();
 	
 	private final SessionFactoryImplementor sessionFactory;
@@ -128,9 +128,9 @@ public class CriteriaQueryTranslator implements CriteriaQuery {
 		return associationPathCriteriaMap.containsKey( path );
 	}
 
-	public int getJoinType(String path) {
-		Integer result = ( Integer ) associationPathJoinTypesMap.get( path );
-		return ( result == null ? Criteria.INNER_JOIN : result.intValue() );
+	public JoinType getJoinType(String path) {
+		JoinType result = associationPathJoinTypesMap.get( path );
+		return ( result == null ? JoinType.INNER_JOIN : result );
 	}
 
 	public Criteria getCriteria(String path) {
@@ -170,8 +170,8 @@ public class CriteriaQueryTranslator implements CriteriaQuery {
 			if ( old != null ) {
 				throw new QueryException( "duplicate association path: " + wholeAssociationPath );
 			}
-			int joinType = crit.getJoinType();
-			old = associationPathJoinTypesMap.put( wholeAssociationPath, new Integer( joinType ) );
+			JoinType joinType = crit.getJoinType();
+			old = associationPathJoinTypesMap.put( wholeAssociationPath, joinType );
 			if ( old != null ) {
 				// TODO : not so sure this is needed...
 				throw new QueryException( "duplicate association path: " + wholeAssociationPath );
@@ -675,5 +675,12 @@ public class CriteriaQueryTranslator implements CriteriaQuery {
 		final Criterion crit = (Criterion)this.withClauseMap.get(path);
 		return crit == null ? null : crit.toSqlString(getCriteria(path), this);
 	}
-	
+
+	public boolean hasRestriction(String path)
+	{
+		final CriteriaImpl.Subcriteria crit = ( CriteriaImpl.Subcriteria ) getCriteria( path );
+		return crit == null ? false : crit.hasRestriction();
+	}
+
+
 }

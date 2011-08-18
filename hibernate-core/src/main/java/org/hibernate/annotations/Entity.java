@@ -33,9 +33,12 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * Extends {@link javax.persistence.Entity} with Hibernate features
  *
  * @author Emmanuel Bernard
+ *
+ * @deprecated See individual attributes for intended replacements.  To be removed in 4.1
  */
 @Target(TYPE)
 @Retention(RUNTIME)
+@Deprecated
 public @interface Entity {
 	/**
 	 * Is this entity mutable (read only) or not
@@ -43,16 +46,34 @@ public @interface Entity {
 	 * @deprecated use {@link org.hibernate.annotations.Immutable} 
 	 */
 	boolean mutable() default true;
-	/** Needed column only in SQL on insert */
+	/**
+	 * Needed column only in SQL on insert
+	 * @deprecated use {@link DynamicInsert} instead
+	 */
 	boolean dynamicInsert() default false;
-	/** Needed column only in SQL on update */
+	/**
+	 * Needed column only in SQL on update
+	 * @deprecated Use {@link DynamicUpdate} instead
+	 */
 	boolean dynamicUpdate() default false;
-	/** Do a select to retrieve the entity before any potential update */
+	/**
+	 *  Do a select to retrieve the entity before any potential update
+	 *  @deprecated Use {@link SelectBeforeUpdate} instead
+	 */
 	boolean selectBeforeUpdate() default false;
-	/** polymorphism strategy for this entity */
+	/**
+	 * polymorphism strategy for this entity
+	 * @deprecated use {@link Polymorphism} instead
+	 */
 	PolymorphismType polymorphism() default PolymorphismType.IMPLICIT;
-	/** persister of this entity, default is hibernate internal one */
-	String persister() default "";
-	/** optimistic locking strategy */
+	/**
+	 * optimistic locking strategy
+	 * @deprecated use {@link OptimisticLocking} instead.
+	 */
 	OptimisticLockType optimisticLock() default OptimisticLockType.VERSION;
+	/**
+	 * persister of this entity, default is hibernate internal one
+	 * @deprecated  use {@link Persister} instead
+	 */
+	String persister() default "";
 }

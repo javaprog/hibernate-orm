@@ -23,14 +23,19 @@
  */
 package org.hibernate.metamodel.relational;
 
+import org.hibernate.MappingException;
+import org.hibernate.dialect.Dialect;
+import org.hibernate.internal.util.StringHelper;
+import org.hibernate.metamodel.relational.state.ColumnRelationalState;
+
 /**
  * Models a physical column
  *
  * @author Gavin King
  * @author Steve Ebersole
  */
-public class Column extends AbstractSimpleValue implements SimpleValue {
-	private final String name;
+public class Column extends AbstractSimpleValue {
+	private final Identifier columnName;
 	private boolean nullable;
 	private boolean unique;
 
@@ -46,12 +51,36 @@ public class Column extends AbstractSimpleValue implements SimpleValue {
 	private Size size = new Size();
 
 	protected Column(TableSpecification table, int position, String name) {
-		super( table, position );
-		this.name = name;
+		this( table, position, Identifier.toIdentifier( name ) );
 	}
 
-	public String getName() {
-		return name;
+	protected Column(TableSpecification table, int position, Identifier name) {
+		super( table, position );
+		this.columnName = name;
+	}
+
+	public void initialize(ColumnRelationalState state, boolean forceNonNullable, boolean forceUnique) {
+		size.initialize( state.getSize() );
+		nullable = ! forceNonNullable &&  state.isNullable();
+		unique = ! forceUnique && state.isUnique();
+		checkCondition = state.getCheckCondition();
+		defaultValue = state.getDefault();
+		sqlType = state.getSqlType();
+
+		// TODO: this should go into binding instead (I think???)
+		writeFragment = state.getCustomWriteFragment();
+		readFragment = state.getCustomReadFragment();
+		comment = state.getComment();
+		for ( String uniqueKey : state.getUniqueKeys() ) {
+			getTable().getOrCreateUniqueKey( uniqueKey ).addColumn( this );
+		}
+		for ( String index : state.getIndexes() ) {
+			getTable().getOrCreateIndex( index ).addColumn( this );
+		}
+	}
+
+	public Identifier getColumnName() {
+		return columnName;
 	}
 
 	public boolean isNullable() {
@@ -128,7 +157,39 @@ public class Column extends AbstractSimpleValue implements SimpleValue {
 
 	@Override
 	public String toLoggableString() {
-		return getTable().getLoggableValueQualifier() + '.' + getName();
+		return getTable().getLoggableValueQualifier() + '.' + getColumnName();
 	}
 
+	@Override
+	public String getAlias(Dialect dialect) {
+		String alias = columnName.getName();
+		int lastLetter = StringHelper.lastIndexOfLetter( columnName.getName() );
+		if ( lastLetter == -1 ) {
+			alias = "column";
+		}
+		boolean useRawName =
+				columnName.getName().equals( alias ) &&
+						alias.length() <= dialect.getMaxAliasLength() &&
+						! columnName.isQuoted() &&
+						! columnName.getName().toLowerCase().equals( "rowid" );
+		if ( ! useRawName ) {
+			String unique =
+					new StringBuilder()
+					.append( getPosition() )
+					.append( '_' )
+					.append( getTable().getTableNumber() )
+					.append( '_' )
+					.toString();
+			if ( unique.length() >= dialect.getMaxAliasLength() ) {
+				throw new MappingException(
+						"Unique suffix [" + unique + "] length must be less than maximum [" + dialect.getMaxAliasLength() + "]"
+				);
+			}
+			if ( alias.length() + unique.length() > dialect.getMaxAliasLength()) {
+				alias = alias.substring( 0, dialect.getMaxAliasLength() - unique.length() );
+			}
+			alias = alias + unique;
+		}
+		return alias;
+	}
 }

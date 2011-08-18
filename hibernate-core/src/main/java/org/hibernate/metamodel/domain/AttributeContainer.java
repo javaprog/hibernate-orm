@@ -26,25 +26,21 @@ package org.hibernate.metamodel.domain;
 import java.util.Set;
 
 /**
- * Basic contract for any container holding attributes.  This allows polymorphic handling of both
+ * Basic contract for any container holding attributes. This allows polymorphic handling of both
  * components and entities in terms of the attributes they hold.
  *
  * @author Steve Ebersole
  */
 public interface AttributeContainer extends Type {
 	/**
-	 * Retrieve the attributes contained in this container.
+	 * Obtain the name of this container in terms of creating attribute role names.
+	 * <p/>
+	 * NOTE : A role uniquely names each attribute.  The role name is the name of the attribute prefixed by the "path"
+	 * to its container.
 	 *
-	 * @return The contained attributes
+	 * @return The container base name for role construction.
 	 */
-	public Set<Attribute> getAttributes();
-
-	public SingularAttribute getOrCreateSingularAttribute(String name);
-	public PluralAttribute getOrCreatePluralAttribute(String name, PluralAttributeNature nature);
-	public PluralAttribute getOrCreateBag(String name);
-	public PluralAttribute getOrCreateSet(String name);
-	public IndexedPluralAttribute getOrCreateList(String name);
-	public IndexedPluralAttribute getOrCreateMap(String name);
+	public String getRoleBaseName();
 
 	/**
 	 * Retrieve an attribute by name.
@@ -53,5 +49,34 @@ public interface AttributeContainer extends Type {
 	 *
 	 * @return The attribute matching the given name, or null.
 	 */
-	public Attribute getAttribute(String name);
+	public Attribute locateAttribute(String name);
+
+	/**
+	 * Retrieve the attributes contained in this container.
+	 *
+	 * @return The contained attributes
+	 */
+	public Set<Attribute> attributes();
+
+	public SingularAttribute locateSingularAttribute(String name);
+	public SingularAttribute createSingularAttribute(String name);
+	public SingularAttribute createVirtualSingularAttribute(String name);
+
+	public SingularAttribute locateComponentAttribute(String name);
+	public SingularAttribute createComponentAttribute(String name, Component component);
+
+	public PluralAttribute locatePluralAttribute(String name);
+
+	public PluralAttribute locateBag(String name);
+	public PluralAttribute createBag(String name);
+
+	public PluralAttribute locateSet(String name);
+	public PluralAttribute createSet(String name);
+
+	public IndexedPluralAttribute locateList(String name);
+	public IndexedPluralAttribute createList(String name);
+
+	public IndexedPluralAttribute locateMap(String name);
+	public IndexedPluralAttribute createMap(String name);
+
 }

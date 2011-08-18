@@ -26,8 +26,8 @@ package org.hibernate.envers.event;
 import java.io.Serializable;
 import java.util.List;
 
-import org.hibernate.collection.PersistentCollection;
-import org.hibernate.engine.CollectionEntry;
+import org.hibernate.collection.spi.PersistentCollection;
+import org.hibernate.engine.spi.CollectionEntry;
 import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.configuration.AuditConfiguration;
 import org.hibernate.envers.entities.EntityConfiguration;
@@ -39,7 +39,7 @@ import org.hibernate.envers.synchronization.work.AuditWorkUnit;
 import org.hibernate.envers.synchronization.work.CollectionChangeWorkUnit;
 import org.hibernate.envers.synchronization.work.FakeBidirectionalRelationWorkUnit;
 import org.hibernate.envers.synchronization.work.PersistentCollectionChangeWorkUnit;
-import org.hibernate.event.AbstractCollectionEvent;
+import org.hibernate.event.spi.AbstractCollectionEvent;
 import org.hibernate.persister.collection.AbstractCollectionPersister;
 
 /**

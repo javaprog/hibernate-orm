@@ -30,7 +30,7 @@ import java.util.Set;
 import org.hibernate.Criteria;
 import org.hibernate.EntityMode;
 import org.hibernate.HibernateException;
-import org.hibernate.engine.TypedValue;
+import org.hibernate.engine.spi.TypedValue;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.type.CompositeType;
@@ -203,7 +203,7 @@ public class Example implements Criterion {
 		String[] propertyNames = meta.getPropertyNames();
 		Type[] propertyTypes = meta.getPropertyTypes();
 		//TODO: get all properties, not just the fetched ones!
-		Object[] propertyValues = meta.getPropertyValues( entity, getEntityMode(criteria, criteriaQuery) );
+		Object[] propertyValues = meta.getPropertyValues( entity );
 		for (int i=0; i<propertyNames.length; i++) {
 			Object propertyValue = propertyValues[i];
 			String propertyName = propertyNames[i];
@@ -246,7 +246,7 @@ public class Example implements Criterion {
 		String[] propertyNames = meta.getPropertyNames();
 		Type[] propertyTypes = meta.getPropertyTypes();
 		 //TODO: get all properties, not just the fetched ones!
-		Object[] values = meta.getPropertyValues( entity, getEntityMode(criteria, criteriaQuery) );
+		Object[] values = meta.getPropertyValues( entity );
 		List list = new ArrayList();
 		for (int i=0; i<propertyNames.length; i++) {
 			Object value = values[i];
@@ -271,8 +271,8 @@ public class Example implements Criterion {
 	private EntityMode getEntityMode(Criteria criteria, CriteriaQuery criteriaQuery) {
 		EntityPersister meta = criteriaQuery.getFactory()
 				.getEntityPersister( criteriaQuery.getEntityName(criteria) );
-		EntityMode result = meta.guessEntityMode(entity);
-		if (result==null) {
+		EntityMode result = meta.getEntityMode();
+		if ( ! meta.getEntityMetamodel().getTuplizer().isInstance( entity ) ) {
 			throw new ClassCastException( entity.getClass().getName() );
 		}
 		return result;

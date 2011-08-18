@@ -24,36 +24,56 @@
 package org.hibernate.metamodel.relational;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Convenience base class for implementing the {@link ValueContainer} contract centralizing commonality
- * between modelling tables views and inline views.
+ * between modeling tables, views and inline views.
  *
  * @author Steve Ebersole
  */
-public abstract class AbstractTableSpecification implements TableSpecification, ValueContainer {
-	private final LinkedHashSet<SimpleValue> values = new LinkedHashSet<SimpleValue>();
-	private PrimaryKey primaryKey = new PrimaryKey( this );
-	private List<ForeignKey> foreignKeys = new ArrayList<ForeignKey>();
+public abstract class AbstractTableSpecification implements TableSpecification {
+	private final static AtomicInteger tableCounter = new AtomicInteger( 0 );
+	private final int tableNumber;
 
-	@Override
-	public Iterable<SimpleValue> values() {
-		return values;
+	private final LinkedHashMap<String, SimpleValue> values = new LinkedHashMap<String, SimpleValue>();
+
+	private final PrimaryKey primaryKey = new PrimaryKey( this );
+	private final List<ForeignKey> foreignKeys = new ArrayList<ForeignKey>();
+
+	public AbstractTableSpecification() {
+		this.tableNumber = tableCounter.getAndIncrement();
 	}
 
 	@Override
-	public Column createColumn(String name) {
+	public int getTableNumber() {
+		return tableNumber;
+	}
+
+	@Override
+	public Iterable<SimpleValue> values() {
+		return values.values();
+	}
+
+	@Override
+	public Column locateOrCreateColumn(String name) {
+		if(values.containsKey( name )){
+			return (Column) values.get( name );
+		}
 		final Column column = new Column( this, values.size(), name );
-		values.add( column );
+		values.put( name, column );
 		return column;
 	}
 
 	@Override
-	public DerivedValue createDerivedValue(String fragment) {
+	public DerivedValue locateOrCreateDerivedValue(String fragment) {
+		if(values.containsKey( fragment )){
+			return (DerivedValue) values.get( fragment );
+		}
 		final DerivedValue value = new DerivedValue( this, values.size(), fragment );
-		values.add( value );
+		values.put( fragment, value );
 		return value;
 	}
 
@@ -74,9 +94,7 @@ public abstract class AbstractTableSpecification implements TableSpecification, 
 		return fk;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public PrimaryKey getPrimaryKey() {
 		return primaryKey;
 	}

@@ -61,7 +61,12 @@ public class ValidityAuditStrategy implements AuditStrategy {
             IdMapper idMapper = auditCfg.getEntCfg().get(entityName).getIdMapper();
             idMapper.addIdEqualsToQuery(qb.getRootParameters(), id, auditCfg.getAuditEntCfg().getOriginalIdPropName(), true);
 
-            updateLastRevision(session, auditCfg, qb, id, auditedEntityName, revision);
+            addEndRevisionNulLRestriction(auditCfg, qb);
+
+            @SuppressWarnings({"unchecked"})
+            List<Object> l = qb.toQuery(session).list();
+
+            updateLastRevision(session, auditCfg, l, id, auditedEntityName, revision);
         }
 
         // Save the audit data
@@ -71,34 +76,41 @@ public class ValidityAuditStrategy implements AuditStrategy {
     @SuppressWarnings({"unchecked"})
     public void performCollectionChange(Session session, AuditConfiguration auditCfg,
                                         PersistentCollectionChangeData persistentCollectionChangeData, Object revision) {
-        // Update the end date of the previous row if this operation is expected to have a previous row
-        if (getRevisionType(auditCfg, persistentCollectionChangeData.getData()) != RevisionType.ADD) {
-            /*
-             Constructing a query (there are multiple id fields):
-             select e from audited_middle_ent e where e.end_rev is null and e.id1 = :id1 and e.id2 = :id2 ...
-             */
 
-            QueryBuilder qb = new QueryBuilder(persistentCollectionChangeData.getEntityName(), "e");
+        final QueryBuilder qb = new QueryBuilder(persistentCollectionChangeData.getEntityName(), "e");
 
-            // Adding a parameter for each id component, except the rev number
-            String originalIdPropName = auditCfg.getAuditEntCfg().getOriginalIdPropName();
-            Map<String, Object> originalId = (Map<String, Object>) persistentCollectionChangeData.getData().get(
-                    originalIdPropName);
-            for (Map.Entry<String, Object> originalIdEntry : originalId.entrySet()) {
-                if (!auditCfg.getAuditEntCfg().getRevisionFieldName().equals(originalIdEntry.getKey())) {
-                    qb.getRootParameters().addWhereWithParam(originalIdPropName + "." + originalIdEntry.getKey(),
-                            true, "=", originalIdEntry.getValue());
-                }
+        // Adding a parameter for each id component, except the rev number
+        final String originalIdPropName = auditCfg.getAuditEntCfg().getOriginalIdPropName();
+        final Map<String, Object> originalId = (Map<String, Object>) persistentCollectionChangeData.getData().get(
+                originalIdPropName);
+        for (Map.Entry<String, Object> originalIdEntry : originalId.entrySet()) {
+            if (!auditCfg.getAuditEntCfg().getRevisionFieldName().equals(originalIdEntry.getKey())) {
+                qb.getRootParameters().addWhereWithParam(originalIdPropName + "." + originalIdEntry.getKey(),
+                        true, "=", originalIdEntry.getValue());
             }
+        }
 
-            updateLastRevision(session, auditCfg, qb, originalId, persistentCollectionChangeData.getEntityName(), revision);
+        addEndRevisionNulLRestriction(auditCfg, qb);
+
+        final List<Object> l = qb.toQuery(session).list();
+
+        // Update the last revision if one exists.
+        // HHH-5967: with collections, the same element can be added and removed multiple times. So even if it's an
+        // ADD, we may need to update the last revision.
+        if (l.size() > 0) {
+            updateLastRevision(session, auditCfg, l, originalId, persistentCollectionChangeData.getEntityName(), revision);
         }
 
         // Save the audit data
         session.save(persistentCollectionChangeData.getEntityName(), persistentCollectionChangeData.getData());
     }
 
-	public void addEntityAtRevisionRestriction(GlobalConfiguration globalCfg, QueryBuilder rootQueryBuilder,
+    private void addEndRevisionNulLRestriction(AuditConfiguration auditCfg, QueryBuilder qb) {
+        // e.end_rev is null
+        qb.getRootParameters().addWhere(auditCfg.getAuditEntCfg().getRevisionEndFieldName(), true, "is", "null", false);
+    }
+
+    public void addEntityAtRevisionRestriction(GlobalConfiguration globalCfg, QueryBuilder rootQueryBuilder,
 			String revisionProperty,String revisionEndProperty, boolean addAlias,
             MiddleIdData idData, String revisionPropertyPath, String originalIdPropertyName,
             String alias1, String alias2) {
@@ -134,19 +146,14 @@ public class ValidityAuditStrategy implements AuditStrategy {
     }
 
     @SuppressWarnings({"unchecked"})
-    private void updateLastRevision(Session session, AuditConfiguration auditCfg, QueryBuilder qb,
+    private void updateLastRevision(Session session, AuditConfiguration auditCfg, List<Object> l,
                                     Object id, String auditedEntityName, Object revision) {
-        String revisionEndFieldName = auditCfg.getAuditEntCfg().getRevisionEndFieldName();
-        
-        // e.end_rev is null
-        qb.getRootParameters().addWhere(revisionEndFieldName, true, "is", "null", false);
-
-        List<Object> l = qb.toQuery(session).list();
 
         // There should be one entry
         if (l.size() == 1) {
             // Setting the end revision to be the current rev
             Object previousData = l.get(0);
+            String revisionEndFieldName = auditCfg.getAuditEntCfg().getRevisionEndFieldName();
             ((Map<String, Object>) previousData).put(revisionEndFieldName, revision);
 
             if (auditCfg.getAuditEntCfg().isRevisionEndTimestampEnabled()) {

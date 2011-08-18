@@ -23,13 +23,13 @@
  */
 package org.hibernate.metamodel.binding;
 
-import org.hibernate.engine.ExecuteUpdateResultCheckStyle;
+import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 
 /**
-* TODO : javadoc
-*
-* @author Steve Ebersole
-*/
+ * Wraps the information for custom SQL execution
+ *
+ * @author Steve Ebersole
+ */
 public class CustomSQL {
 	private final String sql;
 	private final boolean isCallable;

@@ -1,10 +1,10 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2008, Red Hat Middleware LLC or third-party contributors as
+ * Copyright (c) 2008-2011, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
- * distributed under license by Red Hat Middleware LLC.
+ * distributed under license by Red Hat Inc.
  *
  * This copyrighted material is made available to anyone wishing to use, modify,
  * copy, or redistribute it subject to the terms and conditions of the GNU
@@ -20,9 +20,9 @@
  * Free Software Foundation, Inc.
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
- *
  */
 package org.hibernate.persister.entity;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,17 +30,17 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
+
 import org.hibernate.AssertionFailure;
-import org.hibernate.Hibernate;
 import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
 import org.hibernate.MappingException;
-import org.hibernate.cache.access.EntityRegionAccessStrategy;
+import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
 import org.hibernate.cfg.Settings;
 import org.hibernate.dialect.Dialect;
-import org.hibernate.engine.ExecuteUpdateResultCheckStyle;
-import org.hibernate.engine.Mapping;
-import org.hibernate.engine.SessionFactoryImplementor;
+import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
+import org.hibernate.engine.spi.Mapping;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.id.IdentityGenerator;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.internal.util.collections.JoinedIterator;
@@ -49,8 +49,10 @@ import org.hibernate.mapping.Column;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.mapping.Subclass;
 import org.hibernate.mapping.Table;
+import org.hibernate.metamodel.binding.EntityBinding;
 import org.hibernate.sql.SelectFragment;
 import org.hibernate.sql.SimpleSelect;
+import org.hibernate.type.StandardBasicTypes;
 import org.hibernate.type.Type;
 
 /**
@@ -234,6 +236,23 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 
 	}
 
+	public UnionSubclassEntityPersister(
+			final EntityBinding entityBinding,
+			final EntityRegionAccessStrategy cacheAccessStrategy,
+			final SessionFactoryImplementor factory,
+			final Mapping mapping) throws HibernateException {
+		super(entityBinding, cacheAccessStrategy, factory );
+		// TODO: implement!!! initializing final fields to null to make compiler happy.
+		subquery = null;
+		tableName = null;
+		subclassClosure = null;
+		spaces = null;
+		subclassSpaces = null;
+		discriminatorSQLValue = null;
+		constraintOrderedTableNames = null;
+		constraintOrderedKeyColumnNames = null;
+	}
+
 	public Serializable[] getQuerySpaces() {
 		return subclassSpaces;
 	}
@@ -243,7 +262,7 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 	}
 
 	public Type getDiscriminatorType() {
-		return Hibernate.INTEGER;
+		return StandardBasicTypes.INTEGER;
 	}
 
 	public String getDiscriminatorSQLValue() {
@@ -399,7 +418,7 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 			}
 		}
 
-		StringBuffer buf = new StringBuffer()
+		StringBuilder buf = new StringBuilder()
 			.append("( ");
 
 		Iterator siter = new JoinedIterator(

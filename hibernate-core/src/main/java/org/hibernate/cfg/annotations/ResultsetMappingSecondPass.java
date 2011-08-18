@@ -42,8 +42,8 @@ import org.hibernate.cfg.BinderHelper;
 import org.hibernate.cfg.Mappings;
 import org.hibernate.cfg.QuerySecondPass;
 import org.hibernate.engine.ResultSetMappingDefinition;
-import org.hibernate.engine.query.sql.NativeSQLQueryRootReturn;
-import org.hibernate.engine.query.sql.NativeSQLQueryScalarReturn;
+import org.hibernate.engine.query.spi.sql.NativeSQLQueryRootReturn;
+import org.hibernate.engine.query.spi.sql.NativeSQLQueryScalarReturn;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.mapping.Component;
 import org.hibernate.mapping.PersistentClass;
@@ -73,7 +73,7 @@ public class ResultsetMappingSecondPass implements QuerySecondPass {
 		//TODO add parameters checkings
 		if ( ann == null ) return;
 		ResultSetMappingDefinition definition = new ResultSetMappingDefinition( ann.name() );
-        LOG.bindingResultSetMapping( definition.getName() );
+        LOG.debugf( "Binding result set mapping: %s", definition.getName() );
 
 		int entityAliasIndex = 0;
 

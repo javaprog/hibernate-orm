@@ -82,6 +82,8 @@ import org.hibernate.AnnotationException;
 import org.hibernate.AssertionFailure;
 import org.hibernate.EntityMode;
 import org.hibernate.FetchMode;
+import org.hibernate.cache.spi.RegionFactory;
+import org.hibernate.engine.internal.Versioning;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.MappingException;
 import org.hibernate.annotations.BatchSize;
@@ -91,7 +93,6 @@ import org.hibernate.annotations.Cascade;
 import org.hibernate.annotations.CascadeType;
 import org.hibernate.annotations.Check;
 import org.hibernate.annotations.CollectionId;
-import org.hibernate.annotations.CollectionOfElements;
 import org.hibernate.annotations.Columns;
 import org.hibernate.annotations.DiscriminatorOptions;
 import org.hibernate.annotations.Fetch;
@@ -101,7 +102,6 @@ import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.FilterDef;
 import org.hibernate.annotations.FilterDefs;
 import org.hibernate.annotations.Filters;
-import org.hibernate.annotations.ForceDiscriminator;
 import org.hibernate.annotations.ForeignKey;
 import org.hibernate.annotations.Formula;
 import org.hibernate.annotations.GenericGenerator;
@@ -134,7 +134,6 @@ import org.hibernate.annotations.common.reflection.XClass;
 import org.hibernate.annotations.common.reflection.XMethod;
 import org.hibernate.annotations.common.reflection.XPackage;
 import org.hibernate.annotations.common.reflection.XProperty;
-import org.hibernate.cache.RegionFactory;
 import org.hibernate.cfg.annotations.CollectionBinder;
 import org.hibernate.cfg.annotations.EntityBinder;
 import org.hibernate.cfg.annotations.MapKeyColumnDelegator;
@@ -144,8 +143,7 @@ import org.hibernate.cfg.annotations.PropertyBinder;
 import org.hibernate.cfg.annotations.QueryBinder;
 import org.hibernate.cfg.annotations.SimpleValueBinder;
 import org.hibernate.cfg.annotations.TableBinder;
-import org.hibernate.engine.FilterDefinition;
-import org.hibernate.engine.Versioning;
+import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.id.MultipleHiLoPerTableGenerator;
 import org.hibernate.id.PersistentIdentifierGenerator;
 import org.hibernate.id.SequenceHiLoGenerator;
@@ -182,7 +180,7 @@ import org.jboss.logging.Logger;
 @SuppressWarnings("unchecked")
 public final class AnnotationBinder {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, AnnotationBinder.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, AnnotationBinder.class.getName() );
 
     /*
      * Some design description
@@ -461,7 +459,7 @@ public final class AnnotationBinder {
 				}
 				//FIXME: work on initialValue() through SequenceGenerator.PARAMETERS
 				//		steve : or just use o.h.id.enhanced.SequenceStyleGenerator
-                if (seqGen.initialValue() != 1) LOG.unsupportedInitialValue(Configuration.USE_NEW_ID_GENERATOR_MAPPINGS);
+                if (seqGen.initialValue() != 1) LOG.unsupportedInitialValue( AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS);
 				idGen.addParam( SequenceHiLoGenerator.MAX_LO, String.valueOf( seqGen.allocationSize() - 1 ) );
                 LOG.trace("Add sequence generator with name: " + idGen.getName());
 			}
@@ -517,7 +515,7 @@ public final class AnnotationBinder {
 			return;
 		}
 
-        LOG.bindingEntityFromClass( clazzToProcess.getName() );
+        LOG.debugf( "Binding entity from annotated class: %s", clazzToProcess.getName() );
 
 		PersistentClass superEntity = getSuperEntity(
 				clazzToProcess, inheritanceStatePerClass, mappings, inheritanceState
@@ -730,17 +728,12 @@ public final class AnnotationBinder {
 					discriminatorType, discAnn, discFormulaAnn, mappings
 			);
 		}
-        if (discAnn != null && inheritanceState.hasParents()) LOG.invalidDescriminatorAnnotation(clazzToProcess.getName());
+        if (discAnn != null && inheritanceState.hasParents()) LOG.invalidDiscriminatorAnnotation( clazzToProcess.getName() );
 
 		String discrimValue = clazzToProcess.isAnnotationPresent( DiscriminatorValue.class ) ?
 				clazzToProcess.getAnnotation( DiscriminatorValue.class ).value() :
 				null;
 		entityBinder.setDiscriminatorValue( discrimValue );
-
-		if ( clazzToProcess.isAnnotationPresent( ForceDiscriminator.class ) ) {
-            LOG.deprecatedForceDescriminatorAnnotation();
-			entityBinder.setForceDiscriminator( true );
-		}
 
 		DiscriminatorOptions discriminatorOptions = clazzToProcess.getAnnotation( DiscriminatorOptions.class );
 		if ( discriminatorOptions != null) {
@@ -1020,12 +1013,12 @@ public final class AnnotationBinder {
 			return;
 		}
 
-		if ( !properties.containsKey( Configuration.DEFAULT_CACHE_CONCURRENCY_STRATEGY ) ) {
+		if ( !properties.containsKey( AvailableSettings.DEFAULT_CACHE_CONCURRENCY_STRATEGY ) ) {
             LOG.trace("Given properties did not contain any default cache concurrency strategy setting");
 			return;
 		}
 
-		final String strategyName = properties.getProperty( Configuration.DEFAULT_CACHE_CONCURRENCY_STRATEGY );
+		final String strategyName = properties.getProperty( AvailableSettings.DEFAULT_CACHE_CONCURRENCY_STRATEGY );
         LOG.trace("Discovered default cache concurrency strategy via config [" + strategyName + "]");
 		CacheConcurrencyStrategy strategy = CacheConcurrencyStrategy.parse( strategyName );
 		if ( strategy == null ) {
@@ -1234,7 +1227,7 @@ public final class AnnotationBinder {
 			params.put( param.name(), mappings.getTypeResolver().heuristicType( param.type() ) );
 		}
 		FilterDefinition def = new FilterDefinition( defAnn.name(), defAnn.defaultCondition(), params );
-        LOG.bindingFilterDefinition( def.getFilterName() );
+        LOG.debugf( "Binding filter definition: %s", def.getFilterName() );
 		mappings.addFilterDefinition( def );
 	}
 
@@ -1289,12 +1282,13 @@ public final class AnnotationBinder {
 			);
 		}
 
+		final String typeBindMessageF = "Binding type definition: %s";
 		if ( !BinderHelper.isEmptyAnnotationValue( defAnn.name() ) ) {
-            LOG.bindingTypeDefinition( defAnn.name() );
+            LOG.debugf( typeBindMessageF, defAnn.name() );
 			mappings.addTypeDef( defAnn.name(), defAnn.typeClass().getName(), params );
 		}
 		if ( !defAnn.defaultForType().equals( void.class ) ) {
-            LOG.bindingTypeDefinition( defAnn.defaultForType().getName() );
+            LOG.debugf( typeBindMessageF, defAnn.defaultForType().getName() );
 			mappings.addTypeDef( defAnn.defaultForType().getName(), defAnn.typeClass().getName(), params );
 		}
 
@@ -1650,13 +1644,11 @@ public final class AnnotationBinder {
 			}
 			else if ( property.isAnnotationPresent( OneToMany.class )
 					|| property.isAnnotationPresent( ManyToMany.class )
-					|| property.isAnnotationPresent( CollectionOfElements.class ) //legacy Hibernate
 					|| property.isAnnotationPresent( ElementCollection.class )
 					|| property.isAnnotationPresent( ManyToAny.class ) ) {
 				OneToMany oneToManyAnn = property.getAnnotation( OneToMany.class );
 				ManyToMany manyToManyAnn = property.getAnnotation( ManyToMany.class );
 				ElementCollection elementCollectionAnn = property.getAnnotation( ElementCollection.class );
-				CollectionOfElements collectionOfElementsAnn = property.getAnnotation( CollectionOfElements.class ); //legacy hibernate
 
 				final IndexColumn indexColumn;
 
@@ -1683,9 +1675,7 @@ public final class AnnotationBinder {
 						propertyHolder.getEntityName(),
 						property,
 						!indexColumn.isImplicit(),
-						property.isAnnotationPresent( CollectionOfElements.class )
-								|| property.isAnnotationPresent( org.hibernate.annotations.MapKey.class )
-								|| property.isAnnotationPresent( MapKeyType.class )
+						property.isAnnotationPresent( MapKeyType.class )
 
 						// || property.isAnnotationPresent( ManyToAny.class )
 				);
@@ -1758,12 +1748,6 @@ public final class AnnotationBinder {
 						isJPA2 = Boolean.TRUE;
 						keyColumns = new Column[] { new MapKeyColumnDelegator( property.getAnnotation( MapKeyColumn.class ) ) };
 					}
-					else if ( property.isAnnotationPresent( org.hibernate.annotations.MapKey.class ) ) {
-						if ( isJPA2 == null ) {
-							isJPA2 = Boolean.FALSE;
-						}
-						keyColumns = property.getAnnotation( org.hibernate.annotations.MapKey.class ).columns();
-					}
 
 					//not explicitly legacy
 					if ( isJPA2 == null ) {
@@ -1818,14 +1802,6 @@ public final class AnnotationBinder {
 								)
 						};
 					}
-					else if ( property.isAnnotationPresent( org.hibernate.annotations.MapKeyManyToMany.class ) ) {
-						if ( isJPA2 == null ) {
-							isJPA2 = Boolean.FALSE;
-						}
-						joinKeyColumns = property.getAnnotation( org.hibernate.annotations.MapKeyManyToMany.class )
-								.joinColumns();
-					}
-
 					//not explicitly legacy
 					if ( isJPA2 == null ) {
 						isJPA2 = Boolean.TRUE;
@@ -1875,9 +1851,7 @@ public final class AnnotationBinder {
 					);
 					collectionBinder.setOneToMany( true );
 				}
-				else if ( elementCollectionAnn != null
-						|| collectionOfElementsAnn != null //Hibernate legacy
-						) {
+				else if ( elementCollectionAnn != null ) {
 					for ( Ejb3JoinColumn column : joinColumns ) {
 						if ( column.isSecondary() ) {
 							throw new NotYetImplementedException( "Collections having FK in secondary table" );
@@ -1885,9 +1859,7 @@ public final class AnnotationBinder {
 					}
 					collectionBinder.setFkJoinColumns( joinColumns );
 					mappedBy = "";
-					final Class<?> targetElement = elementCollectionAnn != null ?
-							elementCollectionAnn.targetClass() :
-							collectionOfElementsAnn.targetElement();
+					final Class<?> targetElement = elementCollectionAnn.targetClass();
 					collectionBinder.setTargetEntity(
 							mappings.getReflectionManager().toXClass( targetElement )
 					);
@@ -2556,12 +2528,14 @@ public final class AnnotationBinder {
 		if ( property.isAnnotationPresent( Tuplizers.class ) ) {
 			for ( Tuplizer tuplizer : property.getAnnotation( Tuplizers.class ).value() ) {
 				EntityMode mode = EntityMode.parse( tuplizer.entityMode() );
+				//todo tuplizer.entityModeType
 				component.addTuplizer( mode, tuplizer.impl().getName() );
 			}
 		}
 		if ( property.isAnnotationPresent( Tuplizer.class ) ) {
 			Tuplizer tuplizer = property.getAnnotation( Tuplizer.class );
 			EntityMode mode = EntityMode.parse( tuplizer.entityMode() );
+			//todo tuplizer.entityModeType
 			component.addTuplizer( mode, tuplizer.impl().getName() );
 		}
 	}

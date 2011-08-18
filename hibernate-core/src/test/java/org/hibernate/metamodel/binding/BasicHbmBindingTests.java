@@ -23,94 +23,34 @@
  */
 package org.hibernate.metamodel.binding;
 
-import org.xml.sax.InputSource;
-
-import org.hibernate.internal.util.ConfigHelper;
-import org.hibernate.internal.util.xml.MappingReader;
-import org.hibernate.internal.util.xml.Origin;
-import org.hibernate.internal.util.xml.XMLHelper;
-import org.hibernate.internal.util.xml.XmlDocument;
-import org.hibernate.metamodel.relational.Column;
-import org.hibernate.metamodel.source.Metadata;
-
 import org.junit.Test;
 
-import org.hibernate.testing.junit4.BaseUnitTestCase;
-
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import org.hibernate.metamodel.MetadataSources;
 
 /**
- * Basic tests of {@code hbm.xml} beinding code
+ * Basic tests of {@code hbm.xml} binding code
  *
  * @author Steve Ebersole
  */
-public class BasicHbmBindingTests extends BaseUnitTestCase {
-	@Test
-	public void testSuperSimpleMapping() {
-		Metadata metadata = new Metadata();
-
-		{
-			XmlDocument xmlDocument = readResource( "/org/hibernate/metamodel/binding/SimpleEntity.hbm.xml" );
-			metadata.getHibernateXmlBinder().bindRoot( xmlDocument );
-			EntityBinding entityBinding = metadata.getEntityBinding( SimpleEntity.class.getName() );
-			assertNotNull( entityBinding );
-			assertNotNull( entityBinding.getEntityIdentifier() );
-			assertNotNull( entityBinding.getEntityIdentifier().getValueBinding() );
-			assertNull( entityBinding.getVersioningValueBinding() );
-
-			AttributeBinding idAttributeBinding = entityBinding.getAttributeBinding( "id" );
-			assertNotNull( idAttributeBinding );
-			assertSame( idAttributeBinding, entityBinding.getEntityIdentifier().getValueBinding() );
-			assertNotNull( idAttributeBinding.getAttribute() );
-			assertNotNull( idAttributeBinding.getValue() );
-			assertTrue( idAttributeBinding.getValue() instanceof Column );
-
-			AttributeBinding nameBinding = entityBinding.getAttributeBinding( "name" );
-			assertNotNull( nameBinding );
-			assertNotNull( nameBinding.getAttribute() );
-			assertNotNull( nameBinding.getValue() );
-		}
-		{
-			XmlDocument xmlDocument = readResource( "/org/hibernate/metamodel/binding/SimpleVersionedEntity.hbm.xml" );
-			metadata.getHibernateXmlBinder().bindRoot( xmlDocument );
-			EntityBinding entityBinding = metadata.getEntityBinding( SimpleVersionedEntity.class.getName() );
-			assertNotNull( entityBinding );
-			assertNotNull( entityBinding.getEntityIdentifier() );
-			assertNotNull( entityBinding.getEntityIdentifier().getValueBinding() );
-			assertNotNull( entityBinding.getVersioningValueBinding() );
-			assertNotNull( entityBinding.getVersioningValueBinding().getAttribute() );
-
-			AttributeBinding idAttributeBinding = entityBinding.getAttributeBinding( "id" );
-			assertNotNull( idAttributeBinding );
-			assertSame( idAttributeBinding, entityBinding.getEntityIdentifier().getValueBinding() );
-			assertNotNull( idAttributeBinding.getAttribute() );
-			assertNotNull( idAttributeBinding.getValue() );
-			assertTrue( idAttributeBinding.getValue() instanceof Column );
-
-			AttributeBinding nameBinding = entityBinding.getAttributeBinding( "name" );
-			assertNotNull( nameBinding );
-			assertNotNull( nameBinding.getAttribute() );
-			assertNotNull( nameBinding.getValue() );
-		}
+public class BasicHbmBindingTests extends AbstractBasicBindingTests {
+	public void addSourcesForSimpleEntityBinding(MetadataSources sources) {
+		sources.addResource( "org/hibernate/metamodel/binding/SimpleEntity.hbm.xml" );
 	}
 
-	private XmlDocument readResource(final String name) {
-		final String path = "/org/hibernate/test/id/Car.hbm.xml";
-		Origin origin = new Origin() {
-			@Override
-			public String getType() {
-				return "resource";
-			}
+	public void addSourcesForSimpleVersionedEntityBinding(MetadataSources sources) {
+		sources.addResource( "org/hibernate/metamodel/binding/SimpleVersionedEntity.hbm.xml" );
+	}
 
-			@Override
-			public String getName() {
-				return name;
-			}
-		};
-		InputSource inputSource = new InputSource( ConfigHelper.getResourceAsStream( name ) );
-		return MappingReader.INSTANCE.readMappingDocument( XMLHelper.DEFAULT_DTD_RESOLVER, inputSource, origin );
+	public void addSourcesForManyToOne(MetadataSources sources) {
+		sources.addResource( "org/hibernate/metamodel/binding/ManyToOneEntity.hbm.xml" );
+	}
+
+	public void addSourcesForComponentBinding(MetadataSources sources) {
+		sources.addResource( "org/hibernate/metamodel/binding/SimpleEntityWithSimpleComponent.hbm.xml" );
+	}
+
+	@Test
+	public void testSimpleEntityWithSimpleComponentMapping() {
+		super.testSimpleEntityWithSimpleComponentMapping();
 	}
 }

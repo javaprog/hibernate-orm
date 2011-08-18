@@ -38,16 +38,18 @@ import org.hibernate.FetchMode;
 import org.hibernate.Hibernate;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
-import org.hibernate.cache.CacheKey;
-import org.hibernate.cache.entry.CollectionCacheEntry;
+import org.hibernate.cache.spi.CacheKey;
+import org.hibernate.cache.spi.entry.CollectionCacheEntry;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
 import org.hibernate.criterion.DetachedCriteria;
 import org.hibernate.criterion.Property;
 import org.hibernate.criterion.Restrictions;
 import org.hibernate.criterion.Subqueries;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.dialect.IngresDialect;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.persister.collection.CollectionPersister;
+import org.hibernate.testing.SkipForDialect;
 import org.hibernate.transform.DistinctRootEntityResultTransformer;
 
 import org.junit.Test;
@@ -93,6 +95,7 @@ public class DynamicFilterTest extends BaseCoreFunctionalTestCase {
 	}
 
 	@Test
+	@SkipForDialect(IngresDialect.class)
 	public void testSqlSyntaxOfFiltersWithUnions() {
 		Session session = openSession();
 		session.enableFilter( "unioned" );

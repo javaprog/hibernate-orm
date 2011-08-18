@@ -23,25 +23,28 @@
  */
 package org.hibernate.persister.internal;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
-import org.hibernate.cache.access.CollectionRegionAccessStrategy;
-import org.hibernate.cache.access.EntityRegionAccessStrategy;
+import org.hibernate.cache.spi.access.CollectionRegionAccessStrategy;
+import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
 import org.hibernate.cfg.Configuration;
-import org.hibernate.engine.Mapping;
-import org.hibernate.engine.SessionFactoryImplementor;
+import org.hibernate.engine.spi.Mapping;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.mapping.Collection;
 import org.hibernate.mapping.PersistentClass;
+import org.hibernate.metamodel.binding.AbstractPluralAttributeBinding;
+import org.hibernate.metamodel.binding.EntityBinding;
+import org.hibernate.metamodel.binding.PluralAttributeBinding;
+import org.hibernate.metamodel.source.MetadataImplementor;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.persister.spi.PersisterClassResolver;
 import org.hibernate.persister.spi.PersisterFactory;
-import org.hibernate.service.ServiceRegistry;
 import org.hibernate.service.spi.ServiceRegistryAwareService;
 import org.hibernate.service.spi.ServiceRegistryImplementor;
-
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 
 /**
  * The standard Hibernate {@link PersisterFactory} implementation
@@ -64,6 +67,21 @@ public final class PersisterFactoryImpl implements PersisterFactory, ServiceRegi
 	};
 
 	/**
+	 * The constructor signature for {@link EntityPersister} implementations using
+	 * an {@link EntityBinding}.
+	 *
+	 * @todo make EntityPersister *not* depend on {@link SessionFactoryImplementor} if possible.
+	 * @todo change ENTITY_PERSISTER_CONSTRUCTOR_ARGS_NEW to ENTITY_PERSISTER_CONSTRUCTOR_ARGS
+	 * when new metamodel is integrated
+	 */
+	public static final Class[] ENTITY_PERSISTER_CONSTRUCTOR_ARGS_NEW = new Class[] {
+			EntityBinding.class,
+			EntityRegionAccessStrategy.class,
+			SessionFactoryImplementor.class,
+			Mapping.class
+	};
+
+	/**
 	 * The constructor signature for {@link CollectionPersister} implementations
 	 *
 	 * @todo still need to make collection persisters EntityMode-aware
@@ -73,6 +91,22 @@ public final class PersisterFactoryImpl implements PersisterFactory, ServiceRegi
 			Collection.class,
 			CollectionRegionAccessStrategy.class,
 			Configuration.class,
+			SessionFactoryImplementor.class
+	};
+
+	/**
+	 * The constructor signature for {@link CollectionPersister} implementations using
+	 * a {@link org.hibernate.metamodel.binding.AbstractPluralAttributeBinding}
+	 *
+	 * @todo still need to make collection persisters EntityMode-aware
+	 * @todo make EntityPersister *not* depend on {@link SessionFactoryImplementor} if possible.
+	 * @todo change COLLECTION_PERSISTER_CONSTRUCTOR_ARGS_NEW to COLLECTION_PERSISTER_CONSTRUCTOR_ARGS
+	 * when new metamodel is integrated
+	 */
+	private static final Class[] COLLECTION_PERSISTER_CONSTRUCTOR_ARGS_NEW = new Class[] {
+			AbstractPluralAttributeBinding.class,
+			CollectionRegionAccessStrategy.class,
+			MetadataImplementor.class,
 			SessionFactoryImplementor.class
 	};
 
@@ -94,17 +128,32 @@ public final class PersisterFactoryImpl implements PersisterFactory, ServiceRegi
 		if ( persisterClass == null ) {
 			persisterClass = serviceRegistry.getService( PersisterClassResolver.class ).getEntityPersisterClass( metadata );
 		}
-		return create( persisterClass, metadata, cacheAccessStrategy, factory, cfg );
+		return create( persisterClass, ENTITY_PERSISTER_CONSTRUCTOR_ARGS, metadata, cacheAccessStrategy, factory, cfg );
 	}
 
+	@Override
+	@SuppressWarnings( {"unchecked"})
+	public EntityPersister createEntityPersister(EntityBinding metadata,
+												 EntityRegionAccessStrategy cacheAccessStrategy,
+												 SessionFactoryImplementor factory,
+												 Mapping cfg) {
+		Class<? extends EntityPersister> persisterClass = metadata.getCustomEntityPersisterClass();
+		if ( persisterClass == null ) {
+			persisterClass = serviceRegistry.getService( PersisterClassResolver.class ).getEntityPersisterClass( metadata );
+		}
+		return create( persisterClass, ENTITY_PERSISTER_CONSTRUCTOR_ARGS_NEW, metadata, cacheAccessStrategy, factory, cfg );
+	}
+
+	// TODO: change metadata arg type to EntityBinding when new metadata is integrated
 	private static EntityPersister create(
 			Class<? extends EntityPersister> persisterClass,
-			PersistentClass metadata,
+			Class[] persisterConstructorArgs,
+			Object metadata,
 			EntityRegionAccessStrategy cacheAccessStrategy,
 			SessionFactoryImplementor factory,
 			Mapping cfg) throws HibernateException {
 		try {
-			Constructor<? extends EntityPersister> constructor = persisterClass.getConstructor( ENTITY_PERSISTER_CONSTRUCTOR_ARGS );
+			Constructor<? extends EntityPersister> constructor = persisterClass.getConstructor( persisterConstructorArgs );
 			try {
 				return constructor.newInstance( metadata, cacheAccessStrategy, factory, cfg );
 			}
@@ -136,27 +185,45 @@ public final class PersisterFactoryImpl implements PersisterFactory, ServiceRegi
 	@SuppressWarnings( {"unchecked"})
 	public CollectionPersister createCollectionPersister(
 			Configuration cfg,
-			Collection metadata,
+			Collection collectionMetadata,
 			CollectionRegionAccessStrategy cacheAccessStrategy,
 			SessionFactoryImplementor factory) throws HibernateException {
-		Class<? extends CollectionPersister> persisterClass = metadata.getCollectionPersisterClass();
+		Class<? extends CollectionPersister> persisterClass = collectionMetadata.getCollectionPersisterClass();
 		if ( persisterClass == null ) {
-			persisterClass = serviceRegistry.getService( PersisterClassResolver.class ).getCollectionPersisterClass( metadata );
+			persisterClass = serviceRegistry.getService( PersisterClassResolver.class ).getCollectionPersisterClass( collectionMetadata );
 		}
 
-		return create( persisterClass, cfg, metadata, cacheAccessStrategy, factory );
+		return create( persisterClass, COLLECTION_PERSISTER_CONSTRUCTOR_ARGS, cfg, collectionMetadata, cacheAccessStrategy, factory );
 	}
 
+	@Override
+	@SuppressWarnings( {"unchecked"})
+	public CollectionPersister createCollectionPersister(
+			MetadataImplementor metadata,
+			PluralAttributeBinding collectionMetadata,
+			CollectionRegionAccessStrategy cacheAccessStrategy,
+			SessionFactoryImplementor factory) throws HibernateException {
+		Class<? extends CollectionPersister> persisterClass = collectionMetadata.getCollectionPersisterClass();
+		if ( persisterClass == null ) {
+			persisterClass = serviceRegistry.getService( PersisterClassResolver.class ).getCollectionPersisterClass( collectionMetadata );
+		}
+
+		return create( persisterClass, COLLECTION_PERSISTER_CONSTRUCTOR_ARGS_NEW, metadata, collectionMetadata, cacheAccessStrategy, factory );
+	}
+
+	// TODO: change collectionMetadata arg type to AbstractPluralAttributeBinding when new metadata is integrated
+	// TODO: change metadata arg type to MetadataImplementor when new metadata is integrated
 	private static CollectionPersister create(
 			Class<? extends CollectionPersister> persisterClass,
-			Configuration cfg,
-			Collection metadata,
+			Class[] persisterConstructorArgs,
+			Object cfg,
+			Object collectionMetadata,
 			CollectionRegionAccessStrategy cacheAccessStrategy,
 			SessionFactoryImplementor factory) throws HibernateException {
 		try {
-			Constructor<? extends CollectionPersister> constructor = persisterClass.getConstructor( COLLECTION_PERSISTER_CONSTRUCTOR_ARGS );
+			Constructor<? extends CollectionPersister> constructor = persisterClass.getConstructor( persisterConstructorArgs );
 			try {
-				return constructor.newInstance( metadata, cacheAccessStrategy, cfg, factory );
+				return constructor.newInstance( collectionMetadata, cacheAccessStrategy, cfg, factory );
 			}
 			catch (MappingException e) {
 				throw e;

@@ -29,7 +29,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+
 import org.hibernate.mapping.PersistentClass;
+import org.hibernate.metamodel.binding.EntityBinding;
 
 
 public class DynamicMapInstantiator implements Instantiator {
@@ -51,6 +53,14 @@ public class DynamicMapInstantiator implements Instantiator {
 				final PersistentClass subclassInfo = ( PersistentClass ) itr.next();
 				isInstanceEntityNames.add( subclassInfo.getEntityName() );
 			}
+		}
+	}
+
+	public DynamicMapInstantiator(EntityBinding mappingInfo) {
+		this.entityName = mappingInfo.getEntity().getName();
+		isInstanceEntityNames.add( entityName );
+		for ( EntityBinding subEntityBinding : mappingInfo.getPostOrderSubEntityBindingClosure() ) {
+			isInstanceEntityNames.add( subEntityBinding.getEntity().getName() );
 		}
 	}
 

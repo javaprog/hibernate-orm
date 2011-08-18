@@ -88,13 +88,13 @@ import org.hibernate.ejb.internal.EntityManagerMessageLogger;
 import org.hibernate.ejb.util.CacheModeHelper;
 import org.hibernate.ejb.util.ConfigurationHelper;
 import org.hibernate.ejb.util.LockModeTypeHelper;
-import org.hibernate.engine.NamedSQLQueryDefinition;
 import org.hibernate.engine.ResultSetMappingDefinition;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.SessionImplementor;
-import org.hibernate.engine.query.HQLQueryPlan;
-import org.hibernate.engine.query.sql.NativeSQLQueryReturn;
-import org.hibernate.engine.query.sql.NativeSQLQueryRootReturn;
+import org.hibernate.engine.query.spi.HQLQueryPlan;
+import org.hibernate.engine.query.spi.sql.NativeSQLQueryReturn;
+import org.hibernate.engine.query.spi.sql.NativeSQLQueryRootReturn;
+import org.hibernate.engine.spi.NamedSQLQueryDefinition;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.engine.transaction.internal.jta.JtaStatusHelper;
 import org.hibernate.engine.transaction.spi.JoinStatus;
 import org.hibernate.engine.transaction.spi.TransactionCoordinator;
@@ -167,7 +167,7 @@ public abstract class AbstractEntityManagerImpl implements HibernateEntityManage
 	protected void postInit() {
 		//register in Sync if needed
 		if ( PersistenceUnitTransactionType.JTA.equals( transactionType ) ) {
-			joinTransaction( true );
+			joinTransaction( false );
 		}
 
 		setDefaultProperties();
@@ -350,7 +350,7 @@ public abstract class AbstractEntityManagerImpl implements HibernateEntityManage
 			final String[] aliases = hqlQuery.getReturnAliases();
 			final boolean hasAliases = aliases != null && aliases.length > 0;
 			this.tupleElementsByAlias = hasAliases
-					? CollectionHelper.mapOfSize( tupleSize )
+					? CollectionHelper.<String, HqlTupleElementImpl>mapOfSize( tupleSize )
 					: Collections.<String, HqlTupleElementImpl>emptyMap();
 
 			for ( int i = 0; i < tupleSize; i++ ) {
@@ -958,10 +958,10 @@ public abstract class AbstractEntityManagerImpl implements HibernateEntityManage
 	}
 
 	public void flush() {
+		if ( !isTransactionInProgress() ) {
+			throw new TransactionRequiredException( "no transaction is in progress" );
+		}
 		try {
-			if ( !isTransactionInProgress() ) {
-				throw new TransactionRequiredException( "no transaction is in progress" );
-			}
 			getSession().flush();
 		}
 		catch ( RuntimeException e ) {
@@ -1074,10 +1074,11 @@ public abstract class AbstractEntityManagerImpl implements HibernateEntityManage
 
 	public void lock(Object entity, LockModeType lockModeType, Map<String, Object> properties) {
 		LockOptions lockOptions = null;
+		if ( !isTransactionInProgress() ) {
+			throw new TransactionRequiredException( "no transaction is in progress" );
+		}
+
 		try {
-			if ( !isTransactionInProgress() ) {
-				throw new TransactionRequiredException( "no transaction is in progress" );
-			}
 			if ( !contains( entity ) ) {
 				throw new IllegalArgumentException( "entity not in the persistence context" );
 			}
@@ -1115,7 +1116,7 @@ public abstract class AbstractEntityManagerImpl implements HibernateEntityManage
 	}
 
 	private SessionFactoryImplementor sfi() {
-		return ( SessionFactoryImplementor ) getRawSession().getSessionFactory();
+		return (SessionFactoryImplementor) getRawSession().getSessionFactory();
 	}
 
 	protected void markAsRollback() {
@@ -1146,7 +1147,7 @@ public abstract class AbstractEntityManagerImpl implements HibernateEntityManage
 		if( !isOpen() ){
 			throw new IllegalStateException( "EntityManager is closed" );
 		}
-		joinTransaction( false );
+		joinTransaction( true );
 	}
 
 	public <T> T unwrap(Class<T> clazz) {
@@ -1162,9 +1163,9 @@ public abstract class AbstractEntityManagerImpl implements HibernateEntityManage
 		throw new PersistenceException( "Hibernate cannot unwrap " + clazz );
 	}
 
-	private void joinTransaction(boolean ignoreNotJoining) {
+	private void joinTransaction(boolean explicitRequest) {
 		if ( transactionType != PersistenceUnitTransactionType.JTA ) {
-			if ( !ignoreNotJoining ) {
+			if ( explicitRequest ) {
 			    LOG.callingJoinTransactionOnNonJtaEntityManager();
 			}
 			return;
@@ -1179,11 +1180,14 @@ public abstract class AbstractEntityManagerImpl implements HibernateEntityManage
 
 		LOG.debug( "Looking for a JTA transaction to join" );
 		if ( ! transactionCoordinator.isTransactionJoinable() ) {
-            LOG.unableToJoinTransaction(Environment.TRANSACTION_STRATEGY);
+			if ( explicitRequest ) {
+				// if this is an explicit join request, log a warning so user can track underlying cause
+				// of subsequent exceptions/messages
+				LOG.unableToJoinTransaction(Environment.TRANSACTION_STRATEGY);
+			}
 		}
 
 		try {
-
 			if ( transaction.getJoinStatus() == JoinStatus.JOINED ) {
 				LOG.debug( "Transaction already joined" );
 				return; // noop
@@ -1192,12 +1196,12 @@ public abstract class AbstractEntityManagerImpl implements HibernateEntityManage
 			// join the transaction and then recheck the status
 			transaction.join();
 			if ( transaction.getJoinStatus() == JoinStatus.NOT_JOINED ) {
-				if ( ignoreNotJoining ) {
-					LOG.debug( "No JTA transaction found" );
-					return;
+				if ( explicitRequest ) {
+					throw new TransactionRequiredException( "No active JTA transaction on joinTransaction call" );
 				}
 				else {
-					throw new TransactionRequiredException( "No active JTA transaction on joinTransaction call" );
+					LOG.debug( "Unable to join JTA transaction" );
+					return;
 				}
 			}
 			else if ( transaction.getJoinStatus() == JoinStatus.MARKED_FOR_JOINED ) {

@@ -23,9 +23,15 @@
  */
 package org.hibernate.metamodel.binding;
 
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Version;
+
 /**
  * @author Steve Ebersole
+ * @author Hardy Ferentschik
  */
+@Entity
 public class SimpleVersionedEntity {
 	private Long id;
 	private String name;
@@ -38,6 +44,7 @@ public class SimpleVersionedEntity {
 		this.name = name;
 	}
 
+	@Id
 	public Long getId() {
 		return id;
 	}
@@ -54,6 +61,7 @@ public class SimpleVersionedEntity {
 		this.name = name;
 	}
 
+	@Version
 	public long getVersion() {
 		return version;
 	}

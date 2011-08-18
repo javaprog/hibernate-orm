@@ -29,11 +29,11 @@ import java.sql.SQLException;
 import java.util.Map;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
-import org.hibernate.cache.access.CollectionRegionAccessStrategy;
-import org.hibernate.cache.entry.CacheEntryStructure;
-import org.hibernate.collection.PersistentCollection;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.cache.spi.access.CollectionRegionAccessStrategy;
+import org.hibernate.cache.spi.entry.CacheEntryStructure;
+import org.hibernate.collection.spi.PersistentCollection;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.id.IdentifierGenerator;
 import org.hibernate.metadata.CollectionMetadata;
 import org.hibernate.persister.entity.EntityPersister;
@@ -56,7 +56,7 @@ import org.hibernate.type.Type;
  * May be considered an immutable view of the mapping object
  *
  * @see QueryableCollection
- * @see PersistentCollection
+ * @see org.hibernate.collection.spi.PersistentCollection
  * @author Gavin King
  */
 public interface CollectionPersister {

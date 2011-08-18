@@ -98,29 +98,9 @@ public interface Session extends SharedSessionContract {
 	public SharedSessionBuilder sessionWithOptions();
 
 	/**
-	 * Retrieve the entity mode in effect for this session.
-	 *
-	 * @return The entity mode for this session.
-	 */
-	public EntityMode getEntityMode();
-
-	/**
-	 * Starts a new Session with the given entity mode in effect. This secondary
-	 * Session inherits the connection, transaction, and other context
-	 * information from the primary Session. It doesn't need to be flushed
-	 * or closed by the developer.
-	 * 
-	 * @param entityMode The entity mode to use for the new session.
-	 * @return The new session
-	 * @deprecated
-	 */
-	@Deprecated
-	public Session getSession(EntityMode entityMode);
-
-	/**
 	 * Force this session to flush. Must be called at the end of a
 	 * unit of work, before committing the transaction and closing the
-	 * session (depending on {@link #setFlushMode flush-mode},
+	 * session (depending on {@link #setFlushMode(FlushMode)},
 	 * {@link Transaction#commit()} calls this method).
 	 * <p/>
 	 * <i>Flushing</i> is the process of synchronizing the underlying persistent
@@ -302,6 +282,7 @@ public interface Session extends SharedSessionContract {
 	 * @throws HibernateException
 	 * @deprecated LockMode parameter should be replaced with LockOptions
 	 */
+	@Deprecated
 	public Object load(Class theClass, Serializable id, LockMode lockMode) throws HibernateException;
 
 	/**
@@ -327,6 +308,7 @@ public interface Session extends SharedSessionContract {
 	 * @throws HibernateException
 	 * @deprecated LockMode parameter should be replaced with LockOptions
 	 */
+	@Deprecated
 	public Object load(String entityName, Serializable id, LockMode lockMode) throws HibernateException;
 
 	/**
@@ -565,6 +547,7 @@ public interface Session extends SharedSessionContract {
 	 * @throws HibernateException
 	 * @deprecated instead call buildLockRequest(LockMode).lock(object)
 	 */
+	@Deprecated
 	public void lock(Object object, LockMode lockMode) throws HibernateException;
 
 	/**
@@ -579,6 +562,7 @@ public interface Session extends SharedSessionContract {
 	 * @throws HibernateException
 	 * @deprecated instead call buildLockRequest(LockMode).lock(entityName, object)
 	 */
+	@Deprecated
 	public void lock(String entityName, Object object, LockMode lockMode) throws HibernateException;
 
 	/**
@@ -612,6 +596,23 @@ public interface Session extends SharedSessionContract {
 	public void refresh(Object object) throws HibernateException;
 
 	/**
+	 * Re-read the state of the given instance from the underlying database. It is
+	 * inadvisable to use this to implement long-running sessions that span many
+	 * business tasks. This method is, however, useful in certain special circumstances.
+	 * For example
+	 * <ul>
+	 * <li>where a database trigger alters the object state upon insert or update
+	 * <li>after executing direct SQL (eg. a mass update) in the same session
+	 * <li>after inserting a <tt>Blob</tt> or <tt>Clob</tt>
+	 * </ul>
+	 *
+	 * @param entityName a persistent class
+	 * @param object a persistent or detached instance
+	 * @throws HibernateException
+	 */
+	public void refresh(String entityName, Object object) throws HibernateException;
+
+	/**
 	 * Re-read the state of the given instance from the underlying database, with
 	 * the given <tt>LockMode</tt>. It is inadvisable to use this to implement
 	 * long-running sessions that span many business tasks. This method is, however,
@@ -622,6 +623,7 @@ public interface Session extends SharedSessionContract {
 	 * @throws HibernateException
 	 * @deprecated LockMode parameter should be replaced with LockOptions
 	 */
+	@Deprecated
 	public void refresh(Object object, LockMode lockMode) throws HibernateException;
 
 	/**
@@ -636,6 +638,18 @@ public interface Session extends SharedSessionContract {
 	 */
 	public void refresh(Object object, LockOptions lockOptions) throws HibernateException;
 
+	/**
+	 * Re-read the state of the given instance from the underlying database, with
+	 * the given <tt>LockMode</tt>. It is inadvisable to use this to implement
+	 * long-running sessions that span many business tasks. This method is, however,
+	 * useful in certain special circumstances.
+	 *
+	 * @param entityName a persistent class
+	 * @param object a persistent or detached instance
+	 * @param lockOptions contains the lock mode to use
+	 * @throws HibernateException
+	 */
+	public void refresh(String entityName, Object object, LockOptions lockOptions) throws HibernateException;
 	/**
 	 * Determine the current lock mode of the given object.
 	 *
@@ -689,6 +703,7 @@ public interface Session extends SharedSessionContract {
 	 * @throws HibernateException
 	 * @deprecated LockMode parameter should be replaced with LockOptions
 	 */
+	@Deprecated
 	public Object get(Class clazz, Serializable id, LockMode lockMode) throws HibernateException;
 
 	/**
@@ -730,6 +745,7 @@ public interface Session extends SharedSessionContract {
 	 * @throws HibernateException
 	 * @deprecated LockMode parameter should be replaced with LockOptions
 	 */
+	@Deprecated
 	public Object get(String entityName, Serializable id, LockMode lockMode) throws HibernateException;
 
 	/**

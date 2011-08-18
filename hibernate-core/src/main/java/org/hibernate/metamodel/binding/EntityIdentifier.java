@@ -23,40 +23,73 @@
  */
 package org.hibernate.metamodel.binding;
 
-import org.hibernate.internal.CoreMessageLogger;
+import java.util.Properties;
 
-import org.jboss.logging.Logger;
+import org.hibernate.AssertionFailure;
+import org.hibernate.id.IdentifierGenerator;
+import org.hibernate.id.factory.IdentifierGeneratorFactory;
 
 /**
- * TODO : javadoc
+ * Binds the entity identifier.
  *
  * @author Steve Ebersole
+ * @author Hardy Ferentschik
  */
 public class EntityIdentifier {
-
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, EntityIdentifier.class.getName());
-
 	private final EntityBinding entityBinding;
-	private AttributeBinding attributeBinding;
-	// todo : generator, mappers, etc
+	private BasicAttributeBinding attributeBinding;
+	private IdentifierGenerator identifierGenerator;
+	private IdGenerator idGenerator;
+	private boolean isIdentifierMapper = false;
+	// todo : mappers, etc
 
 	/**
 	 * Create an identifier
-	 * @param entityBinding
+	 *
+	 * @param entityBinding the entity binding for which this instance is the id
 	 */
 	public EntityIdentifier(EntityBinding entityBinding) {
 		this.entityBinding = entityBinding;
 	}
 
-	public AttributeBinding getValueBinding() {
+	public BasicAttributeBinding getValueBinding() {
 		return attributeBinding;
 	}
 
-	public void setValueBinding(AttributeBinding attributeBinding) {
+	public void setValueBinding(BasicAttributeBinding attributeBinding) {
 		if ( this.attributeBinding != null ) {
-			// todo : error?  or just log?  for now just log
-			LOG.entityIdentifierValueBindingExists( entityBinding.getEntity().getName() );
+			throw new AssertionFailure(
+					String.format(
+							"Identifier value binding already existed for %s",
+							entityBinding.getEntity().getName()
+					)
+			);
 		}
 		this.attributeBinding = attributeBinding;
+	}
+
+	public void setIdGenerator(IdGenerator idGenerator) {
+		this.idGenerator = idGenerator;
+	}
+
+	public boolean isEmbedded() {
+		return attributeBinding.getSimpleValueSpan() > 1;
+	}
+
+	public boolean isIdentifierMapper() {
+		return isIdentifierMapper;
+	}
+
+	// todo do we really need this createIdentifierGenerator and how do we make sure the getter is not called too early
+	// maybe some sort of visitor pattern here!? (HF)
+	public IdentifierGenerator createIdentifierGenerator(IdentifierGeneratorFactory factory, Properties properties) {
+		if ( idGenerator != null ) {
+			identifierGenerator = attributeBinding.createIdentifierGenerator( idGenerator, factory, properties );
+		}
+		return identifierGenerator;
+	}
+
+	public IdentifierGenerator getIdentifierGenerator() {
+		return identifierGenerator;
 	}
 }

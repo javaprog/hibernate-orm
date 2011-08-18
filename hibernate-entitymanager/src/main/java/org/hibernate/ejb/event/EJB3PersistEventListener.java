@@ -25,11 +25,11 @@ package org.hibernate.ejb.event;
 
 import java.io.Serializable;
 
-import org.hibernate.engine.CascadingAction;
-import org.hibernate.engine.EJB3CascadeStyle;
-import org.hibernate.engine.EJB3CascadingAction;
-import org.hibernate.event.EventSource;
-import org.hibernate.event.def.DefaultPersistEventListener;
+import org.hibernate.engine.spi.CascadingAction;
+import org.hibernate.engine.spi.EJB3CascadeStyle;
+import org.hibernate.engine.spi.EJB3CascadingAction;
+import org.hibernate.event.spi.EventSource;
+import org.hibernate.event.internal.DefaultPersistEventListener;
 
 /**
  * Overrides the LifeCycle OnSave call to call the PrePersist operation

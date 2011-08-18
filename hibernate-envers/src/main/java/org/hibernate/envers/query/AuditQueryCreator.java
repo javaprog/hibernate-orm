@@ -22,16 +22,20 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.envers.query;
-import static org.hibernate.envers.tools.ArgumentsTools.checkNotNull;
-import static org.hibernate.envers.tools.ArgumentsTools.checkPositive;
+
 import org.hibernate.envers.configuration.AuditConfiguration;
 import org.hibernate.envers.query.impl.EntitiesAtRevisionQuery;
+import org.hibernate.envers.query.impl.EntitiesModifiedAtRevisionQuery;
 import org.hibernate.envers.query.impl.RevisionsOfEntityQuery;
 import org.hibernate.envers.reader.AuditReaderImplementor;
+
+import static org.hibernate.envers.tools.ArgumentsTools.*;
+import static org.hibernate.envers.tools.Tools.getTargetClassIfProxied;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  * @author Hern�n Chanfreau
+ * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 public class AuditQueryCreator {
     private final AuditConfiguration auditCfg;
@@ -54,6 +58,7 @@ public class AuditQueryCreator {
     public AuditQuery forEntitiesAtRevision(Class<?> c, Number revision) {
         checkNotNull(revision, "Entity revision");
         checkPositive(revision, "Entity revision");
+        c = getTargetClassIfProxied(c);
         return new EntitiesAtRevisionQuery(auditCfg, auditReaderImplementor, c, revision);
     }
     
@@ -70,8 +75,48 @@ public class AuditQueryCreator {
     public AuditQuery forEntitiesAtRevision(Class<?> c, String entityName, Number revision) {
         checkNotNull(revision, "Entity revision");
         checkPositive(revision, "Entity revision");
+        c = getTargetClassIfProxied(c);
         return new EntitiesAtRevisionQuery(auditCfg, auditReaderImplementor, c, entityName, revision);
-    }    
+    }
+
+    /**
+     * Creates a query, which will return entities modified at the specified revision.
+     *
+     * In comparison, the {@link #forEntitiesAtRevision(Class, String, Number)} query takes into all entities
+     * which were present at a given revision, even if they were not modified.
+     *
+     * @param c Class of the entities for which to query.
+     * @param entityName Name of the entity (if can't be guessed basing on the {@code c}).
+     * @param revision Revision number at which to execute the query.
+     * @return A query for entities changed at a given revision, to which conditions can be added and which
+     *         can then be executed.
+     * @see #forEntitiesAtRevision(Class, String, Number)
+     */
+    public AuditQuery forEntitiesModifiedAtRevision(Class<?> c, String entityName, Number revision) {
+        checkNotNull(revision, "Entity revision");
+        checkPositive(revision, "Entity revision");
+        c = getTargetClassIfProxied(c);
+        return new EntitiesModifiedAtRevisionQuery(auditCfg, auditReaderImplementor, c, entityName, revision);
+    }
+
+    /**
+     * Creates a query, which will return entities modified at the specified revision.
+     *
+     * In comparison, the {@link #forEntitiesAtRevision(Class, String, Number)} query takes into all entities
+     * which were present at a given revision, even if they were not modified.
+     *
+     * @param c Class of the entities for which to query.
+     * @param revision Revision number at which to execute the query.
+     * @return A query for entities changed at a given revision, to which conditions can be added and which
+     *         can then be executed.
+     * @see #forEntitiesAtRevision(Class, Number)
+     */
+    public AuditQuery forEntitiesModifiedAtRevision(Class<?> c, Number revision) {
+        checkNotNull(revision, "Entity revision");
+        checkPositive(revision, "Entity revision");
+        c = getTargetClassIfProxied(c);
+        return new EntitiesModifiedAtRevisionQuery(auditCfg, auditReaderImplementor, c, revision);
+    }
 
     /**
      * Creates a query, which selects the revisions, at which the given entity was modified.
@@ -94,6 +139,7 @@ public class AuditQueryCreator {
      * unless an order or projection is added.
      */
     public AuditQuery forRevisionsOfEntity(Class<?> c, boolean selectEntitiesOnly, boolean selectDeletedEntities) {
+        c = getTargetClassIfProxied(c);
         return new RevisionsOfEntityQuery(auditCfg, auditReaderImplementor, c, selectEntitiesOnly,selectDeletedEntities);
     }
     
@@ -119,7 +165,7 @@ public class AuditQueryCreator {
      * unless an order or projection is added.
      */
     public AuditQuery forRevisionsOfEntity(Class<?> c, String entityName, boolean selectEntitiesOnly, boolean selectDeletedEntities) {
+        c = getTargetClassIfProxied(c);
         return new RevisionsOfEntityQuery(auditCfg, auditReaderImplementor, c, entityName, selectEntitiesOnly,selectDeletedEntities);
     }
-    
 }

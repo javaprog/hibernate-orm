@@ -33,12 +33,13 @@ import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
 import org.hibernate.MappingException;
 import org.hibernate.dialect.Dialect;
-import org.hibernate.engine.CascadeStyle;
-import org.hibernate.engine.JoinHelper;
-import org.hibernate.engine.LoadQueryInfluencers;
-import org.hibernate.engine.SessionFactoryImplementor;
+import org.hibernate.engine.spi.CascadeStyle;
+import org.hibernate.engine.internal.JoinHelper;
+import org.hibernate.engine.spi.LoadQueryInfluencers;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.ArrayHelper;
+import org.hibernate.mapping.Join;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.collection.QueryableCollection;
 import org.hibernate.persister.entity.EntityPersister;
@@ -49,6 +50,7 @@ import org.hibernate.sql.ConditionFragment;
 import org.hibernate.sql.DisjunctionFragment;
 import org.hibernate.sql.InFragment;
 import org.hibernate.sql.JoinFragment;
+import org.hibernate.sql.JoinType;
 import org.hibernate.type.AssociationType;
 import org.hibernate.type.CompositeType;
 import org.hibernate.type.EntityType;
@@ -192,8 +194,8 @@ public class JoinWalker {
 			final String alias,
 			final PropertyPath path,
 			int currentDepth,
-			final int joinType) throws MappingException {
-		if ( joinType >= 0 ) {
+			final JoinType joinType) throws MappingException {
+		if ( joinType != JoinType.NONE ) {
 			addAssociationToJoinTree(
 					type, 
 					aliasedLhsColumns, 
@@ -203,6 +205,10 @@ public class JoinWalker {
 					joinType
 			);
 		}
+	}
+
+	protected boolean hasRestriction(PropertyPath path)	{
+		return false;
 	}
 
 	protected String getWithClause(PropertyPath path)	{
@@ -219,7 +225,7 @@ public class JoinWalker {
 			final String alias,
 			final PropertyPath path,
 			final int currentDepth,
-			final int joinType) throws MappingException {
+			final JoinType joinType) throws MappingException {
 
 		Joinable joinable = type.getAssociatedJoinable( getFactory() );
 
@@ -239,6 +245,7 @@ public class JoinWalker {
 				subalias, 
 				joinType, 
 				getWithClause(path),
+				hasRestriction( path ),
 				getFactory(),
 				loadQueryInfluencers.getEnabledFilters()
 		);
@@ -324,7 +331,7 @@ public class JoinWalker {
 				// many-to-many collection itself.  Here, it is alright to use
 				// an inner join...
 				boolean useInnerJoin = currentDepth == 0;
-				final int joinType = getJoinType(
+				final JoinType joinType = getJoinType(
 						associationType,
 						persister.getFetchMode(),
 						path,
@@ -389,7 +396,7 @@ public class JoinWalker {
 		String lhsTable = JoinHelper.getLHSTableName(associationType, propertyNumber, persister);
 
 		PropertyPath subPath = path.append( persister.getSubclassPropertyName(propertyNumber) );
-		int joinType = getJoinType(
+		JoinType joinType = getJoinType(
 				persister,
 				subPath,
 				propertyNumber,
@@ -425,11 +432,11 @@ public class JoinWalker {
 	 * @param lhsColumns The owner join columns
 	 * @param nullable Is the association nullable.
 	 * @param currentDepth Current join depth
-	 * @return type of join to use ({@link JoinFragment#INNER_JOIN},
-	 * {@link JoinFragment#LEFT_OUTER_JOIN}, or -1 to indicate no joining.
+	 * @return type of join to use ({@link org.hibernate.sql.JoinType#INNER_JOIN},
+	 * {@link org.hibernate.sql.JoinType#LEFT_OUTER_JOIN}, or -1 to indicate no joining.
 	 * @throws MappingException ??
 	 */
-	protected int getJoinType(
+	protected JoinType getJoinType(
 			OuterJoinLoadable persister,
 			final PropertyPath path,
 			int propertyNumber,
@@ -464,11 +471,11 @@ public class JoinWalker {
 	 * @param nullable Is the association nullable.
 	 * @param currentDepth Current join depth
 	 * @param cascadeStyle The metadata-defined cascade style.
-	 * @return type of join to use ({@link JoinFragment#INNER_JOIN},
-	 * {@link JoinFragment#LEFT_OUTER_JOIN}, or -1 to indicate no joining.
+	 * @return type of join to use ({@link org.hibernate.sql.JoinType#INNER_JOIN},
+	 * {@link org.hibernate.sql.JoinType#LEFT_OUTER_JOIN}, or -1 to indicate no joining.
 	 * @throws MappingException ??
 	 */
-	protected int getJoinType(
+	protected JoinType getJoinType(
 			AssociationType associationType,
 			FetchMode config,
 			PropertyPath path,
@@ -478,13 +485,13 @@ public class JoinWalker {
 			int currentDepth,
 			CascadeStyle cascadeStyle) throws MappingException {
 		if  ( !isJoinedFetchEnabled( associationType, config, cascadeStyle ) ) {
-			return -1;
+			return JoinType.NONE;
 		}
 		if ( isTooDeep(currentDepth) || ( associationType.isCollectionType() && isTooManyCollections() ) ) {
-			return -1;
+			return JoinType.NONE;
 		}
 		if ( isDuplicateAssociation( lhsTable, lhsColumns, associationType ) ) {
-			return -1;
+			return JoinType.NONE;
 		}
 		return getJoinType( nullable, currentDepth );
 	}
@@ -571,7 +578,7 @@ public class JoinWalker {
 
 				final PropertyPath subPath = path.append( propertyNames[i] );
 				final boolean[] propertyNullability = componentType.getPropertyNullability();
-				final int joinType = getJoinType(
+				final JoinType joinType = getJoinType(
 						persister,
 						subPath,
 						propertyNumber,
@@ -637,7 +644,7 @@ public class JoinWalker {
 
 				final PropertyPath subPath = path.append( propertyNames[i] );
 				final boolean[] propertyNullability = compositeType.getPropertyNullability();
-				final int joinType = getJoinType(
+				final JoinType joinType = getJoinType(
 						associationType,
 						compositeType.getFetchMode(i),
 						subPath,
@@ -676,15 +683,15 @@ public class JoinWalker {
 	 * Use an inner join if it is a non-null association and this
 	 * is the "first" join in a series
 	 */
-	protected int getJoinType(boolean nullable, int currentDepth) {
+	protected JoinType getJoinType(boolean nullable, int currentDepth) {
 		//TODO: this is too conservative; if all preceding joins were 
 		//      also inner joins, we could use an inner join here
 		//
 		// IMPL NOTE : currentDepth might be less-than zero if this is the
 		// 		root of a many-to-many collection initializer 
 		return !nullable && currentDepth <= 0
-				? JoinFragment.INNER_JOIN
-				: JoinFragment.LEFT_OUTER_JOIN;
+				? JoinType.INNER_JOIN
+				: JoinType.LEFT_OUTER_JOIN;
 	}
 
 	protected boolean isTooDeep(int currentDepth) {
@@ -790,18 +797,18 @@ public class JoinWalker {
 	 * Should we join this association?
 	 */
 	protected boolean isJoinable(
-			final int joinType,
+			final JoinType joinType,
 			final Set visitedAssociationKeys,
 			final String lhsTable,
 			final String[] lhsColumnNames,
 			final AssociationType type,
 			final int depth) {
 
-		if ( joinType < 0 ) {
+		if ( joinType == JoinType.NONE ) {
 			return false;
 		}
 		
-		if ( joinType == JoinFragment.INNER_JOIN ) {
+		if ( joinType == JoinType.INNER_JOIN ) {
 			return true;
 		}
 
@@ -877,7 +884,9 @@ public class JoinWalker {
 		Iterator iter = associations.iterator();
 		while ( iter.hasNext() ) {
 			OuterJoinableAssociation oj = (OuterJoinableAssociation) iter.next();
-			if ( oj.getJoinType()==JoinFragment.LEFT_OUTER_JOIN && oj.getJoinable().isCollection() ) {
+			if ( oj.getJoinType()==JoinType.LEFT_OUTER_JOIN &&
+					oj.getJoinable().isCollection() &&
+					! oj.hasRestriction() ) {
 				result++;
 			}
 		}
@@ -894,7 +903,7 @@ public class JoinWalker {
 		OuterJoinableAssociation last = null;
 		while ( iter.hasNext() ) {
 			OuterJoinableAssociation oj = (OuterJoinableAssociation) iter.next();
-			if ( oj.getJoinType() == JoinFragment.LEFT_OUTER_JOIN ) { // why does this matter?
+			if ( oj.getJoinType() == JoinType.LEFT_OUTER_JOIN ) { // why does this matter?
 				if ( oj.getJoinable().isCollection() ) {
 					final QueryableCollection queryableCollection = (QueryableCollection) oj.getJoinable();
 					if ( queryableCollection.hasOrdering() ) {
@@ -1012,7 +1021,7 @@ public class JoinWalker {
 			else {
 				
 				QueryableCollection collPersister = (QueryableCollection) oj.getJoinable();
-				if ( oj.getJoinType()==JoinFragment.LEFT_OUTER_JOIN ) {
+				if ( oj.getJoinType()==JoinType.LEFT_OUTER_JOIN && ! oj.hasRestriction() ) {
 					//it must be a collection fetch
 					collectionPersisters[j] = collPersister;
 					collectionOwners[j] = oj.getOwner(associations);
@@ -1065,13 +1074,13 @@ public class JoinWalker {
 						join.getRHSAlias(),
 						entitySuffix,
 				        collectionSuffix,
-						join.getJoinType()==JoinFragment.LEFT_OUTER_JOIN
+						join.getJoinType()==JoinType.LEFT_OUTER_JOIN
 				);
 				if (selectFragment.trim().length() > 0) {
 					buf.append(", ").append(selectFragment);
 				}
 				if ( joinable.consumesEntityAlias() ) entityAliasCount++;
-				if ( joinable.consumesCollectionAlias() && join.getJoinType()==JoinFragment.LEFT_OUTER_JOIN ) collectionAliasCount++;
+				if ( joinable.consumesCollectionAlias() && join.getJoinType()==JoinType.LEFT_OUTER_JOIN ) collectionAliasCount++;
 			}
 			return buf.toString();
 		}

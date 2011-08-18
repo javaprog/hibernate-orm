@@ -22,14 +22,16 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.type;
+
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.Map;
+
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
-import org.hibernate.collection.PersistentCollection;
-import org.hibernate.engine.SessionFactoryImplementor;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.collection.spi.PersistentCollection;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.usertype.LoggableUserType;
 import org.hibernate.usertype.UserCollectionType;
@@ -37,7 +39,7 @@ import org.hibernate.usertype.UserCollectionType;
 /**
  * A custom type for mapping user-written classes that implement <tt>PersistentCollection</tt>
  * 
- * @see org.hibernate.collection.PersistentCollection
+ * @see org.hibernate.collection.spi.PersistentCollection
  * @see org.hibernate.usertype.UserCollectionType
  * @author Gavin King
  */

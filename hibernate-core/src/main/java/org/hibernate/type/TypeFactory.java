@@ -30,10 +30,10 @@ import java.util.Properties;
 import org.jboss.logging.Logger;
 
 import org.hibernate.HibernateException;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.MappingException;
 import org.hibernate.classic.Lifecycle;
-import org.hibernate.engine.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.tuple.component.ComponentMetamodel;
 import org.hibernate.usertype.CompositeUserType;
@@ -65,8 +65,12 @@ public final class TypeFactory implements Serializable {
 		private SessionFactoryImplementor factory;
 
 		public void injectSessionFactory(SessionFactoryImplementor factory) {
-            if (this.factory != null) LOG.scopingTypesToSessionFactoryAfterAlreadyScoped(this.factory, factory);
-            else LOG.trace("Scoping types to session factory " + factory);
+            if (this.factory != null) {
+				LOG.scopingTypesToSessionFactoryAfterAlreadyScoped( this.factory, factory );
+			}
+            else {
+				LOG.trace( "Scoping types to session factory " + factory );
+			}
 			this.factory = factory;
 		}
 

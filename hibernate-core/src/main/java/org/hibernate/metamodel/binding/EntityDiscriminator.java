@@ -23,27 +23,34 @@
  */
 package org.hibernate.metamodel.binding;
 
+import org.hibernate.metamodel.relational.SimpleValue;
+
 /**
- * TODO : javadoc
+ * Binding of the discriminator in a entity hierarchy
  *
  * @author Steve Ebersole
+ * @author Hardy Ferentschik
  */
 public class EntityDiscriminator {
-	private final EntityBinding entityBinding;
-	private SimpleAttributeBinding valueBinding;
+	private final HibernateTypeDescriptor explicitHibernateTypeDescriptor = new HibernateTypeDescriptor();
+
+	private SimpleValue boundValue;
 	private boolean forced;
 	private boolean inserted = true;
 
-	public EntityDiscriminator(EntityBinding entityBinding) {
-		this.entityBinding = entityBinding;
+	public EntityDiscriminator() {
 	}
 
-	public SimpleAttributeBinding getValueBinding() {
-		return valueBinding;
+	public SimpleValue getBoundValue() {
+		return boundValue;
 	}
 
-	public void setValueBinding(SimpleAttributeBinding valueBinding) {
-		this.valueBinding = valueBinding;
+	public void setBoundValue(SimpleValue boundValue) {
+		this.boundValue = boundValue;
+	}
+
+	public HibernateTypeDescriptor getExplicitHibernateTypeDescriptor() {
+		return explicitHibernateTypeDescriptor;
 	}
 
 	public boolean isForced() {
@@ -60,5 +67,16 @@ public class EntityDiscriminator {
 
 	public void setInserted(boolean inserted) {
 		this.inserted = inserted;
+	}
+
+	@Override
+	public String toString() {
+		final StringBuilder sb = new StringBuilder();
+		sb.append( "EntityDiscriminator" );
+		sb.append( "{boundValue=" ).append( boundValue );
+		sb.append( ", forced=" ).append( forced );
+		sb.append( ", inserted=" ).append( inserted );
+		sb.append( '}' );
+		return sb.toString();
 	}
 }

@@ -42,6 +42,7 @@ import java.util.Properties;
 import org.jboss.logging.Logger;
 
 import org.hibernate.HibernateException;
+import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
@@ -55,7 +56,10 @@ import org.hibernate.engine.jdbc.spi.SqlStatementLogger;
 import org.hibernate.internal.util.ConfigHelper;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.internal.util.config.ConfigurationHelper;
+import org.hibernate.metamodel.source.MetadataImplementor;
 import org.hibernate.service.ServiceRegistry;
+import org.hibernate.service.ServiceRegistryBuilder;
+import org.hibernate.service.config.spi.ConfigurationService;
 import org.hibernate.service.internal.BasicServiceRegistryImpl;
 import org.hibernate.service.jdbc.connections.spi.ConnectionProvider;
 
@@ -117,6 +121,27 @@ public class SchemaExport {
 		final Dialect dialect = serviceRegistry.getService( JdbcServices.class ).getDialect();
 		this.dropSQL = configuration.generateDropSchemaScript( dialect );
 		this.createSQL = configuration.generateSchemaCreationScript( dialect );
+	}
+
+	public SchemaExport(MetadataImplementor metadata) {
+		ServiceRegistry serviceRegistry = metadata.getServiceRegistry();
+		this.connectionHelper = new SuppliedConnectionProviderConnectionHelper(
+				serviceRegistry.getService( ConnectionProvider.class )
+		);
+        JdbcServices jdbcServices = serviceRegistry.getService( JdbcServices.class );
+		this.sqlStatementLogger = jdbcServices.getSqlStatementLogger();
+		this.formatter = ( sqlStatementLogger.isFormat() ? FormatStyle.DDL : FormatStyle.NONE ).getFormatter();
+		this.sqlExceptionHelper = jdbcServices.getSqlExceptionHelper();
+
+		this.importFiles = ConfigurationHelper.getString(
+				AvailableSettings.HBM2DDL_IMPORT_FILES,
+				serviceRegistry.getService( ConfigurationService.class ).getSettings(),
+				DEFAULT_IMPORT_FILE
+		);
+
+		final Dialect dialect = jdbcServices.getDialect();
+		this.dropSQL = metadata.getDatabase().generateDropSchemaScript( dialect );
+		this.createSQL = metadata.getDatabase().generateSchemaCreationScript( dialect );
 	}
 
 	/**
@@ -366,7 +391,7 @@ public class SchemaExport {
 	        if ( delimiter != null ) {
 				formatted += delimiter;
 			}
-			sqlStatementLogger.logStatement( formatted );
+			sqlStatementLogger.logStatement( sqlCommand, formatter );
 			for ( Exporter exporter : exporters ) {
 				try {
 					exporter.export( formatted );
@@ -460,7 +485,7 @@ public class SchemaExport {
 	private static BasicServiceRegistryImpl createServiceRegistry(Properties properties) {
 		Environment.verifyProperties( properties );
 		ConfigurationHelper.resolvePlaceHolders( properties );
-		return new BasicServiceRegistryImpl( properties );
+		return (BasicServiceRegistryImpl) new ServiceRegistryBuilder( properties ).buildServiceRegistry();
 	}
 
 	public static void main(String[] args) {

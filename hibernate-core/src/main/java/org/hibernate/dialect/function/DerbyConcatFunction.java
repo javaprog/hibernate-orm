@@ -24,10 +24,10 @@
 package org.hibernate.dialect.function;
 import java.util.Iterator;
 import java.util.List;
-import org.hibernate.Hibernate;
+
 import org.hibernate.QueryException;
-import org.hibernate.engine.Mapping;
-import org.hibernate.engine.SessionFactoryImplementor;
+import org.hibernate.engine.spi.Mapping;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.type.StandardBasicTypes;
 import org.hibernate.type.Type;
 
@@ -67,7 +67,7 @@ public class DerbyConcatFunction implements SQLFunction {
 	/**
 	 * {@inheritDoc}
 	 * <p/>
-	 * Here we always return {@link Hibernate#STRING}.
+	 * Here we always return {@link StandardBasicTypes#STRING}.
 	 */
 	public Type getReturnType(Type argumentType, Mapping mapping) throws QueryException {
 		return StandardBasicTypes.STRING;

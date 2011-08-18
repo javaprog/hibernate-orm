@@ -24,6 +24,7 @@
 package org.hibernate.envers.reader;
 import static org.hibernate.envers.tools.ArgumentsTools.checkNotNull;
 import static org.hibernate.envers.tools.ArgumentsTools.checkPositive;
+import static org.hibernate.envers.tools.Tools.getTargetClassIfProxied;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,11 +32,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.persistence.NoResultException;
+import org.hibernate.Criteria;
 import org.hibernate.HibernateException;
 import org.hibernate.NonUniqueResultException;
-import org.hibernate.Query;
 import org.hibernate.Session;
-import org.hibernate.engine.SessionImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.envers.CrossTypeRevisionChangesReader;
 import org.hibernate.envers.configuration.AuditConfiguration;
 import org.hibernate.envers.exception.AuditException;
 import org.hibernate.envers.exception.NotAuditedException;
@@ -43,18 +45,20 @@ import org.hibernate.envers.exception.RevisionDoesNotExistException;
 import org.hibernate.envers.query.AuditEntity;
 import org.hibernate.envers.query.AuditQueryCreator;
 import org.hibernate.envers.synchronization.AuditProcess;
-import org.hibernate.event.EventSource;
+import org.hibernate.event.spi.EventSource;
 import org.hibernate.proxy.HibernateProxy;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  * @author Hern&aacute;n Chanfreau
+ * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 public class AuditReaderImpl implements AuditReaderImplementor {
     private final AuditConfiguration verCfg;
     private final SessionImplementor sessionImplementor;
     private final Session session;
     private final FirstLevelCache firstLevelCache;
+    private final CrossTypeRevisionChangesReader crossTypeRevisionChangesReader;
 
     public AuditReaderImpl(AuditConfiguration verCfg, Session session,
                               SessionImplementor sessionImplementor) {
@@ -63,6 +67,7 @@ public class AuditReaderImpl implements AuditReaderImplementor {
         this.session = session;
 
         firstLevelCache = new FirstLevelCache();
+        crossTypeRevisionChangesReader = new CrossTypeRevisionChangesReaderImpl(this, verCfg);
     }
 
     private void checkSession() {
@@ -85,13 +90,14 @@ public class AuditReaderImpl implements AuditReaderImplementor {
 
     public <T> T find(Class<T> cls, Object primaryKey, Number revision) throws
             IllegalArgumentException, NotAuditedException, IllegalStateException {
-    	
+    	cls = getTargetClassIfProxied(cls);
     	return this.find(cls, cls.getName(), primaryKey, revision);
     }
     
     @SuppressWarnings({"unchecked"})
     public <T> T find(Class<T> cls, String entityName, Object primaryKey, Number revision) throws
             IllegalArgumentException, NotAuditedException, IllegalStateException {
+        cls = getTargetClassIfProxied(cls);
         checkNotNull(cls, "Entity class");
         checkNotNull(entityName, "Entity name");
         checkNotNull(primaryKey, "Primary key");
@@ -123,7 +129,7 @@ public class AuditReaderImpl implements AuditReaderImplementor {
 
     public List<Number> getRevisions(Class<?> cls, Object primaryKey)
             throws IllegalArgumentException, NotAuditedException, IllegalStateException {
-    	
+    	cls = getTargetClassIfProxied(cls);
     	return this.getRevisions(cls, cls.getName(), primaryKey);
     }
 
@@ -131,6 +137,7 @@ public class AuditReaderImpl implements AuditReaderImplementor {
     public List<Number> getRevisions(Class<?> cls, String entityName, Object primaryKey)
             throws IllegalArgumentException, NotAuditedException, IllegalStateException {
         // todo: if a class is not versioned from the beginning, there's a missing ADD rev - what then?
+        cls = getTargetClassIfProxied(cls);
         checkNotNull(cls, "Entity class");
         checkNotNull(entityName, "Entity name");
         checkNotNull(primaryKey, "Primary key");
@@ -152,7 +159,7 @@ public class AuditReaderImpl implements AuditReaderImplementor {
         checkPositive(revision, "Entity revision");
         checkSession();
 
-        Query query = verCfg.getRevisionInfoQueryCreator().getRevisionDateQuery(session, revision);
+        Criteria query = verCfg.getRevisionInfoQueryCreator().getRevisionDateQuery(session, revision);
 
         try {
             Object timestampObject = query.uniqueResult();
@@ -171,7 +178,7 @@ public class AuditReaderImpl implements AuditReaderImplementor {
         checkNotNull(date, "Date of revision");
         checkSession();
 
-        Query query = verCfg.getRevisionInfoQueryCreator().getRevisionNumberForDateQuery(session, date);
+        Criteria query = verCfg.getRevisionInfoQueryCreator().getRevisionNumberForDateQuery(session, date);
 
         try {
             Number res = (Number) query.uniqueResult();
@@ -188,13 +195,14 @@ public class AuditReaderImpl implements AuditReaderImplementor {
     @SuppressWarnings({"unchecked"})
     public <T> T findRevision(Class<T> revisionEntityClass, Number revision) throws IllegalArgumentException,
             RevisionDoesNotExistException, IllegalStateException {
+        revisionEntityClass = getTargetClassIfProxied(revisionEntityClass);
         checkNotNull(revision, "Entity revision");
         checkPositive(revision, "Entity revision");
         checkSession();
 
         Set<Number> revisions = new HashSet<Number>(1);
         revisions.add(revision);
-        Query query = verCfg.getRevisionInfoQueryCreator().getRevisionsQuery(session, revisions);
+        Criteria query = verCfg.getRevisionInfoQueryCreator().getRevisionsQuery(session, revisions);
 
         try {
             T revisionData = (T) query.uniqueResult();
@@ -212,6 +220,7 @@ public class AuditReaderImpl implements AuditReaderImplementor {
     @SuppressWarnings({"unchecked"})
     public <T> Map<Number, T> findRevisions(Class<T> revisionEntityClass, Set<Number> revisions) throws IllegalArgumentException,
     IllegalStateException {
+        revisionEntityClass = getTargetClassIfProxied(revisionEntityClass);
 		Map<Number, T> result = new HashMap<Number, T>(revisions.size());
 
     	for (Number revision : revisions) {
@@ -220,7 +229,7 @@ public class AuditReaderImpl implements AuditReaderImplementor {
 		}
         checkSession();
 
-        Query query = verCfg.getRevisionInfoQueryCreator().getRevisionsQuery(session, revisions);
+        Criteria query = verCfg.getRevisionInfoQueryCreator().getRevisionsQuery(session, revisions);
 
         try {
             List<T> revisionList = query.list();
@@ -235,8 +244,18 @@ public class AuditReaderImpl implements AuditReaderImplementor {
         }
     }
 
+    public CrossTypeRevisionChangesReader getCrossTypeRevisionChangesReader() throws AuditException {
+        if (!verCfg.getGlobalCfg().isTrackEntitiesChangedInRevisionEnabled()) {
+            throw new AuditException("This API is designed for Envers default mechanism of tracking entities modified in a given revision."
+                                     + " Extend DefaultTrackingModifiedEntitiesRevisionEntity, utilize @ModifiedEntityNames annotation or set "
+                                     + "'org.hibernate.envers.track_entities_changed_in_revision' parameter to true.");
+        }
+        return crossTypeRevisionChangesReader;
+    }
+
 	@SuppressWarnings({"unchecked"})
 	public <T> T getCurrentRevision(Class<T> revisionEntityClass, boolean persist) {
+        revisionEntityClass = getTargetClassIfProxied(revisionEntityClass);
 		if (!(session instanceof EventSource)) {
 			throw new IllegalArgumentException("The provided session is not an EventSource!");
 		}
@@ -253,6 +272,7 @@ public class AuditReaderImpl implements AuditReaderImplementor {
     }
 	
     public boolean isEntityClassAudited(Class<?> entityClass) {
+        entityClass = getTargetClassIfProxied(entityClass);
     	return this.isEntityNameAudited(entityClass.getName());
     }
 

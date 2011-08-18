@@ -23,10 +23,15 @@
  */
 package org.hibernate.metamodel.binding;
 
+import javax.persistence.Entity;
+import javax.persistence.Id;
+
 /**
  * @author Steve Ebersole
  */
+@Entity
 public class SimpleEntity {
+	@Id
 	private Long id;
 	private String name;
 

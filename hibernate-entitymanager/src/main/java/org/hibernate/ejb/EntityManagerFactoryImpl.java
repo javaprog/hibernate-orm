@@ -36,14 +36,13 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 
-import org.hibernate.EntityMode;
 import org.hibernate.Hibernate;
 import org.hibernate.SessionFactory;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.ejb.criteria.CriteriaBuilderImpl;
 import org.hibernate.ejb.metamodel.MetamodelImpl;
 import org.hibernate.ejb.util.PersistenceUtilHelper;
-import org.hibernate.engine.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.metadata.ClassMetadata;
 import org.hibernate.service.ServiceRegistry;
@@ -214,7 +213,7 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 				throw new IllegalArgumentException( entityClass + " is not an entity" );
 			}
 			//TODO does that work for @IdClass?
-			return classMetadata.getIdentifier( entity, EntityMode.POJO );
+			return classMetadata.getIdentifier( entity );
 		}
 	}
 }

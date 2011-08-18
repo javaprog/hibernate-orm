@@ -26,10 +26,11 @@ package org.hibernate.property;
 import java.util.Map;
 import org.hibernate.EntityMode;
 import org.hibernate.MappingException;
-import org.hibernate.engine.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.mapping.Property;
+import org.hibernate.metamodel.binding.AttributeBinding;
 import org.hibernate.type.Type;
 
 /**
@@ -76,15 +77,34 @@ public final class PropertyAccessorFactory {
 	    else if ( EntityMode.MAP.equals( mode ) ) {
 		    return getDynamicMapPropertyAccessor();
 	    }
-	    else if ( EntityMode.DOM4J.equals( mode ) ) {
-	    	//TODO: passing null here, because this method is not really used for DOM4J at the moment
-	    	//      but it is still a bug, if we don't get rid of this!
-		    return getDom4jPropertyAccessor( property.getAccessorPropertyName( mode ), property.getType(), null );
+	    else {
+		    throw new MappingException( "Unknown entity mode [" + mode + "]" );
+	    }
+	}
+
+	/**
+     * Retrieves a PropertyAccessor instance based on the given property definition and
+     * entity mode.
+     *
+     * @param property The property for which to retrieve an accessor.
+     * @param mode The mode for the resulting entity.
+     * @return An appropriate accessor.
+     * @throws MappingException
+     */
+	public static PropertyAccessor getPropertyAccessor(AttributeBinding property, EntityMode mode) throws MappingException {
+		//TODO: this is temporary in that the end result will probably not take a Property reference per-se.
+	    if ( null == mode || EntityMode.POJO.equals( mode ) ) {
+		    return getPojoPropertyAccessor( property.getPropertyAccessorName() );
+	    }
+	    else if ( EntityMode.MAP.equals( mode ) ) {
+		    return getDynamicMapPropertyAccessor();
 	    }
 	    else {
 		    throw new MappingException( "Unknown entity mode [" + mode + "]" );
 	    }
-	}	/**
+	}
+
+	/**
 	 * Retreives a PropertyAccessor specific for a PojoRepresentation with the given access strategy.
 	 *
 	 * @param pojoAccessorStrategy The access strategy.
@@ -110,13 +130,6 @@ public final class PropertyAccessorFactory {
 
 	public static PropertyAccessor getDynamicMapPropertyAccessor() throws MappingException {
 		return MAP_ACCESSOR;
-	}
-
-	public static PropertyAccessor getDom4jPropertyAccessor(String nodeName, Type type, SessionFactoryImplementor factory)
-	throws MappingException {
-		//TODO: need some caching scheme? really comes down to decision
-		//      regarding amount of state (if any) kept on PropertyAccessors
-		return new Dom4jAccessor( nodeName, type, factory );
 	}
 
 	private static PropertyAccessor resolveCustomAccessor(String accessorName) {

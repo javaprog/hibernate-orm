@@ -29,17 +29,17 @@ import org.hibernate.action.spi.AfterTransactionCompletionProcess;
 import org.hibernate.action.spi.BeforeTransactionCompletionProcess;
 import org.hibernate.action.spi.Executable;
 import org.hibernate.cache.CacheException;
-import org.hibernate.cache.CacheKey;
-import org.hibernate.cache.access.SoftLock;
-import org.hibernate.collection.PersistentCollection;
-import org.hibernate.engine.SessionImplementor;
-import org.hibernate.event.EventSource;
-import org.hibernate.event.EventType;
+import org.hibernate.cache.spi.CacheKey;
+import org.hibernate.cache.spi.access.SoftLock;
+import org.hibernate.collection.spi.PersistentCollection;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.event.spi.EventSource;
+import org.hibernate.event.spi.EventType;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.pretty.MessageHelper;
-import org.hibernate.service.event.spi.EventListenerGroup;
-import org.hibernate.service.event.spi.EventListenerRegistry;
+import org.hibernate.event.service.spi.EventListenerGroup;
+import org.hibernate.event.service.spi.EventListenerRegistry;
 
 /**
  * Any action relating to insert/update/delete of a collection
@@ -170,7 +170,7 @@ public abstract class CollectionAction implements Executable, Serializable, Comp
 		else {
 			//then by fk
 			return persister.getKeyType()
-					.compare( key, action.key, session.getEntityMode() );
+					.compare( key, action.key );
 		}
 	}
 
