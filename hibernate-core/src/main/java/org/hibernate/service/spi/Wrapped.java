@@ -24,6 +24,10 @@
 package org.hibernate.service.spi;
 
 /**
+ * Optional contract for services that wrap stuff that to which it is useful to have access.  For example, a service
+ * that maintains a {@link javax.sql.DataSource} might want to expose access to the {@link javax.sql.DataSource} or
+ * its {@link java.sql.Connection} instances.
+ *
  * @author Steve Ebersole
  */
 public interface Wrapped {
@@ -42,6 +46,8 @@ public interface Wrapped {
 	 * @param unwrapType The java type as which to unwrap this instance.
 	 *
 	 * @return The unwrapped reference
+	 *
+	 * @throws UnknownUnwrapTypeException if the servicebe unwrapped as the indicated type
 	 */
 	public <T> T unwrap(Class<T> unwrapType);
 }

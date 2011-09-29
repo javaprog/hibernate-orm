@@ -43,14 +43,14 @@ import org.xml.sax.EntityResolver;
 import org.hibernate.cfg.EJB3DTDEntityResolver;
 import org.hibernate.cfg.EJB3NamingStrategy;
 import org.hibernate.cfg.NamingStrategy;
+import org.hibernate.internal.jaxb.JaxbRoot;
+import org.hibernate.internal.jaxb.Origin;
+import org.hibernate.internal.jaxb.SourceType;
 import org.hibernate.metamodel.source.MappingException;
 import org.hibernate.metamodel.source.MappingNotFoundException;
-import org.hibernate.metamodel.source.Origin;
-import org.hibernate.metamodel.source.SourceType;
 import org.hibernate.metamodel.source.internal.JaxbHelper;
-import org.hibernate.metamodel.source.internal.JaxbRoot;
 import org.hibernate.metamodel.source.internal.MetadataBuilderImpl;
-import org.hibernate.service.BasicServiceRegistry;
+import org.hibernate.service.ServiceRegistry;
 import org.hibernate.service.classloading.spi.ClassLoaderService;
 
 /**
@@ -65,17 +65,17 @@ public class MetadataSources {
 
 	private final JaxbHelper jaxbHelper;
 
-	private final BasicServiceRegistry serviceRegistry;
+	private final ServiceRegistry serviceRegistry;
 	private final EntityResolver entityResolver;
 	private final NamingStrategy namingStrategy;
 
 	private final MetadataBuilderImpl metadataBuilder;
 
-	public MetadataSources(BasicServiceRegistry serviceRegistry) {
+	public MetadataSources(ServiceRegistry serviceRegistry) {
 		this( serviceRegistry, EJB3DTDEntityResolver.INSTANCE, EJB3NamingStrategy.INSTANCE );
 	}
 
-	public MetadataSources(BasicServiceRegistry serviceRegistry, EntityResolver entityResolver, NamingStrategy namingStrategy) {
+	public MetadataSources(ServiceRegistry serviceRegistry, EntityResolver entityResolver, NamingStrategy namingStrategy) {
 		this.serviceRegistry = serviceRegistry;
 		this.entityResolver = entityResolver;
 		this.namingStrategy = namingStrategy;
@@ -96,7 +96,7 @@ public class MetadataSources {
 		return annotatedClasses;
 	}
 
-	public BasicServiceRegistry getServiceRegistry() {
+	public ServiceRegistry getServiceRegistry() {
 		return serviceRegistry;
 	}
 

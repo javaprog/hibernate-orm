@@ -36,23 +36,23 @@ import org.jboss.jandex.DotName;
 import org.jboss.logging.Logger;
 
 import org.hibernate.internal.CoreMessageLogger;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbAttributes;
 import org.hibernate.internal.util.StringHelper;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLAccessType;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLAttributes;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLDiscriminatorColumn;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLEntity;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLEntityListeners;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLIdClass;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLInheritance;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLPostLoad;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLPostPersist;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLPostRemove;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLPostUpdate;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLPrePersist;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLPreRemove;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLPreUpdate;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLSecondaryTable;
-import org.hibernate.metamodel.source.annotation.jaxb.XMLTable;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbAccessType;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbDiscriminatorColumn;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbEntity;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbEntityListeners;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbIdClass;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbInheritance;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbPostLoad;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbPostPersist;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbPostRemove;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbPostUpdate;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbPrePersist;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbPreRemove;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbPreUpdate;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbSecondaryTable;
+import org.hibernate.internal.jaxb.mapping.orm.JaxbTable;
 
 /**
  * Mock <entity> to {@link javax.persistence.Entity @Entity}
@@ -64,9 +64,9 @@ class EntityMocker extends AbstractEntityObjectMocker {
 			CoreMessageLogger.class,
 			EntityMocker.class.getName()
 	);
-	private XMLEntity entity;
+	private JaxbEntity entity;
 
-	EntityMocker(IndexBuilder indexBuilder, XMLEntity entity, EntityMappingsMocker.Default defaults) {
+	EntityMocker(IndexBuilder indexBuilder, JaxbEntity entity, EntityMappingsMocker.Default defaults) {
 		super( indexBuilder, defaults );
 		this.entity = entity;
 	}
@@ -110,7 +110,7 @@ class EntityMocker extends AbstractEntityObjectMocker {
 	}
 
 	//@Table  (entity only)
-	private AnnotationInstance parserTable(XMLTable table) {
+	private AnnotationInstance parserTable(JaxbTable table) {
 		if ( table == null ) {
 			return null;
 		}
@@ -135,8 +135,6 @@ class EntityMocker extends AbstractEntityObjectMocker {
 	}
 
 	protected AccessType getAccessFromIndex(DotName className) {
-		//todo 这里实际上不应该从getIndexedAnnotations获取，而是应该先处理完所有的entity，mapped-superclass，先不处理attributes呢
-		//然后获取这个
 		Map<DotName, List<AnnotationInstance>> indexedAnnotations = indexBuilder.getIndexedAnnotations( className );
 		List<AnnotationInstance> accessAnnotationInstances = indexedAnnotations.get( ACCESS );
 		if ( MockHelper.isNotEmpty( accessAnnotationInstances ) ) {
@@ -159,42 +157,42 @@ class EntityMocker extends AbstractEntityObjectMocker {
 	}
 
 	@Override
-	protected XMLPrePersist getPrePersist() {
+	protected JaxbPrePersist getPrePersist() {
 		return entity.getPrePersist();
 	}
 
 	@Override
-	protected XMLPreRemove getPreRemove() {
+	protected JaxbPreRemove getPreRemove() {
 		return entity.getPreRemove();
 	}
 
 	@Override
-	protected XMLPreUpdate getPreUpdate() {
+	protected JaxbPreUpdate getPreUpdate() {
 		return entity.getPreUpdate();
 	}
 
 	@Override
-	protected XMLPostPersist getPostPersist() {
+	protected JaxbPostPersist getPostPersist() {
 		return entity.getPostPersist();
 	}
 
 	@Override
-	protected XMLPostUpdate getPostUpdate() {
+	protected JaxbPostUpdate getPostUpdate() {
 		return entity.getPostUpdate();
 	}
 
 	@Override
-	protected XMLPostRemove getPostRemove() {
+	protected JaxbPostRemove getPostRemove() {
 		return entity.getPostRemove();
 	}
 
 	@Override
-	protected XMLPostLoad getPostLoad() {
+	protected JaxbPostLoad getPostLoad() {
 		return entity.getPostLoad();
 	}
 
 	@Override
-	protected XMLAttributes getAttributes() {
+	protected JaxbAttributes getAttributes() {
 		return entity.getAttributes();
 	}
 
@@ -214,22 +212,22 @@ class EntityMocker extends AbstractEntityObjectMocker {
 	}
 
 	@Override
-	protected XMLIdClass getIdClass() {
+	protected JaxbIdClass getIdClass() {
 		return entity.getIdClass();
 	}
 
 	@Override
-	protected XMLEntityListeners getEntityListeners() {
+	protected JaxbEntityListeners getEntityListeners() {
 		return entity.getEntityListeners();
 	}
 
 	@Override
-	protected XMLAccessType getAccessType() {
+	protected JaxbAccessType getAccessType() {
 		return entity.getAccess();
 	}
 
 	//@Inheritance
-	protected AnnotationInstance parserInheritance(XMLInheritance inheritance) {
+	protected AnnotationInstance parserInheritance(JaxbInheritance inheritance) {
 		if ( inheritance == null ) {
 			return null;
 		}
@@ -242,7 +240,7 @@ class EntityMocker extends AbstractEntityObjectMocker {
 	}
 
 	//@DiscriminatorColumn
-	protected AnnotationInstance parserDiscriminatorColumn(XMLDiscriminatorColumn discriminatorColumn) {
+	protected AnnotationInstance parserDiscriminatorColumn(JaxbDiscriminatorColumn discriminatorColumn) {
 		if ( discriminatorColumn == null ) {
 			return null;
 		}
@@ -264,7 +262,7 @@ class EntityMocker extends AbstractEntityObjectMocker {
 	}
 
 	//@SecondaryTable
-	protected AnnotationInstance parserSecondaryTable(XMLSecondaryTable secondaryTable, AnnotationTarget target) {
+	protected AnnotationInstance parserSecondaryTable(JaxbSecondaryTable secondaryTable, AnnotationTarget target) {
 		if ( secondaryTable == null ) {
 			return null;
 		}
@@ -289,7 +287,7 @@ class EntityMocker extends AbstractEntityObjectMocker {
 	}
 
 
-	protected AnnotationInstance parserSecondaryTableList(List<XMLSecondaryTable> primaryKeyJoinColumnList, AnnotationTarget target) {
+	protected AnnotationInstance parserSecondaryTableList(List<JaxbSecondaryTable> primaryKeyJoinColumnList, AnnotationTarget target) {
 		if ( MockHelper.isNotEmpty( primaryKeyJoinColumnList ) ) {
 			if ( primaryKeyJoinColumnList.size() == 1 ) {
 				return parserSecondaryTable( primaryKeyJoinColumnList.get( 0 ), target );
@@ -306,7 +304,7 @@ class EntityMocker extends AbstractEntityObjectMocker {
 
 	}
 
-	protected AnnotationValue[] nestedSecondaryTableList(String name, List<XMLSecondaryTable> secondaryTableList, List<AnnotationValue> annotationValueList) {
+	protected AnnotationValue[] nestedSecondaryTableList(String name, List<JaxbSecondaryTable> secondaryTableList, List<AnnotationValue> annotationValueList) {
 		if ( MockHelper.isNotEmpty( secondaryTableList ) ) {
 			AnnotationValue[] values = new AnnotationValue[secondaryTableList.size()];
 			for ( int i = 0; i < secondaryTableList.size(); i++ ) {

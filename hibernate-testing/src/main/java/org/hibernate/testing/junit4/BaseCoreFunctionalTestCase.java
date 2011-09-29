@@ -53,9 +53,13 @@ import org.hibernate.mapping.Property;
 import org.hibernate.mapping.SimpleValue;
 import org.hibernate.metamodel.MetadataSources;
 import org.hibernate.metamodel.source.MetadataImplementor;
-import org.hibernate.service.BasicServiceRegistry;
+import org.hibernate.service.BootstrapServiceRegistry;
+import org.hibernate.service.BootstrapServiceRegistryBuilder;
+import org.hibernate.service.ServiceRegistry;
+import org.hibernate.service.ServiceRegistryBuilder;
 import org.hibernate.service.config.spi.ConfigurationService;
-import org.hibernate.service.internal.BasicServiceRegistryImpl;
+import org.hibernate.service.internal.BootstrapServiceRegistryImpl;
+import org.hibernate.service.internal.StandardServiceRegistryImpl;
 
 import org.junit.After;
 import org.junit.Before;
@@ -74,6 +78,7 @@ import static org.junit.Assert.fail;
  *
  * @author Steve Ebersole
  */
+@SuppressWarnings( {"deprecation"} )
 public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 	public static final String VALIDATE_DATA_CLEANUP = "hibernate.test.validateDataCleanup";
 	public static final String USE_NEW_METADATA_MAPPINGS = "hibernate.test.new_metadata_mappings";
@@ -82,7 +87,7 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 
 	private boolean isMetadataUsed;
 	private Configuration configuration;
-	private BasicServiceRegistryImpl serviceRegistry;
+	private StandardServiceRegistryImpl serviceRegistry;
 	private SessionFactoryImplementor sessionFactory;
 
 	private Session session;
@@ -95,7 +100,7 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 		return configuration;
 	}
 
-	protected BasicServiceRegistryImpl serviceRegistry() {
+	protected StandardServiceRegistryImpl serviceRegistry() {
 		return serviceRegistry;
 	}
 
@@ -143,7 +148,7 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 		afterSessionFactoryBuilt();
 	}
 
-	private MetadataImplementor buildMetadata(BasicServiceRegistry serviceRegistry) {
+	private MetadataImplementor buildMetadata(ServiceRegistry serviceRegistry) {
 		 	MetadataSources sources = new MetadataSources( serviceRegistry );
 			addMappings( sources );
 			return (MetadataImplementor) sources.buildMetadata();
@@ -315,17 +320,29 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 	protected void afterConfigurationBuilt(Mappings mappings, Dialect dialect) {
 	}
 
-	protected BasicServiceRegistryImpl buildServiceRegistry(Configuration configuration) {
+	protected StandardServiceRegistryImpl buildServiceRegistry(Configuration configuration) {
 		Properties properties = new Properties();
 		properties.putAll( configuration.getProperties() );
 		Environment.verifyProperties( properties );
 		ConfigurationHelper.resolvePlaceHolders( properties );
-		BasicServiceRegistryImpl serviceRegistry = (BasicServiceRegistryImpl) new org.hibernate.service.ServiceRegistryBuilder( properties ).buildServiceRegistry();
-		applyServices( serviceRegistry );
-		return serviceRegistry;
+
+		final BootstrapServiceRegistry bootstrapServiceRegistry = generateBootstrapRegistry( properties );
+		ServiceRegistryBuilder registryBuilder = new ServiceRegistryBuilder( bootstrapServiceRegistry )
+				.applySettings( properties );
+		prepareBasicRegistryBuilder( registryBuilder );
+		return (StandardServiceRegistryImpl) registryBuilder.buildServiceRegistry();
 	}
 
-	protected void applyServices(BasicServiceRegistryImpl serviceRegistry) {
+	protected BootstrapServiceRegistry generateBootstrapRegistry(Properties properties) {
+		final BootstrapServiceRegistryBuilder builder = new BootstrapServiceRegistryBuilder();
+		prepareBootstrapRegistryBuilder( builder );
+		return builder.build();
+	}
+
+	protected void prepareBootstrapRegistryBuilder(BootstrapServiceRegistryBuilder builder) {
+	}
+
+	protected void prepareBasicRegistryBuilder(ServiceRegistryBuilder serviceRegistryBuilder) {
 	}
 
 	protected void afterSessionFactoryBuilt() {

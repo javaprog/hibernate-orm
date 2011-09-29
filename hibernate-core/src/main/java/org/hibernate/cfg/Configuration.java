@@ -69,6 +69,8 @@ import org.hibernate.HibernateException;
 import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.engine.spi.Mapping;
 import org.hibernate.engine.spi.NamedQueryDefinition;
+import org.hibernate.id.factory.internal.DefaultIdentifierGeneratorFactory;
+import org.hibernate.id.factory.spi.MutableIdentifierGeneratorFactory;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.Interceptor;
 import org.hibernate.InvalidMappingException;
@@ -91,7 +93,6 @@ import org.hibernate.engine.ResultSetMappingDefinition;
 import org.hibernate.id.IdentifierGenerator;
 import org.hibernate.id.IdentifierGeneratorAggregator;
 import org.hibernate.id.PersistentIdentifierGenerator;
-import org.hibernate.id.factory.DefaultIdentifierGeneratorFactory;
 import org.hibernate.id.factory.IdentifierGeneratorFactory;
 import org.hibernate.internal.SessionFactoryImpl;
 import org.hibernate.internal.util.ConfigHelper;
@@ -131,7 +132,7 @@ import org.hibernate.proxy.EntityNotFoundDelegate;
 import org.hibernate.secure.internal.JACCConfiguration;
 import org.hibernate.service.ServiceRegistry;
 import org.hibernate.service.ServiceRegistryBuilder;
-import org.hibernate.service.internal.BasicServiceRegistryImpl;
+import org.hibernate.service.internal.StandardServiceRegistryImpl;
 import org.hibernate.tool.hbm2ddl.DatabaseMetadata;
 import org.hibernate.tool.hbm2ddl.IndexMetadata;
 import org.hibernate.tool.hbm2ddl.TableMetadata;
@@ -156,15 +157,17 @@ import org.hibernate.usertype.UserType;
  * <br>
  * A new <tt>Configuration</tt> will use the properties specified in
  * <tt>hibernate.properties</tt> by default.
+ * <p/>
+ * NOTE : This will be replaced by use of {@link ServiceRegistryBuilder} and
+ * {@link org.hibernate.metamodel.MetadataSources} instead after the 4.0 release at which point this class will become
+ * deprecated and scheduled for removal in 5.0.  See
+ * <a href="http://opensource.atlassian.com/projects/hibernate/browse/HHH-6183">HHH-6183</a>,
+ * <a href="http://opensource.atlassian.com/projects/hibernate/browse/HHH-2578">HHH-2578</a> and
+ * <a href="http://opensource.atlassian.com/projects/hibernate/browse/HHH-6586">HHH-6586</a> for details
  *
  * @author Gavin King
  * @see org.hibernate.SessionFactory
- *
- * @deprecated use {@link ServiceRegistryBuilder} and {@link org.hibernate.metamodel.MetadataSources} instead.  See
- * <a href="http://opensource.atlassian.com/projects/hibernate/browse/HHH-6183">HHH-6183</a> and
- * <a href="http://opensource.atlassian.com/projects/hibernate/browse/HHH-2578">HHH-2578</a> for details
  */
-@Deprecated
 public class Configuration implements Serializable {
 
     private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, Configuration.class.getName());
@@ -228,7 +231,7 @@ public class Configuration implements Serializable {
 
 	private transient Mapping mapping = buildMapping();
 
-	private DefaultIdentifierGeneratorFactory identifierGeneratorFactory;
+	private MutableIdentifierGeneratorFactory identifierGeneratorFactory;
 
 	private Map<Class<?>, org.hibernate.mapping.MappedSuperclass> mappedSuperClasses;
 
@@ -1740,7 +1743,9 @@ public class Configuration implements Serializable {
 	public SessionFactory buildSessionFactory() throws HibernateException {
 		Environment.verifyProperties( properties );
 		ConfigurationHelper.resolvePlaceHolders( properties );
-		final ServiceRegistry serviceRegistry =  new ServiceRegistryBuilder( properties ).buildServiceRegistry();
+		final ServiceRegistry serviceRegistry =  new ServiceRegistryBuilder()
+				.applySettings( properties )
+				.buildServiceRegistry();
 		setSessionFactoryObserver(
 				new SessionFactoryObserver() {
 					@Override
@@ -1749,7 +1754,7 @@ public class Configuration implements Serializable {
 
 					@Override
 					public void sessionFactoryClosed(SessionFactory factory) {
-						( (BasicServiceRegistryImpl) serviceRegistry ).destroy();
+						( (StandardServiceRegistryImpl) serviceRegistry ).destroy();
 					}
 				}
 		);
@@ -2283,7 +2288,7 @@ public class Configuration implements Serializable {
 	 *
 	 * @return This configuration's IdentifierGeneratorFactory.
 	 */
-	public DefaultIdentifierGeneratorFactory getIdentifierGeneratorFactory() {
+	public MutableIdentifierGeneratorFactory getIdentifierGeneratorFactory() {
 		return identifierGeneratorFactory;
 	}
 
@@ -2961,7 +2966,7 @@ public class Configuration implements Serializable {
 			extendsQueue.put( entry, null );
 		}
 
-		public DefaultIdentifierGeneratorFactory getIdentifierGeneratorFactory() {
+		public MutableIdentifierGeneratorFactory getIdentifierGeneratorFactory() {
 			return identifierGeneratorFactory;
 		}
 

@@ -611,7 +611,7 @@ public interface CoreMessageLogger extends BasicLogger {
 	@Message(value = "Overriding %s is dangerous, this might break the EJB3 specification implementation", id = 193)
 	void overridingTransactionStrategyDangerous(String transactionStrategy);
 
-	@LogMessage(level = WARN)
+	@LogMessage(level = DEBUG)
 	@Message(value = "Package not found or wo package-info.java: %s", id = 194)
 	void packageNotFound(String packageName);
 
@@ -1443,7 +1443,7 @@ public interface CoreMessageLogger extends BasicLogger {
 	void validatorNotFound();
 
 	@LogMessage(level = INFO)
-	@Message(value = "Hibernate %s", id = 412)
+	@Message(value = "Hibernate Core {%s}", id = 412)
 	void version(String versionString);
 
 	@LogMessage(level = WARN)
@@ -1534,4 +1534,17 @@ public interface CoreMessageLogger extends BasicLogger {
 	@LogMessage(level = WARN)
 	@Message(value = "There were not column names specified for index %s on table %s", id = 432)
 	void noColumnsSpecifiedForIndex(String indexName, String tableName);
+
+	@LogMessage(level = INFO)
+	@Message(value = "update timestamps cache puts: %s", id = 433)
+	void timestampCachePuts(long updateTimestampsCachePutCount);
+
+	@LogMessage(level = INFO)
+	@Message(value = "update timestamps cache hits: %s", id = 434)
+	void timestampCacheHits(long updateTimestampsCachePutCount);
+
+	@LogMessage(level = INFO)
+	@Message(value = "update timestamps cache misses: %s", id = 435)
+	void timestampCacheMisses(long updateTimestampsCachePutCount);
+
 }

@@ -37,8 +37,7 @@ import org.hibernate.engine.transaction.internal.jta.JtaTransactionFactory;
 import org.hibernate.engine.transaction.spi.TransactionContext;
 import org.hibernate.engine.transaction.spi.TransactionImplementor;
 import org.hibernate.service.ServiceRegistryBuilder;
-import org.hibernate.service.internal.ServiceProxy;
-import org.hibernate.service.internal.BasicServiceRegistryImpl;
+import org.hibernate.service.internal.StandardServiceRegistryImpl;
 import org.hibernate.service.jta.platform.spi.JtaPlatform;
 
 import org.junit.After;
@@ -63,7 +62,7 @@ import static org.junit.Assert.fail;
  * @author Steve Ebersole
  */
 public class BasicDrivingTest extends BaseUnitTestCase {
-	private BasicServiceRegistryImpl serviceRegistry;
+	private StandardServiceRegistryImpl serviceRegistry;
 
 	@Before
 	@SuppressWarnings( {"unchecked"})
@@ -72,7 +71,9 @@ public class BasicDrivingTest extends BaseUnitTestCase {
 		configValues.putAll( ConnectionProviderBuilder.getConnectionProviderProperties() );
 		configValues.put( Environment.TRANSACTION_STRATEGY, JtaTransactionFactory.class.getName() );
 		TestingJtaBootstrap.prepare( configValues );
-		serviceRegistry = (BasicServiceRegistryImpl) new ServiceRegistryBuilder( configValues ).buildServiceRegistry();
+		serviceRegistry = (StandardServiceRegistryImpl) new ServiceRegistryBuilder()
+				.applySettings( configValues )
+				.buildServiceRegistry();
 	}
 
 	@After
@@ -141,8 +142,7 @@ public class BasicDrivingTest extends BaseUnitTestCase {
 		}
 		catch ( SQLException sqle ) {
 			try {
-				JtaPlatform instance = ( (ServiceProxy) serviceRegistry.getService( JtaPlatform.class ) ).getTargetInstance();
-				instance.retrieveTransactionManager().rollback();
+				serviceRegistry.getService( JtaPlatform.class ).retrieveTransactionManager().rollback();
 			}
 			catch (Exception ignore) {
 			}
@@ -150,8 +150,7 @@ public class BasicDrivingTest extends BaseUnitTestCase {
 		}
 		catch (Throwable reThrowable) {
 			try {
-				JtaPlatform instance = ( (ServiceProxy) serviceRegistry.getService( JtaPlatform.class ) ).getTargetInstance();
-				instance.retrieveTransactionManager().rollback();
+				serviceRegistry.getService( JtaPlatform.class ).retrieveTransactionManager().rollback();
 			}
 			catch (Exception ignore) {
 			}

@@ -1,6 +1,7 @@
 apply plugin: 'java'
 apply plugin: 'antlr'
 apply plugin: org.hibernate.build.gradle.inject.InjectionPlugin
+apply plugin: org.hibernate.gradle.testing.matrix.MatrixTestingPlugin
 
 dependencies {
 	compile( libraries.commons_collections )
@@ -31,8 +32,16 @@ dependencies {
 manifest.mainAttributes(
         'Main-Class': 'org.hibernate.Version'
 )
-
-
+sourceSets {
+    matrix {
+        java {
+            srcDir 'src/matrix/java'
+        }
+        resources {
+            srcDir 'src/matrix/resources'
+        }
+    }
+}
 sourceSets.main {
     originalJavaSrcDirs = java.srcDirs
     jaxbTargetDir = file( "${buildDir}/generated-src/jaxb/main" )
@@ -45,7 +54,9 @@ sourceSets.test.resources {
 }
 
 ideaModule {
-    sourceDirs.add( file( '$buildDir/generated-src/antlr/main' ) )
+    sourceDirs += file( '$buildDir/generated-src/antlr/main' )
+    testSourceDirs += file( 'src/matrix/java')
+    testSourceDirs += file( 'src/matrix/resources')
 }
 
 task jaxb {
@@ -76,7 +87,7 @@ task jaxb {
         // hibernate-configuration
         ant.xjc(
                 destdir: '${jaxbTargetDir}',
-                package: 'org.hibernate.metamodel.source.hbm.jaxb.config',
+                package: 'org.hibernate.internal.jaxb.cfg',
                 binding: 'src/main/xjb/hbm-configuration-bindings.xjb',
                 schema: cfgXsd.path
         )
@@ -84,7 +95,7 @@ task jaxb {
         // hibernate-mapping
         ant.xjc(
                 destdir: '${jaxbTargetDir}',
-                package: 'org.hibernate.metamodel.source.hbm.jaxb.mapping',
+                package: 'org.hibernate.internal.jaxb.mapping.hbm',
                 binding: hbmXjb.path,
                 schema: hbmXsd.path,
                 extension: 'true'
@@ -95,7 +106,7 @@ task jaxb {
         // orm.xml (jpa)
         ant.xjc(
                 destdir: '${jaxbTargetDir}',
-                package: 'org.hibernate.metamodel.source.annotation.jaxb',
+                package: 'org.hibernate.internal.jaxb.mapping.orm',
                 binding: 'src/main/xjb/orm-bindings.xjb',
                 schema: ormXsd.path
         )

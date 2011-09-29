@@ -23,13 +23,17 @@
  */
 package org.hibernate.test.transaction.jta;
 
-import javax.transaction.TransactionManager;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
+import javax.transaction.TransactionManager;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import org.hibernate.ConnectionReleaseMode;
 import org.hibernate.cfg.Environment;
@@ -39,19 +43,13 @@ import org.hibernate.engine.transaction.internal.jta.CMTTransactionFactory;
 import org.hibernate.engine.transaction.spi.TransactionContext;
 import org.hibernate.engine.transaction.spi.TransactionImplementor;
 import org.hibernate.service.ServiceRegistryBuilder;
-import org.hibernate.service.internal.BasicServiceRegistryImpl;
-import org.hibernate.service.internal.ServiceProxy;
+import org.hibernate.service.internal.StandardServiceRegistryImpl;
 import org.hibernate.service.jta.platform.spi.JtaPlatform;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import org.hibernate.testing.jta.TestingJtaBootstrap;
-import org.hibernate.testing.junit4.BaseUnitTestCase;
 import org.hibernate.test.common.JournalingTransactionObserver;
 import org.hibernate.test.common.TransactionContextImpl;
 import org.hibernate.test.common.TransactionEnvironmentImpl;
+import org.hibernate.testing.jta.TestingJtaBootstrap;
+import org.hibernate.testing.junit4.BaseUnitTestCase;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -64,7 +62,7 @@ import static org.junit.Assert.fail;
  * @author Steve Ebersole
  */
 public class ManagedDrivingTest extends BaseUnitTestCase {
-	private BasicServiceRegistryImpl serviceRegistry;
+	private StandardServiceRegistryImpl serviceRegistry;
 
 	@Before
 	@SuppressWarnings( {"unchecked"})
@@ -73,7 +71,9 @@ public class ManagedDrivingTest extends BaseUnitTestCase {
 		TestingJtaBootstrap.prepare( configValues );
 		configValues.put( Environment.TRANSACTION_STRATEGY, CMTTransactionFactory.class.getName() );
 
-		serviceRegistry = (BasicServiceRegistryImpl) new ServiceRegistryBuilder( configValues ).buildServiceRegistry();
+		serviceRegistry = (StandardServiceRegistryImpl) new ServiceRegistryBuilder()
+				.applySettings( configValues )
+				.buildServiceRegistry();
 	}
 
 	@After

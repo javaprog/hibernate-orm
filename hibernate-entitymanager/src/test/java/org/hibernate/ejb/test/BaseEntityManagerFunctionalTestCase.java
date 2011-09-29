@@ -41,9 +41,11 @@ import org.hibernate.cfg.Environment;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.ejb.AvailableSettings;
 import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.internal.util.config.ConfigurationHelper;
+import org.hibernate.ejb.EntityManagerFactoryImpl;
+import org.hibernate.internal.SessionFactoryImpl;
+import org.hibernate.service.BootstrapServiceRegistryBuilder;
 import org.hibernate.service.ServiceRegistryBuilder;
-import org.hibernate.service.internal.BasicServiceRegistryImpl;
+import org.hibernate.service.internal.StandardServiceRegistryImpl;
 
 import org.junit.After;
 import org.junit.Before;
@@ -65,8 +67,8 @@ public abstract class BaseEntityManagerFunctionalTestCase extends BaseUnitTestCa
 	private static final Dialect dialect = Dialect.getDialect();
 
 	private Ejb3Configuration ejb3Configuration;
-	private BasicServiceRegistryImpl serviceRegistry;
-	private EntityManagerFactory entityManagerFactory;
+	private StandardServiceRegistryImpl serviceRegistry;
+	private EntityManagerFactoryImpl entityManagerFactory;
 
 	private EntityManager em;
 	private ArrayList<EntityManager> isolatedEms = new ArrayList<EntityManager>();
@@ -79,7 +81,7 @@ public abstract class BaseEntityManagerFunctionalTestCase extends BaseUnitTestCa
 		return entityManagerFactory;
 	}
 
-	protected BasicServiceRegistryImpl serviceRegistry() {
+	protected StandardServiceRegistryImpl serviceRegistry() {
 		return serviceRegistry;
 	}
 
@@ -90,10 +92,15 @@ public abstract class BaseEntityManagerFunctionalTestCase extends BaseUnitTestCa
 		ejb3Configuration = buildConfiguration();
 		ejb3Configuration.configure( getConfig() );
 		afterConfigurationBuilt( ejb3Configuration );
-		serviceRegistry = buildServiceRegistry( ejb3Configuration.getHibernateConfiguration() );
-		applyServices( serviceRegistry );
-		entityManagerFactory = ejb3Configuration.buildEntityManagerFactory( serviceRegistry );
+
+		entityManagerFactory = (EntityManagerFactoryImpl) ejb3Configuration.buildEntityManagerFactory( bootstrapRegistryBuilder() );
+		serviceRegistry = (StandardServiceRegistryImpl) ( (SessionFactoryImpl) entityManagerFactory.getSessionFactory() ).getServiceRegistry().getParentServiceRegistry();
+
 		afterEntityManagerFactoryBuilt();
+	}
+
+	private BootstrapServiceRegistryBuilder bootstrapRegistryBuilder() {
+		return new BootstrapServiceRegistryBuilder();
 	}
 
 	protected Ejb3Configuration buildConfiguration() {
@@ -199,16 +206,8 @@ public abstract class BaseEntityManagerFunctionalTestCase extends BaseUnitTestCa
 	protected void afterConfigurationBuilt(Ejb3Configuration ejb3Configuration) {
 	}
 
-	protected BasicServiceRegistryImpl buildServiceRegistry(Configuration configuration) {
-		Properties properties = new Properties();
-		properties.putAll( configuration.getProperties() );
-		Environment.verifyProperties( properties );
-		ConfigurationHelper.resolvePlaceHolders( properties );
-		return (BasicServiceRegistryImpl) new ServiceRegistryBuilder( properties ).buildServiceRegistry();
-	}
-
 	@SuppressWarnings( {"UnusedParameters"})
-	protected void applyServices(BasicServiceRegistryImpl serviceRegistry) {
+	protected void applyServices(ServiceRegistryBuilder registryBuilder) {
 	}
 
 	protected void afterEntityManagerFactoryBuilt() {

@@ -1,7 +1,7 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2011, Red Hat Inc. or third-party contributors as
+ * Copyright (c) 2009-2011, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
  * distributed under license by Red Hat Inc.
@@ -23,27 +23,39 @@
  */
 package org.hibernate.test.util;
 
-import org.hibernate.internal.util.StringHelper;
-
 import org.junit.Test;
-
-import org.hibernate.testing.junit4.BaseUnitTestCase;
-
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
+import org.hibernate.internal.util.StringHelper;
+import org.hibernate.testing.junit4.BaseUnitTestCase;
 
 /**
  * @author Steve Ebersole
  */
 public class StringHelperTest extends BaseUnitTestCase {
+	private static final String BASE_PACKAGE = "org.hibernate";
+	private static final String STRING_HELPER_FQN = "org.hibernate.internal.util.StringHelper";
+	private static final String STRING_HELPER_NAME = StringHelper.unqualify( STRING_HELPER_FQN );
+
 	@Test
-	public void testAliasGeneration() {
-		assertSimpleAlias( "xyz", "xyz_" );
-		assertSimpleAlias( "_xyz", "xyz_" );
-		assertSimpleAlias( "!xyz", "xyz_" );
-		assertSimpleAlias( "abcdefghijklmnopqrstuvwxyz", "abcdefghij_" );
+	public void testNameCollapsing() {
+		assertNull( StringHelper.collapse( null ) );
+		assertEquals( STRING_HELPER_NAME, StringHelper.collapse( STRING_HELPER_NAME ) );
+		assertEquals( "o.h.i.u.StringHelper", StringHelper.collapse( STRING_HELPER_FQN ) );
 	}
 
-	private void assertSimpleAlias(String source, String expected) {
-		assertEquals( expected, StringHelper.generateAlias( source ) );
+	@Test
+	public void testPartialNameUnqualification() {
+		assertNull( StringHelper.partiallyUnqualify( null, BASE_PACKAGE ) );
+		assertEquals( STRING_HELPER_NAME, StringHelper.partiallyUnqualify( STRING_HELPER_NAME, BASE_PACKAGE ) );
+		assertEquals( "internal.util.StringHelper", StringHelper.partiallyUnqualify( STRING_HELPER_FQN, BASE_PACKAGE ) );
+	}
+
+	@Test
+	public void testBasePackageCollapsing() {
+		assertNull( StringHelper.collapseQualifierBase( null, BASE_PACKAGE ) );
+		assertEquals( STRING_HELPER_NAME, StringHelper.collapseQualifierBase( STRING_HELPER_NAME, BASE_PACKAGE ) );
+		assertEquals( "o.h.internal.util.StringHelper", StringHelper.collapseQualifierBase( STRING_HELPER_FQN, BASE_PACKAGE ) );
 	}
 }

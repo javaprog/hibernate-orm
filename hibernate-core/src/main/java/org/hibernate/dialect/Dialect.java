@@ -482,7 +482,7 @@ public abstract class Dialect {
 			}
 			try {
 				LobCreator lobCreator = session.getFactory().getJdbcServices().getLobCreator( session );
-				return original == null 
+				return original == null
 						? lobCreator.createBlob( ArrayHelper.EMPTY_BYTE_ARRAY )
 						: lobCreator.createBlob( original.getBinaryStream(), original.length() );
 			}
@@ -1793,6 +1793,16 @@ public abstract class Dialect {
 		return " add constraint " + constraintName + " primary key ";
 	}
 
+    /**
+     * The syntax used to add a unique constraint to a table.
+     *
+     * @param constraintName The name of the unique constraint.
+     * @return The "add unique" fragment
+     */
+    public String getAddUniqueConstraintString(String constraintName) {
+        return " add constraint " + constraintName + " unique ";
+    }
+
 	public boolean hasSelfReferentialForeignKeyBug() {
 		return false;
 	}
@@ -1870,7 +1880,6 @@ public abstract class Dialect {
 	 * <p/>
 	 * Note that the spaces are important!
 	 *
-	 * @return
 	 */
 	public String getCrossJoinSeparator() {
 		return " cross join ";
