@@ -1,17 +1,18 @@
 package org.hibernate.envers.test.integration.strategy;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Map;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.manytomany.SetOwnedEntity;
 import org.hibernate.envers.test.entities.manytomany.SetOwningEntity;
-import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.HashSet;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Tests the ValidityAuditStrategy on many-to-many Sets.
@@ -22,22 +23,23 @@ import static org.junit.Assert.*;
  * @author Oliver Lorenz
  * @since 3.6.5
  */
-public class ValidityAuditStrategyManyToManyTest extends AbstractEntityTest {
+public class ValidityAuditStrategyManyToManyTest extends BaseEnversJPAFunctionalTestCase {
 
     private Integer ing_id;
 
     private Integer ed_id;
 
-    @Override
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(SetOwningEntity.class);
-        cfg.addAnnotatedClass(SetOwnedEntity.class);
-
-        cfg.setProperty("org.hibernate.envers.audit_strategy",
-                "org.hibernate.envers.strategy.ValidityAuditStrategy");
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { SetOwningEntity.class, SetOwnedEntity.class };
     }
 
-    @Test
+	@Override
+	protected void addConfigOptions(Map options) {
+		options.put("org.hibernate.envers.audit_strategy", "org.hibernate.envers.strategy.ValidityAuditStrategy");
+	}
+
+	@Test
     @Priority(10)
     public void initData() {
         final EntityManager em = getEntityManager();

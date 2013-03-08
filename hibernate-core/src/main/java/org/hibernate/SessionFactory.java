@@ -23,12 +23,14 @@
  */
 package org.hibernate;
 
-import javax.naming.Referenceable;
 import java.io.Serializable;
 import java.sql.Connection;
 import java.util.Map;
 import java.util.Set;
 
+import javax.naming.Referenceable;
+
+import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.metadata.ClassMetadata;
 import org.hibernate.metadata.CollectionMetadata;
@@ -54,8 +56,9 @@ import org.hibernate.stat.Statistics;
 public interface SessionFactory extends Referenceable, Serializable {
 
 	public interface SessionFactoryOptions {
-		Interceptor getInterceptor();
-		EntityNotFoundDelegate getEntityNotFoundDelegate();
+		public StandardServiceRegistry getServiceRegistry();
+		public Interceptor getInterceptor();
+		public EntityNotFoundDelegate getEntityNotFoundDelegate();
 	}
 
 	public SessionFactoryOptions getSessionFactoryOptions();
@@ -71,7 +74,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * Open a {@link Session}.
 	 * <p/>
 	 * JDBC {@link Connection connection(s} will be obtained from the
-	 * configured {@link org.hibernate.service.jdbc.connections.spi.ConnectionProvider} as needed
+	 * configured {@link org.hibernate.engine.jdbc.connections.spi.ConnectionProvider} as needed
 	 * to perform requested work.
 	 *
 	 * @return The created session.
@@ -226,6 +229,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictEntityRegion(Class)} accessed through
 	 * {@link #getCache()} instead.
 	 */
+    @Deprecated
 	public void evict(Class persistentClass) throws HibernateException;
 
 	/**
@@ -243,6 +247,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#containsEntity(Class, Serializable)} accessed through
 	 * {@link #getCache()} instead.
 	 */
+    @Deprecated
 	public void evict(Class persistentClass, Serializable id) throws HibernateException;
 
 	/**
@@ -259,6 +264,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictEntityRegion(String)} accessed through
 	 * {@link #getCache()} instead.
 	 */
+    @Deprecated
 	public void evictEntity(String entityName) throws HibernateException;
 
 	/**
@@ -276,6 +282,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictEntity(String,Serializable)} accessed through
 	 * {@link #getCache()} instead.
 	 */
+    @Deprecated
 	public void evictEntity(String entityName, Serializable id) throws HibernateException;
 
 	/**
@@ -292,6 +299,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictCollectionRegion(String)} accessed through
 	 * {@link #getCache()} instead.
 	 */
+    @Deprecated
 	public void evictCollection(String roleName) throws HibernateException;
 
 	/**
@@ -309,6 +317,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictCollection(String,Serializable)} accessed through
 	 * {@link #getCache()} instead.
 	 */
+    @Deprecated
 	public void evictCollection(String roleName, Serializable id) throws HibernateException;
 
 	/**
@@ -322,6 +331,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictQueryRegion(String)} accessed through
 	 * {@link #getCache()} instead.
 	 */
+    @Deprecated
 	public void evictQueries(String cacheRegion) throws HibernateException;
 
 	/**
@@ -333,6 +343,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictQueryRegions} accessed through
 	 * {@link #getCache()} instead.
 	 */
+    @Deprecated
 	public void evictQueries() throws HibernateException;
 
 	/**

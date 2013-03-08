@@ -34,6 +34,7 @@ import javax.persistence.Entity;
 import javax.persistence.JoinColumn;
 import javax.persistence.JoinTable;
 import javax.persistence.MappedSuperclass;
+
 import org.hibernate.AssertionFailure;
 import org.hibernate.annotations.common.reflection.XAnnotatedElement;
 import org.hibernate.annotations.common.reflection.XClass;
@@ -284,7 +285,7 @@ public abstract class AbstractPropertyHolder implements PropertyHolder {
 				Map<String, JoinTable> currentJoinTableOverride = buildJoinTableOverride( current, getPath() );
 				currentOverride.putAll( columnOverride ); //subclasses have precedence over superclasses
 				currentJoinOverride.putAll( joinColumnOverride ); //subclasses have precedence over superclasses
-				currentJoinOverride.putAll( joinColumnOverride ); //subclasses have precedence over superclasses
+				currentJoinTableOverride.putAll( joinTableOverride ); //subclasses have precedence over superclasses
 				columnOverride = currentOverride;
 				joinColumnOverride = currentJoinOverride;
 				joinTableOverride = currentJoinTableOverride;

@@ -24,9 +24,10 @@
 package org.hibernate.dialect;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
+
 import org.hibernate.HibernateException;
-import org.hibernate.service.jdbc.dialect.internal.AbstractDialectResolver;
-import org.hibernate.service.jdbc.dialect.internal.BasicDialectResolver;
+import org.hibernate.engine.jdbc.dialect.internal.BasicDialectResolver;
+import org.hibernate.engine.jdbc.dialect.spi.AbstractDatabaseMetaDataDialectResolver;
 
 /**
  * @author Steve Ebersole
@@ -45,7 +46,7 @@ public class TestingDialects {
 	public static class MySpecialDB2Dialect extends Dialect {
 	}
 
-	public static class MyDialectResolver1 extends AbstractDialectResolver {
+	public static class MyDialectResolver1 extends AbstractDatabaseMetaDataDialectResolver {
 		protected Dialect resolveDialectInternal(DatabaseMetaData metaData) throws SQLException {
 			String databaseName = metaData.getDatabaseProductName();
 			int databaseMajorVersion = metaData.getDatabaseMajorVersion();
@@ -70,7 +71,7 @@ public class TestingDialects {
 		}
 	}
 
-	public static class ErrorDialectResolver1 extends AbstractDialectResolver {
+	public static class ErrorDialectResolver1 extends AbstractDatabaseMetaDataDialectResolver {
 		public Dialect resolveDialectInternal(DatabaseMetaData metaData) throws SQLException {
 			String databaseName = metaData.getDatabaseProductName();
 			if ( databaseName.equals( "ConnectionErrorDatabase1" ) ) {
@@ -82,7 +83,7 @@ public class TestingDialects {
 		}
 	}
 
-	public static class ErrorDialectResolver2 extends AbstractDialectResolver {
+	public static class ErrorDialectResolver2 extends AbstractDatabaseMetaDataDialectResolver {
 		public Dialect resolveDialectInternal(DatabaseMetaData metaData) throws SQLException {
 			String databaseName = metaData.getDatabaseProductName();
 			if ( databaseName.equals( "ErrorDatabase1" ) ) {

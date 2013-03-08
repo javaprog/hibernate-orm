@@ -37,18 +37,15 @@ import antlr.collections.AST;
 import org.jboss.logging.Logger;
 
 import org.hibernate.HibernateException;
-import org.hibernate.engine.spi.QueryParameters;
-import org.hibernate.engine.spi.RowSelection;
-import org.hibernate.engine.spi.SessionImplementor;
-import org.hibernate.hql.internal.QueryExecutionRequestException;
-import org.hibernate.hql.spi.ParameterTranslations;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.MappingException;
 import org.hibernate.QueryException;
 import org.hibernate.ScrollableResults;
+import org.hibernate.engine.spi.QueryParameters;
+import org.hibernate.engine.spi.RowSelection;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.event.spi.EventSource;
-import org.hibernate.hql.spi.FilterTranslator;
+import org.hibernate.hql.internal.QueryExecutionRequestException;
 import org.hibernate.hql.internal.antlr.HqlSqlTokenTypes;
 import org.hibernate.hql.internal.antlr.HqlTokenTypes;
 import org.hibernate.hql.internal.antlr.SqlTokenTypes;
@@ -64,6 +61,9 @@ import org.hibernate.hql.internal.ast.tree.Statement;
 import org.hibernate.hql.internal.ast.util.ASTPrinter;
 import org.hibernate.hql.internal.ast.util.ASTUtil;
 import org.hibernate.hql.internal.ast.util.NodeTraverser;
+import org.hibernate.hql.spi.FilterTranslator;
+import org.hibernate.hql.spi.ParameterTranslations;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.IdentitySet;
@@ -164,7 +164,7 @@ public class QueryTranslatorImpl implements FilterTranslator {
 	private synchronized void doCompile(Map replacements, boolean shallow, String collectionRole) {
 		// If the query is already compiled, skip the compilation.
 		if ( compiled ) {
-            LOG.debugf("compile() : The query is already compiled, skipping...");
+			LOG.debug( "compile() : The query is already compiled, skipping..." );
 			return;
 		}
 
@@ -211,15 +211,15 @@ public class QueryTranslatorImpl implements FilterTranslator {
 			throw qe;
 		}
 		catch ( RecognitionException e ) {
-            // we do not actually propagate ANTLRExceptions as a cause, so
+			// we do not actually propagate ANTLRExceptions as a cause, so
 			// log it here for diagnostic purposes
-            LOG.trace("Converted antlr.RecognitionException", e);
+			LOG.trace( "Converted antlr.RecognitionException", e );
 			throw QuerySyntaxException.convert( e, hql );
 		}
 		catch ( ANTLRException e ) {
-            // we do not actually propagate ANTLRExceptions as a cause, so
+			// we do not actually propagate ANTLRExceptions as a cause, so
 			// log it here for diagnostic purposes
-            LOG.trace("Converted antlr.ANTLRException", e);
+			LOG.trace( "Converted antlr.ANTLRException", e );
 			throw new QueryException( e.getMessage(), hql );
 		}
 
@@ -231,9 +231,9 @@ public class QueryTranslatorImpl implements FilterTranslator {
 			SqlGenerator gen = new SqlGenerator(factory);
 			gen.statement( sqlAst );
 			sql = gen.getSQL();
-            if (LOG.isDebugEnabled()) {
-                LOG.debugf("HQL: %s", hql);
-                LOG.debugf("SQL: %s", sql);
+			if ( LOG.isDebugEnabled() ) {
+				LOG.debugf( "HQL: %s", hql );
+				LOG.debugf( "SQL: %s", sql );
 			}
 			gen.getParseErrorHandler().throwQueryException();
 			collectedParameterSpecifications = gen.getCollectedParameters();
@@ -247,9 +247,9 @@ public class QueryTranslatorImpl implements FilterTranslator {
 		// Transform the tree.
 		w.statement( hqlAst );
 
-        if (LOG.isDebugEnabled()) {
+		if ( LOG.isDebugEnabled() ) {
 			ASTPrinter printer = new ASTPrinter( SqlTokenTypes.class );
-            LOG.debug( printer.showAsString( w.getAST(), "--- SQL AST ---" ) );
+			LOG.debug( printer.showAsString( w.getAST(), "--- SQL AST ---" ) );
 		}
 
 		w.getParseErrorHandler().throwQueryException();
@@ -262,7 +262,7 @@ public class QueryTranslatorImpl implements FilterTranslator {
 		HqlParser parser = HqlParser.getInstance( hql );
 		parser.setFilter( filter );
 
-        LOG.debugf("parse() - HQL: %s", hql);
+		LOG.debugf( "parse() - HQL: %s", hql );
 		parser.statement();
 
 		AST hqlAst = parser.getAST();
@@ -278,9 +278,9 @@ public class QueryTranslatorImpl implements FilterTranslator {
 	}
 
 	void showHqlAst(AST hqlAst) {
-        if (LOG.isDebugEnabled()) {
+		if ( LOG.isDebugEnabled() ) {
 			ASTPrinter printer = new ASTPrinter( HqlTokenTypes.class );
-            LOG.debug( printer.showAsString( hqlAst, "--- HQL AST ---" ) );
+			LOG.debug( printer.showAsString( hqlAst, "--- HQL AST ---" ) );
 		}
 	}
 
@@ -342,7 +342,7 @@ public class QueryTranslatorImpl implements FilterTranslator {
 
 		QueryParameters queryParametersToUse;
 		if ( hasLimit && containsCollectionFetches() ) {
-            LOG.firstOrMaxResultsSpecifiedWithCollectionFetch();
+			LOG.firstOrMaxResultsSpecifiedWithCollectionFetch();
 			RowSelection selection = new RowSelection();
 			selection.setFetchSize( queryParameters.getRowSelection().getFetchSize() );
 			selection.setTimeout( queryParameters.getRowSelection().getTimeout() );
@@ -359,15 +359,13 @@ public class QueryTranslatorImpl implements FilterTranslator {
 			// NOTE : firstRow is zero-based
 			int first = !hasLimit || queryParameters.getRowSelection().getFirstRow() == null
 						? 0
-						: queryParameters.getRowSelection().getFirstRow().intValue();
+						: queryParameters.getRowSelection().getFirstRow();
 			int max = !hasLimit || queryParameters.getRowSelection().getMaxRows() == null
 						? -1
-						: queryParameters.getRowSelection().getMaxRows().intValue();
-			int size = results.size();
+						: queryParameters.getRowSelection().getMaxRows();
 			List tmp = new ArrayList();
 			IdentitySet distinction = new IdentitySet();
-			for ( int i = 0; i < size; i++ ) {
-				final Object result = results.get( i );
+			for ( final Object result : results ) {
 				if ( !distinction.add( result ) ) {
 					continue;
 				}
@@ -420,8 +418,8 @@ public class QueryTranslatorImpl implements FilterTranslator {
 		return sql;
 	}
 
-	public List collectSqlStrings() {
-		ArrayList list = new ArrayList();
+	public List<String> collectSqlStrings() {
+		ArrayList<String> list = new ArrayList<String>();
 		if ( isManipulationStatement() ) {
 			String[] sqlStatements = statementExecutor.getSqlStatements();
 			for ( int i = 0; i < sqlStatements.length; i++ ) {

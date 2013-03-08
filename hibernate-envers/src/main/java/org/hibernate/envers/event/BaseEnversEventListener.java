@@ -24,12 +24,14 @@
 package org.hibernate.envers.event;
 
 import java.io.Serializable;
+import java.util.Set;
 
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.envers.configuration.AuditConfiguration;
 import org.hibernate.envers.entities.RelationDescription;
 import org.hibernate.envers.entities.RelationType;
 import org.hibernate.envers.entities.mapper.id.IdMapper;
+import org.hibernate.envers.exception.AuditException;
 import org.hibernate.envers.synchronization.AuditProcess;
 import org.hibernate.envers.synchronization.work.CollectionChangeWorkUnit;
 import org.hibernate.envers.tools.Tools;
@@ -40,8 +42,9 @@ import org.hibernate.proxy.HibernateProxy;
  * Base class for all Envers event listeners
  *
  * @author Adam Warski (adam at warski dot org)
- * @author Hern�n Chanfreau
+ * @author HernпїЅn Chanfreau
  * @author Steve Ebersole
+ * @author Michal Skowronek (mskowr at o2 dot pl)
  */
 public abstract class BaseEnversEventListener implements EnversListener {
 	private AuditConfiguration enversConfiguration;
@@ -85,49 +88,50 @@ public abstract class BaseEnversEventListener implements EnversListener {
 					// We have to generate changes both in the old collection (size decreses) and new collection
 					// (size increases).
 					if (newValue != null) {
-						// relDesc.getToEntityName() doesn't always return the entity name of the value - in case
-						// of subclasses, this will be root class, no the actual class. So it can't be used here.
-						String toEntityName;
-						Serializable id;
-
-						if (newValue instanceof HibernateProxy ) {
-							HibernateProxy hibernateProxy = (HibernateProxy) newValue;
-							toEntityName = session.bestGuessEntityName(newValue);
-							id = hibernateProxy.getHibernateLazyInitializer().getIdentifier();
-							// We've got to initialize the object from the proxy to later read its state.
-							newValue = Tools.getTargetFromProxy(session.getFactory(), hibernateProxy);
-						} else {
-							toEntityName =  session.guessEntityName(newValue);
-
-							IdMapper idMapper = enversConfiguration.getEntCfg().get(toEntityName).getIdMapper();
-							 id = (Serializable) idMapper.mapToIdFromEntity(newValue);
-						}
-
-						auditProcess.addWorkUnit(new CollectionChangeWorkUnit(session, toEntityName, enversConfiguration, id, newValue));
+						addCollectionChangeWorkUnit(auditProcess, session, entityName, relDesc, newValue);
 					}
 
 					if (oldValue != null) {
-						String toEntityName;
-						Serializable id;
-
-						if(oldValue instanceof HibernateProxy) {
-							HibernateProxy hibernateProxy = (HibernateProxy) oldValue;
-							toEntityName = session.bestGuessEntityName(oldValue);
-							id = hibernateProxy.getHibernateLazyInitializer().getIdentifier();
-							// We've got to initialize the object as we'll read it's state anyway.
-							oldValue = Tools.getTargetFromProxy(session.getFactory(), hibernateProxy);
-						} else {
-							toEntityName =  session.guessEntityName(oldValue);
-
-							IdMapper idMapper = enversConfiguration.getEntCfg().get(toEntityName).getIdMapper();
-							id = (Serializable) idMapper.mapToIdFromEntity(oldValue);
-						}
-
-						auditProcess.addWorkUnit(new CollectionChangeWorkUnit(session, toEntityName, enversConfiguration, id, oldValue));
+						addCollectionChangeWorkUnit(auditProcess, session, entityName, relDesc, oldValue);
 					}
 				}
 			}
 		}
 	}
 
+	private void addCollectionChangeWorkUnit(AuditProcess auditProcess, SessionImplementor session,
+											 String fromEntityName, RelationDescription relDesc, Object value) {
+		// relDesc.getToEntityName() doesn't always return the entity name of the value - in case
+		// of subclasses, this will be root class, no the actual class. So it can't be used here.
+		String toEntityName;
+		Serializable id;
+
+		if (value instanceof HibernateProxy) {
+		    HibernateProxy hibernateProxy = (HibernateProxy) value;
+		    toEntityName = session.bestGuessEntityName(value);
+		    id = hibernateProxy.getHibernateLazyInitializer().getIdentifier();
+            // We've got to initialize the object from the proxy to later read its state.
+            value = Tools.getTargetFromProxy(session.getFactory(), hibernateProxy);
+		} else {
+	        toEntityName =  session.guessEntityName(value);
+
+            IdMapper idMapper = enversConfiguration.getEntCfg().get(toEntityName).getIdMapper();
+            id = (Serializable) idMapper.mapToIdFromEntity(value);
+		}
+
+		Set<String> toPropertyNames = enversConfiguration.getEntCfg()
+				.getToPropertyNames(fromEntityName, relDesc.getFromPropertyName(), toEntityName);
+		String toPropertyName = toPropertyNames.iterator().next();
+
+		auditProcess.addWorkUnit(new CollectionChangeWorkUnit(session, toEntityName,
+				toPropertyName, enversConfiguration, id, value));
+	}
+
+    protected void checkIfTransactionInProgress(SessionImplementor session) {
+        if (!session.isTransactionInProgress()) {
+            // Historical data would not be flushed to audit tables if outside of active transaction
+            // (AuditProcess#doBeforeTransactionCompletion(SessionImplementor) not executed). 
+            throw new AuditException("Unable to create revision because of non-active transaction");
+        }
+    }
 }

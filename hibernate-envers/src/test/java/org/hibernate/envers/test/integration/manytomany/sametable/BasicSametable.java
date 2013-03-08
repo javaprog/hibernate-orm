@@ -23,24 +23,26 @@
  */
 package org.hibernate.envers.test.integration.manytomany.sametable;
 
+import java.sql.Types;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.hibernate.Session;
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase ;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.manytomany.sametable.Child1Entity;
 import org.hibernate.envers.test.entities.manytomany.sametable.Child2Entity;
 import org.hibernate.envers.test.entities.manytomany.sametable.ParentEntity;
 import org.hibernate.envers.test.tools.TestTools;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
 
 /**
  * Test which checks that auditing entities which contain multiple mappings to same tables work.
  * @author Adam Warski (adam at warski dot org)
  */
-public class BasicSametable extends AbstractEntityTest {
+public class BasicSametable extends BaseEnversJPAFunctionalTestCase  {
     private Integer p1_id;
     private Integer p2_id;
     private Integer c1_1_id;
@@ -48,10 +50,9 @@ public class BasicSametable extends AbstractEntityTest {
     private Integer c2_1_id;
     private Integer c2_2_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(ParentEntity.class);
-        cfg.addAnnotatedClass(Child1Entity.class);
-        cfg.addAnnotatedClass(Child2Entity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { ParentEntity.class, Child1Entity.class, Child2Entity.class };
     }
 
     @Test
@@ -64,10 +65,16 @@ public class BasicSametable extends AbstractEntityTest {
         em.getTransaction().begin();
         Session session = (Session) em.getDelegate();
         session.createSQLQuery("DROP TABLE children").executeUpdate();
-        session.createSQLQuery("CREATE TABLE children(parent_id integer, child1_id integer NULL, child2_id integer NULL)").executeUpdate();
+        session.createSQLQuery("CREATE TABLE children ( parent_id " + getDialect().getTypeName(Types.INTEGER) +
+                                                     ", child1_id " + getDialect().getTypeName(Types.INTEGER) + " NULL" +
+                                                     ", child2_id " + getDialect().getTypeName(Types.INTEGER) + " NULL )").executeUpdate();
         session.createSQLQuery("DROP TABLE children_AUD").executeUpdate();
-        session.createSQLQuery("CREATE TABLE children_AUD(REV integer NOT NULL, REVEND integer, REVTYPE tinyint, " +
-                "parent_id integer, child1_id integer NULL, child2_id integer NULL)").executeUpdate();
+        session.createSQLQuery("CREATE TABLE children_AUD ( REV " + getDialect().getTypeName(Types.INTEGER) + " NOT NULL" +
+                                                         ", REVEND " + getDialect().getTypeName(Types.INTEGER) +
+                                                         ", REVTYPE " + getDialect().getTypeName(Types.TINYINT) +
+                                                         ", parent_id " + getDialect().getTypeName(Types.INTEGER) +
+                                                         ", child1_id " + getDialect().getTypeName(Types.INTEGER) + " NULL" +
+                                                         ", child2_id " + getDialect().getTypeName(Types.INTEGER) + " NULL )").executeUpdate();
         em.getTransaction().commit();
         em.clear();
 
@@ -171,8 +178,8 @@ public class BasicSametable extends AbstractEntityTest {
         assert Arrays.asList(1).equals(getAuditReader().getRevisions(Child1Entity.class, c1_1_id));
         assert Arrays.asList(1, 5).equals(getAuditReader().getRevisions(Child1Entity.class, c1_2_id));
 
-        assert Arrays.asList(1).equals(getAuditReader().getRevisions(Child1Entity.class, c2_1_id));
-        assert Arrays.asList(1, 5).equals(getAuditReader().getRevisions(Child1Entity.class, c2_2_id));
+        Assert.assertEquals(Arrays.asList(1), getAuditReader().getRevisions(Child2Entity.class, c2_1_id));
+        Assert.assertEquals(Arrays.asList(1, 5), getAuditReader().getRevisions(Child2Entity.class, c2_2_id));
     }
 
     @Test

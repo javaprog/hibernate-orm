@@ -24,6 +24,7 @@
 package org.hibernate.mapping;
 import java.util.ArrayList;
 import java.util.Iterator;
+
 import org.hibernate.MappingException;
 import org.hibernate.cfg.Mappings;
 import org.hibernate.type.EntityType;
@@ -83,7 +84,6 @@ public class OneToOne extends ToOne {
 					referencedPropertyName,
 					isLazy(),
 					isUnwrapProxy(),
-					isEmbedded(),
 					entityName,
 					propertyName
 			);

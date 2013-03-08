@@ -25,9 +25,11 @@ package org.hibernate.internal.util.config;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.StringTokenizer;
+
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.ArrayHelper;
 
@@ -78,6 +80,30 @@ public final class ConfigurationHelper {
 	public static String getString(String name, Map values, String defaultValue) {
 		final String value = getString( name, values );
 		return value == null ? defaultValue : value;
+	}
+
+	/**
+	 * Get the config value as a {@link String}.
+	 *
+	 * @param name The config setting name.
+	 * @param values The map of config parameters.
+	 * @param defaultValue The default value to use if not found.
+	 * @param otherSupportedValues List of other supported values. Does not need to contain the default one.
+	 *
+	 * @return The value.
+	 *
+	 * @throws ConfigurationException Unsupported value provided.
+	 *
+	 */
+	public static String getString(String name, Map values, String defaultValue, String ... otherSupportedValues) {
+		final String value = getString( name, values, defaultValue );
+		if ( !defaultValue.equals( value ) && ArrayHelper.indexOf( otherSupportedValues, value ) == -1 ) {
+			throw new ConfigurationException(
+					"Unsupported configuration [name=" + name + ", value=" + value + "]. " +
+							"Choose value between: '" + defaultValue + "', '" + StringHelper.join( "', '", otherSupportedValues ) + "'."
+			);
+		}
+		return value;
 	}
 
 	/**
@@ -132,7 +158,7 @@ public final class ConfigurationHelper {
 			return defaultValue;
 		}
 		if ( Integer.class.isInstance( value ) ) {
-			return ( (Integer) value ).intValue();
+			return (Integer) value;
 		}
 		if ( String.class.isInstance( value ) ) {
 			return Integer.parseInt( (String) value );
@@ -333,7 +359,7 @@ public final class ConfigurationHelper {
 		if ( property.indexOf( PLACEHOLDER_START ) < 0 ) {
 			return property;
 		}
-		StringBuffer buff = new StringBuffer();
+		StringBuilder buff = new StringBuilder();
 		char[] chars = property.toCharArray();
 		for ( int pos = 0; pos < chars.length; pos++ ) {
 			if ( chars[pos] == '$' ) {

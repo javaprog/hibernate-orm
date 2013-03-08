@@ -23,32 +23,32 @@
  */
 package org.hibernate.envers.test.integration.manytomany;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase ;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.manytomany.SetOwnedEntity;
 import org.hibernate.envers.test.entities.manytomany.SetOwningEntity;
 import org.hibernate.envers.test.tools.TestTools;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class BasicSet extends AbstractEntityTest {
+public class BasicSet extends BaseEnversJPAFunctionalTestCase  {
     private Integer ed1_id;
     private Integer ed2_id;
 
     private Integer ing1_id;
     private Integer ing2_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(SetOwningEntity.class);
-        cfg.addAnnotatedClass(SetOwnedEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { SetOwningEntity.class, SetOwnedEntity.class };
     }
 
     @Test

@@ -28,9 +28,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.hibernate.internal.CoreMessageLogger;
-
 import org.jboss.logging.Logger;
+
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * Distinctions the result tuples in the final result based on the defined
@@ -95,7 +95,7 @@ public class DistinctResultTransformer extends BasicTransformerAdapter {
 				result.add( entity );
 			}
 		}
-        LOG.debugf("Transformed: %s rows to: %s distinct results", list.size(), result.size());
+		LOG.debugf( "Transformed: %s rows to: %s distinct results", list.size(), result.size() );
 		return result;
 	}
 

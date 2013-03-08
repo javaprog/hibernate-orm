@@ -25,6 +25,7 @@
 package org.hibernate.hql.internal;
 
 import java.util.Map;
+
 import org.hibernate.MappingException;
 import org.hibernate.QueryException;
 import org.hibernate.engine.internal.JoinSequence;
@@ -51,7 +52,7 @@ public final class CollectionSubqueryFactory {
 	        String[] columns) {
 		try {
 			JoinFragment join = joinSequence.toJoinFragment( enabledFilters, true );
-			return new StringBuffer( "select " )
+			return new StringBuilder( "select " )
 					.append( StringHelper.join( ", ", columns ) )
 					.append( " from " )
 					.append( join.toFromFragmentString().substring( 2 ) )// remove initial ", "

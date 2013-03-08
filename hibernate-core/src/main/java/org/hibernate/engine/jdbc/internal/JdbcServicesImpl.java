@@ -36,7 +36,6 @@ import java.util.Set;
 
 import org.jboss.logging.Logger;
 
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.MultiTenancyStrategy;
 import org.hibernate.cfg.Environment;
 import org.hibernate.dialect.Dialect;
@@ -49,11 +48,17 @@ import org.hibernate.engine.jdbc.spi.ResultSetWrapper;
 import org.hibernate.engine.jdbc.spi.SchemaNameResolver;
 import org.hibernate.engine.jdbc.spi.SqlExceptionHelper;
 import org.hibernate.engine.jdbc.spi.SqlStatementLogger;
+import org.hibernate.exception.internal.SQLExceptionTypeDelegate;
+import org.hibernate.exception.internal.SQLStateConversionDelegate;
+import org.hibernate.exception.internal.StandardSQLExceptionConverter;
+import org.hibernate.exception.spi.SQLExceptionConverter;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.internal.util.config.ConfigurationHelper;
-import org.hibernate.service.jdbc.connections.spi.ConnectionProvider;
-import org.hibernate.service.jdbc.connections.spi.MultiTenantConnectionProvider;
-import org.hibernate.service.jdbc.dialect.spi.DialectFactory;
+import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
+import org.hibernate.engine.jdbc.connections.spi.MultiTenantConnectionProvider;
+import org.hibernate.engine.jdbc.cursor.internal.StandardRefCursorSupport;
+import org.hibernate.engine.jdbc.dialect.spi.DialectFactory;
 import org.hibernate.service.spi.Configurable;
 import org.hibernate.service.spi.ServiceRegistryAwareService;
 import org.hibernate.service.spi.ServiceRegistryImplementor;
@@ -88,6 +93,8 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 		Dialect dialect = null;
 		LobCreatorBuilder lobCreatorBuilder = null;
 
+		boolean metaSupportsRefCursors = false;
+		boolean metaSupportsNamedParams = false;
 		boolean metaSupportsScrollable = false;
 		boolean metaSupportsGetGeneratedKeys = false;
 		boolean metaSupportsBatchUpdates = false;
@@ -129,6 +136,8 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 						LOG.debugf( "JDBC version : %s.%s", meta.getJDBCMajorVersion(), meta.getJDBCMinorVersion() );
 					}
 
+					metaSupportsRefCursors = StandardRefCursorSupport.supportsRefCursors( meta );
+					metaSupportsNamedParams = meta.supportsNamedParameters();
 					metaSupportsScrollable = meta.supportsResultSetType( ResultSet.TYPE_SCROLL_INSENSITIVE );
 					metaSupportsBatchUpdates = meta.supportsBatchUpdates();
 					metaReportsDDLCausesTxnCommit = meta.dataDefinitionCausesTransactionCommit();
@@ -153,7 +162,7 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 					lobCreatorBuilder = new LobCreatorBuilder( configValues, connection );
 				}
 				catch ( SQLException sqle ) {
-                    LOG.unableToObtainConnectionMetadata(sqle.getMessage());
+					LOG.unableToObtainConnectionMetadata( sqle.getMessage() );
 				}
 				finally {
 					if ( connection != null ) {
@@ -162,7 +171,7 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 				}
 			}
 			catch ( SQLException sqle ) {
-                LOG.unableToObtainConnectionToQueryMetadata(sqle.getMessage());
+				LOG.unableToObtainConnectionToQueryMetadata( sqle.getMessage() );
 				dialect = dialectFactory.buildDialect( configValues, null );
 			}
 			catch ( UnsupportedOperationException uoe ) {
@@ -185,8 +194,10 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 		);
 
 		this.sqlStatementLogger =  new SqlStatementLogger( showSQL, formatSQL );
-		this.sqlExceptionHelper = new SqlExceptionHelper( dialect.buildSQLExceptionConverter() );
+
 		this.extractedMetaDataSupport = new ExtractedDatabaseMetaDataImpl(
+				metaSupportsRefCursors,
+				metaSupportsNamedParams,
 				metaSupportsScrollable,
 				metaSupportsGetGeneratedKeys,
 				metaSupportsBatchUpdates,
@@ -199,6 +210,17 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 				catalogName,
 				typeInfoSet
 		);
+
+		SQLExceptionConverter sqlExceptionConverter = dialect.buildSQLExceptionConverter();
+		if ( sqlExceptionConverter == null ) {
+			final StandardSQLExceptionConverter converter = new StandardSQLExceptionConverter();
+			sqlExceptionConverter = converter;
+			converter.addDelegate( dialect.buildSQLExceptionConversionDelegate() );
+			converter.addDelegate( new SQLExceptionTypeDelegate( dialect ) );
+			// todo : vary this based on extractedMetaDataSupport.getSqlStateType()
+			converter.addDelegate( new SQLStateConversionDelegate( dialect ) );
+		}
+		this.sqlExceptionHelper = new SqlExceptionHelper( sqlExceptionConverter );
 	}
 
 	private JdbcConnectionAccess buildJdbcConnectionAccess(Map configValues) {
@@ -229,7 +251,12 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 
 		@Override
 		public void releaseConnection(Connection connection) throws SQLException {
-			connection.close();
+			connectionProvider.closeConnection( connection );
+		}
+
+		@Override
+		public boolean supportsAggressiveRelease() {
+			return connectionProvider.supportsAggressiveRelease();
 		}
 	}
 
@@ -247,7 +274,12 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 
 		@Override
 		public void releaseConnection(Connection connection) throws SQLException {
-			connection.close();
+			connectionProvider.releaseAnyConnection( connection );
+		}
+
+		@Override
+		public boolean supportsAggressiveRelease() {
+			return connectionProvider.supportsAggressiveRelease();
 		}
 	}
 
@@ -268,13 +300,13 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 				return (SchemaNameResolver) ReflectHelper.getDefaultConstructor( resolverClass ).newInstance();
 			}
 			catch ( ClassNotFoundException e ) {
-                LOG.unableToLocateConfiguredSchemaNameResolver(resolverClassName, e.toString());
+				LOG.unableToLocateConfiguredSchemaNameResolver( resolverClassName, e.toString() );
 			}
 			catch ( InvocationTargetException e ) {
-                LOG.unableToInstantiateConfiguredSchemaNameResolver(resolverClassName, e.getTargetException().toString());
+				LOG.unableToInstantiateConfiguredSchemaNameResolver( resolverClassName, e.getTargetException().toString() );
 			}
 			catch ( Exception e ) {
-                LOG.unableToInstantiateConfiguredSchemaNameResolver(resolverClassName, e.toString());
+				LOG.unableToInstantiateConfiguredSchemaNameResolver( resolverClassName, e.toString() );
 			}
 		}
 		return null;
@@ -301,6 +333,8 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 	}
 
 	private static class ExtractedDatabaseMetaDataImpl implements ExtractedDatabaseMetaData {
+		private final boolean supportsRefCursors;
+		private final boolean supportsNamedParameters;
 		private final boolean supportsScrollableResults;
 		private final boolean supportsGetGeneratedKeys;
 		private final boolean supportsBatchUpdates;
@@ -314,6 +348,8 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 		private final LinkedHashSet<TypeInfo> typeInfoSet;
 
 		private ExtractedDatabaseMetaDataImpl(
+				boolean supportsRefCursors,
+				boolean supportsNamedParameters,
 				boolean supportsScrollableResults,
 				boolean supportsGetGeneratedKeys,
 				boolean supportsBatchUpdates,
@@ -325,6 +361,8 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 				String connectionSchemaName,
 				String connectionCatalogName,
 				LinkedHashSet<TypeInfo> typeInfoSet) {
+			this.supportsRefCursors = supportsRefCursors;
+			this.supportsNamedParameters = supportsNamedParameters;
 			this.supportsScrollableResults = supportsScrollableResults;
 			this.supportsGetGeneratedKeys = supportsGetGeneratedKeys;
 			this.supportsBatchUpdates = supportsBatchUpdates;
@@ -336,6 +374,16 @@ public class JdbcServicesImpl implements JdbcServices, ServiceRegistryAwareServi
 			this.connectionSchemaName = connectionSchemaName;
 			this.connectionCatalogName = connectionCatalogName;
 			this.typeInfoSet = typeInfoSet;
+		}
+
+		@Override
+		public boolean supportsRefCursors() {
+			return supportsRefCursors;
+		}
+
+		@Override
+		public boolean supportsNamedParameters() {
+			return supportsNamedParameters;
 		}
 
 		@Override

@@ -24,29 +24,29 @@
  */
 package org.hibernate.hql.internal.ast.tree;
 
+import antlr.ASTFactory;
+import antlr.SemanticException;
+import antlr.collections.AST;
+import org.jboss.logging.Logger;
+
 import org.hibernate.engine.internal.JoinSequence;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.hql.internal.antlr.SqlTokenTypes;
 import org.hibernate.hql.internal.ast.util.ASTUtil;
 import org.hibernate.hql.internal.ast.util.AliasGenerator;
 import org.hibernate.hql.internal.ast.util.PathHelper;
 import org.hibernate.hql.internal.ast.util.SessionFactoryHelper;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.persister.collection.QueryableCollection;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.persister.entity.Joinable;
 import org.hibernate.persister.entity.Queryable;
-import org.hibernate.sql.JoinFragment;
 import org.hibernate.sql.JoinType;
 import org.hibernate.type.AssociationType;
 import org.hibernate.type.CollectionType;
 import org.hibernate.type.ComponentType;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
-import antlr.ASTFactory;
-import antlr.SemanticException;
-import antlr.collections.AST;
 
 /**
  * Encapsulates the creation of FromElements and JoinSequences.
@@ -126,12 +126,12 @@ public class FromElementFactory implements SqlTokenTypes {
 	        String pathAlias,
 	        FromElement parentFromElement,
 	        String classAlias) throws SemanticException {
-        LOG.debugf("createFromElementInSubselect() : path = %s", path);
+		LOG.debugf( "createFromElementInSubselect() : path = %s", path );
 		// Create an DotNode AST for the path and resolve it.
 		FromElement fromElement = evaluateFromElementPath( path, classAlias );
 		EntityPersister entityPersister = fromElement.getEntityPersister();
 
-        // If the first identifier in the path refers to the class alias (not the class name), then this
+		// If the first identifier in the path refers to the class alias (not the class name), then this
 		// is a correlated subselect.  If it's a correlated sub-select, use the existing table alias.  Otherwise
 		// generate a new one.
 		String tableAlias = null;
@@ -145,7 +145,7 @@ public class FromElementFactory implements SqlTokenTypes {
 
 		// If the from element isn't in the same clause, create a new from element.
 		if ( fromElement.getFromClause() != fromClause ) {
-            LOG.debugf("createFromElementInSubselect() : creating a new FROM element...");
+			LOG.debug( "createFromElementInSubselect() : creating a new FROM element..." );
 			fromElement = createFromElement( entityPersister );
 			initializeAndAddFromElement( fromElement,
 					path,
@@ -155,7 +155,7 @@ public class FromElementFactory implements SqlTokenTypes {
 					tableAlias
 			);
 		}
-        LOG.debugf("createFromElementInSubselect() : %s -> %s", path, fromElement);
+		LOG.debugf( "createFromElementInSubselect() : %s -> %s", path, fromElement );
 		return fromElement;
 	}
 
@@ -254,7 +254,7 @@ public class FromElementFactory implements SqlTokenTypes {
 		EntityPersister entityPersister = elem.getEntityPersister();
 		int numberOfTables = entityPersister.getQuerySpaces().length;
 		if ( numberOfTables > 1 && implied && !elem.useFromFragment() ) {
-            LOG.debugf("createEntityJoin() : Implied multi-table entity join");
+			LOG.debug( "createEntityJoin() : Implied multi-table entity join" );
 			elem.setUseFromFragment( true );
 		}
 
@@ -373,16 +373,16 @@ public class FromElementFactory implements SqlTokenTypes {
 		String associatedEntityName = entityPersister.getEntityName();
 		// Get the class name of the associated entity.
 		if ( queryableCollection.isOneToMany() ) {
-            LOG.debugf("createEntityAssociation() : One to many - path = %s role = %s associatedEntityName = %s",
-                       path,
-                       role,
-                       associatedEntityName);
+			LOG.debugf( "createEntityAssociation() : One to many - path = %s role = %s associatedEntityName = %s",
+					path,
+					role,
+					associatedEntityName );
 			JoinSequence joinSequence = createJoinSequence( roleAlias, joinType );
 
 			elem = createJoin( associatedEntityName, roleAlias, joinSequence, ( EntityType ) queryableCollection.getElementType(), false );
 		}
 		else {
-            LOG.debugf("createManyToMany() : path = %s role = %s associatedEntityName = %s", path, role, associatedEntityName);
+			LOG.debugf( "createManyToMany() : path = %s role = %s associatedEntityName = %s", path, role, associatedEntityName );
 			elem = createManyToMany( role, associatedEntityName,
 					roleAlias, entityPersister, ( EntityType ) queryableCollection.getElementType(), joinType );
 			fromClause.getWalker().addQuerySpaces( queryableCollection.getCollectionSpaces() );

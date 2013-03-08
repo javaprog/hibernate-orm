@@ -27,6 +27,8 @@ import javax.persistence.Entity;
 import javax.persistence.FetchType;
 import javax.persistence.Id;
 import javax.persistence.ManyToMany;
+import javax.persistence.Table;
+
 import org.hibernate.envers.Audited;
 import org.hibernate.envers.RelationTargetAuditMode;
 import org.hibernate.envers.test.entities.UnversionedStrTestEntity;
@@ -37,6 +39,7 @@ import org.hibernate.envers.test.entities.UnversionedStrTestEntity;
  * @author Adam Warski
  */
 @Entity
+@Table(name = "M2MTargetNotAud")
 public class M2MTargetNotAuditedEntity {
 	@Id
 	private Integer id;

@@ -25,6 +25,7 @@ package org.hibernate.type;
 
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.sql.CallableStatement;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -55,7 +56,7 @@ import org.hibernate.tuple.component.ComponentTuplizer;
  *
  * @author Gavin King
  */
-public class ComponentType extends AbstractType implements CompositeType {
+public class ComponentType extends AbstractType implements CompositeType, ProcedureParameterExtractionAware {
 
 	private final TypeFactory.TypeScope typeScope;
 	private final String[] propertyNames;
@@ -104,7 +105,7 @@ public class ComponentType extends AbstractType implements CompositeType {
 	public ComponentTuplizer getComponentTuplizer() {
 		return componentTuplizer;
 	}
-
+	@Override
 	public int getColumnSpan(Mapping mapping) throws MappingException {
 		int span = 0;
 		for ( int i = 0; i < propertySpan; i++ ) {
@@ -112,7 +113,7 @@ public class ComponentType extends AbstractType implements CompositeType {
 		}
 		return span;
 	}
-
+	@Override
 	public int[] sqlTypes(Mapping mapping) throws MappingException {
 		//Not called at runtime so doesn't matter if its slow :)
 		int[] sqlTypes = new int[getColumnSpan( mapping )];
@@ -424,7 +425,15 @@ public class ComponentType extends AbstractType implements CompositeType {
 
 	public Object[] getPropertyValues(Object component, EntityMode entityMode)
 			throws HibernateException {
-		return componentTuplizer.getPropertyValues( component );
+		if ( component instanceof Object[] ) {
+			// A few calls to hashCode pass the property values already in an 
+			// Object[] (ex: QueryKey hash codes for cached queries).
+			// It's easiest to just check for the condition here prior to
+			// trying reflection.
+			return ( Object[] ) component;
+		} else {
+			return componentTuplizer.getPropertyValues( component );
+		}
 	}
 
 	public void setPropertyValues(Object component, Object[] values, EntityMode entityMode)
@@ -719,5 +728,86 @@ public class ComponentType extends AbstractType implements CompositeType {
 		throw new PropertyNotFoundException(
 				"Unable to locate property named " + name + " on " + getReturnedClass().getName()
 		);
+	}
+
+	private Boolean canDoExtraction;
+
+	@Override
+	public boolean canDoExtraction() {
+		if ( canDoExtraction == null ) {
+			canDoExtraction = determineIfProcedureParamExtractionCanBePerformed();
+		}
+		return canDoExtraction;
+	}
+
+	private boolean determineIfProcedureParamExtractionCanBePerformed() {
+		for ( Type propertyType : propertyTypes ) {
+			if ( ! ProcedureParameterExtractionAware.class.isInstance( propertyType ) ) {
+				return false;
+			}
+			if ( ! ( (ProcedureParameterExtractionAware) propertyType ).canDoExtraction() ) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	@Override
+	public Object extract(CallableStatement statement, int startIndex, SessionImplementor session) throws SQLException {
+		Object[] values = new Object[propertySpan];
+
+		int currentIndex = startIndex;
+		boolean notNull = false;
+		for ( int i = 0; i < propertySpan; i++ ) {
+			// we know this cast is safe from canDoExtraction
+			final ProcedureParameterExtractionAware propertyType = (ProcedureParameterExtractionAware) propertyTypes[i];
+			final Object value = propertyType.extract( statement, currentIndex, session );
+			if ( value == null ) {
+				if ( isKey ) {
+					return null; //different nullability rules for pk/fk
+				}
+			}
+			else {
+				notNull = true;
+			}
+			values[i] = value;
+			currentIndex += propertyType.getColumnSpan( session.getFactory() );
+		}
+
+		if ( ! notNull ) {
+			values = null;
+		}
+
+		return resolve( values, session, null );
+	}
+
+	@Override
+	public Object extract(CallableStatement statement, String[] paramNames, SessionImplementor session) throws SQLException {
+		// for this form to work all sub-property spans must be one (1)...
+
+		Object[] values = new Object[propertySpan];
+
+		int indx = 0;
+		boolean notNull = false;
+		for ( String paramName : paramNames ) {
+			// we know this cast is safe from canDoExtraction
+			final ProcedureParameterExtractionAware propertyType = (ProcedureParameterExtractionAware) propertyTypes[indx];
+			final Object value = propertyType.extract( statement, new String[] { paramName }, session );
+			if ( value == null ) {
+				if ( isKey ) {
+					return null; //different nullability rules for pk/fk
+				}
+			}
+			else {
+				notNull = true;
+			}
+			values[indx] = value;
+		}
+
+		if ( ! notNull ) {
+			values = null;
+		}
+
+		return resolve( values, session, null );
 	}
 }

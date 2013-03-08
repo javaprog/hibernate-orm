@@ -26,6 +26,7 @@ package org.hibernate.sql;
 
 import java.util.Iterator;
 import java.util.Map;
+
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
 import org.hibernate.QueryException;
@@ -36,8 +37,9 @@ import org.hibernate.internal.util.StringHelper;
  * @author Gavin King
  */
 public class ForUpdateFragment {
-	private final StringBuffer aliases = new StringBuffer();
+	private final StringBuilder aliases = new StringBuilder();
 	private boolean isNowaitEnabled;
+	private boolean isSkipLockedEnabled;
 	private final Dialect dialect;
 	private LockMode lockMode;
 	private LockOptions lockOptions;
@@ -88,6 +90,10 @@ public class ForUpdateFragment {
 		if ( upgradeType == LockMode.UPGRADE_NOWAIT ) {
 			setNowaitEnabled( true );
 		}
+
+		if ( upgradeType == LockMode.UPGRADE_SKIPLOCKED ) {
+			setSkipLockedEnabled( true );
+		}
 	}
 
 	public ForUpdateFragment addTableAlias(String alias) {
@@ -109,13 +115,25 @@ public class ForUpdateFragment {
 			return "";
 		}
 		// TODO:  pass lockmode
-		return isNowaitEnabled ?
-				dialect.getForUpdateNowaitString( aliases.toString() ) :
-				dialect.getForUpdateString( aliases.toString() );
+		if(isNowaitEnabled) {
+			return dialect.getForUpdateNowaitString( aliases.toString() );
+		}
+		else if (isSkipLockedEnabled) {
+			return dialect.getForUpdateSkipLockedString( aliases.toString() );
+		}
+		else {
+			return dialect.getForUpdateString( aliases.toString() );
+		}
 	}
 
 	public ForUpdateFragment setNowaitEnabled(boolean nowait) {
 		isNowaitEnabled = nowait;
 		return this;
 	}
+
+	public ForUpdateFragment setSkipLockedEnabled(boolean skipLocked) {
+		isSkipLockedEnabled = skipLocked;
+		return this;
+	}
+
 }

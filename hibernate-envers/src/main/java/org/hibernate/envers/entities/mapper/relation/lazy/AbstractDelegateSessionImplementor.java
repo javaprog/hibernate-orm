@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.hibernate.CacheMode;
+import org.hibernate.Criteria;
 import org.hibernate.FlushMode;
 import org.hibernate.HibernateException;
 import org.hibernate.Interceptor;
@@ -38,6 +39,8 @@ import org.hibernate.ScrollMode;
 import org.hibernate.ScrollableResults;
 import org.hibernate.cache.spi.CacheKey;
 import org.hibernate.collection.spi.PersistentCollection;
+import org.hibernate.engine.jdbc.spi.JdbcConnectionAccess;
+import org.hibernate.engine.query.spi.sql.NativeSQLQuerySpecification;
 import org.hibernate.engine.spi.EntityKey;
 import org.hibernate.engine.spi.LoadQueryInfluencers;
 import org.hibernate.engine.spi.NonFlushedChanges;
@@ -45,10 +48,7 @@ import org.hibernate.engine.spi.PersistenceContext;
 import org.hibernate.engine.spi.QueryParameters;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
-import org.hibernate.engine.jdbc.spi.JdbcConnectionAccess;
-import org.hibernate.engine.query.spi.sql.NativeSQLQuerySpecification;
 import org.hibernate.engine.transaction.spi.TransactionCoordinator;
-import org.hibernate.internal.CriteriaImpl;
 import org.hibernate.loader.custom.CustomQuery;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.type.Type;
@@ -160,12 +160,12 @@ public abstract class AbstractDelegateSessionImplementor implements SessionImple
     }
 
 	@Override
-    public ScrollableResults scroll(CriteriaImpl criteria, ScrollMode scrollMode) {
+    public ScrollableResults scroll(Criteria criteria, ScrollMode scrollMode) {
         return delegate.scroll(criteria, scrollMode);
     }
 
 	@Override
-    public List list(CriteriaImpl criteria) {
+    public List list(Criteria criteria) {
         return delegate.list(criteria);
     }
 

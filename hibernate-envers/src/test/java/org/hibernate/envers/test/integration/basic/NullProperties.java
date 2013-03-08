@@ -23,23 +23,24 @@
  */
 package org.hibernate.envers.test.integration.basic;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class NullProperties extends AbstractEntityTest {
+public class NullProperties extends BaseEnversJPAFunctionalTestCase {
     private Integer id1;
     private Integer id2;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(BasicTestEntity1.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { BasicTestEntity1.class };
     }
 
     private Integer addNewEntity(String str, long lng) {

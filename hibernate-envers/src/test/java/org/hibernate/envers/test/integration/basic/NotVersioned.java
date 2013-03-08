@@ -23,23 +23,23 @@
  */
 package org.hibernate.envers.test.integration.basic;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.exception.NotAuditedException;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
+import javax.persistence.EntityManager;
+
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
+import org.hibernate.envers.exception.NotAuditedException;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class NotVersioned extends AbstractEntityTest {
+public class NotVersioned extends BaseEnversJPAFunctionalTestCase {
     private Integer id1;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(BasicTestEntity1.class);
-        cfg.addAnnotatedClass(BasicTestEntity3.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { BasicTestEntity1.class, BasicTestEntity3.class };
     }
 
     @Test

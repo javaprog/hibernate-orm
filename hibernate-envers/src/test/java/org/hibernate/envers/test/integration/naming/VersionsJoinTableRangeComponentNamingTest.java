@@ -23,18 +23,18 @@
  */
 package org.hibernate.envers.test.integration.naming;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.components.Component1;
 import org.hibernate.mapping.Column;
 import org.hibernate.mapping.PersistentClass;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
 
 /**
  * Test class for {@link VersionsJoinTableRangeComponentTestEntity}, to test
@@ -43,16 +43,19 @@ import java.util.List;
  * @author Erik-Berndt Scheper
  */
 public class VersionsJoinTableRangeComponentNamingTest extends
-		AbstractEntityTest {
+		BaseEnversJPAFunctionalTestCase {
 	private Integer vjrcte_id;
 	private Integer vjtrte_id;
 	private Integer vjtrtae_id1;
 
-	public void configure(Ejb3Configuration cfg) {
-		cfg.addAnnotatedClass(VersionsJoinTableRangeComponentTestEntity.class);
-		cfg.addAnnotatedClass(VersionsJoinTableRangeTestEntitySuperClass.class);
-		cfg.addAnnotatedClass(VersionsJoinTableRangeTestEntity.class);
-		cfg.addAnnotatedClass(VersionsJoinTableRangeTestAlternateEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] {
+				VersionsJoinTableRangeComponentTestEntity.class,
+				VersionsJoinTableRangeTestEntitySuperClass.class,
+				VersionsJoinTableRangeTestEntity.class,
+				VersionsJoinTableRangeTestAlternateEntity.class
+		};
 	}
 
 	@Test

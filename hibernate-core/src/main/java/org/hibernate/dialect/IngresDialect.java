@@ -23,6 +23,7 @@
  */
 package org.hibernate.dialect;
 import java.sql.Types;
+
 import org.hibernate.cfg.Environment;
 import org.hibernate.dialect.function.NoArgSQLFunction;
 import org.hibernate.dialect.function.SQLFunctionTemplate;
@@ -287,7 +288,7 @@ public class IngresDialect extends Dialect {
 		if ( offset > 0 ) {
 			throw new UnsupportedOperationException( "query result offset is not supported" );
 		}
-		return new StringBuffer( querySelect.length() + 16 )
+		return new StringBuilder( querySelect.length() + 16 )
 				.append( querySelect )
 				.insert( 6, " first " + limit )
 				.toString();
@@ -303,13 +304,6 @@ public class IngresDialect extends Dialect {
 	 */
 	public boolean useMaxForLimit() {
 		return true;
-	}
-
-	/**
-	 * Ingres explicitly needs "unique not null", because "with null" is default
-	 */
-	public boolean supportsNotNullUnique() {
-		return false;
 	}
 
 	/**

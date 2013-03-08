@@ -30,11 +30,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.StringTokenizer;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.AssertionFailure;
+import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.internal.JoinSequence;
 import org.hibernate.engine.spi.LoadQueryInfluencers;
-import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.dialect.Dialect;
 import org.hibernate.hql.internal.antlr.SqlTokenTypes;
 import org.hibernate.hql.internal.ast.HqlSqlWalker;
 import org.hibernate.hql.internal.ast.tree.DotNode;
@@ -43,6 +45,7 @@ import org.hibernate.hql.internal.ast.tree.FromElement;
 import org.hibernate.hql.internal.ast.tree.ParameterContainer;
 import org.hibernate.hql.internal.ast.tree.QueryNode;
 import org.hibernate.hql.internal.classic.ParserHelper;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.FilterImpl;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.ArrayHelper;
@@ -50,7 +53,6 @@ import org.hibernate.param.DynamicFilterParameterSpecification;
 import org.hibernate.sql.JoinFragment;
 import org.hibernate.sql.JoinType;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
 
 /**
  * Performs the post-processing of the join information gathered during semantic analysis.
@@ -132,8 +134,7 @@ public class JoinProcessor implements SqlTokenTypes {
                     boolean containsTableAlias = fromClause.containsTableAlias(alias);
                     if (fromElement.isDereferencedBySubclassProperty()) {
                         // TODO : or should we return 'containsTableAlias'??
-                        LOG.trace("Forcing inclusion of extra joins [alias=" + alias + ", containsTableAlias=" + containsTableAlias
-                                  + "]");
+						LOG.tracev( "Forcing inclusion of extra joins [alias={0}, containsTableAlias={1}]", alias, containsTableAlias );
                         return true;
                     }
                     boolean shallowQuery = walker.isShallowQuery();
@@ -171,7 +172,7 @@ public class JoinProcessor implements SqlTokenTypes {
 		// If there is a FROM fragment and the FROM element is an explicit, then add the from part.
 		if ( fromElement.useFromFragment() /*&& StringHelper.isNotEmpty( frag )*/ ) {
 			String fromFragment = processFromFragment( frag, join ).trim();
-            LOG.debugf("Using FROM fragment [%s]", fromFragment);
+			LOG.debugf( "Using FROM fragment [%s]", fromFragment );
 			processDynamicFilterParameters(
 					fromFragment,
 					fromElement,
@@ -208,12 +209,12 @@ public class JoinProcessor implements SqlTokenTypes {
 		}
 
 		Dialect dialect = walker.getSessionFactoryHelper().getFactory().getDialect();
-		String symbols = new StringBuffer().append( ParserHelper.HQL_SEPARATORS )
+		String symbols = new StringBuilder().append( ParserHelper.HQL_SEPARATORS )
 				.append( dialect.openQuote() )
 				.append( dialect.closeQuote() )
 				.toString();
 		StringTokenizer tokens = new StringTokenizer( sqlFragment, symbols, true );
-		StringBuffer result = new StringBuffer();
+		StringBuilder result = new StringBuilder();
 
 		while ( tokens.hasMoreTokens() ) {
 			final String token = tokens.nextToken();

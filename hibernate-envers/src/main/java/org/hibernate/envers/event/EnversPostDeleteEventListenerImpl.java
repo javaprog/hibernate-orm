@@ -29,10 +29,11 @@ import org.hibernate.envers.synchronization.work.AuditWorkUnit;
 import org.hibernate.envers.synchronization.work.DelWorkUnit;
 import org.hibernate.event.spi.PostDeleteEvent;
 import org.hibernate.event.spi.PostDeleteEventListener;
+import org.hibernate.persister.entity.EntityPersister;
 
 /**
  * @author Adam Warski (adam at warski dot org)
- * @author Hern�n Chanfreau
+ * @author HernпїЅn Chanfreau
  * @author Steve Ebersole
  */
 public class EnversPostDeleteEventListenerImpl extends BaseEnversEventListener implements PostDeleteEventListener {
@@ -45,6 +46,8 @@ public class EnversPostDeleteEventListenerImpl extends BaseEnversEventListener i
         String entityName = event.getPersister().getEntityName();
 
         if ( getAuditConfiguration().getEntCfg().isVersioned( entityName ) ) {
+            checkIfTransactionInProgress(event.getSession());
+
             AuditProcess auditProcess = getAuditConfiguration().getSyncManager().get( event.getSession() );
 
             AuditWorkUnit workUnit = new DelWorkUnit(
@@ -68,5 +71,10 @@ public class EnversPostDeleteEventListenerImpl extends BaseEnversEventListener i
 				);
 			}
 		}
+	}
+
+	@Override
+	public boolean requiresPostCommitHanding(EntityPersister persister) {
+		return getAuditConfiguration().getEntCfg().isVersioned( persister.getEntityName() );
 	}
 }

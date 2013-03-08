@@ -23,32 +23,36 @@
  */
 package org.hibernate.envers.test.integration.manytomany;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
 import org.hibernate.envers.test.entities.StrTestEntityComparator;
 import org.hibernate.envers.test.entities.manytomany.SortedSetEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.*;
 
 import static org.junit.Assert.assertEquals;
 
 /**
  * @author Michal Skowronek (mskowr at o2 pl)
  */
-public class CustomComparatorEntityTest extends AbstractEntityTest {
+public class CustomComparatorEntityTest extends BaseEnversJPAFunctionalTestCase {
 
     private Integer id1;
     private Integer id2;
     private Integer id3;
     private Integer id4;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(StrTestEntity.class);
-        cfg.addAnnotatedClass(SortedSetEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { StrTestEntity.class, SortedSetEntity.class };
     }
 
     @Test

@@ -26,6 +26,7 @@ package org.hibernate.test.common;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
+
 import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.jdbc.LobCreationContext;
 import org.hibernate.engine.jdbc.LobCreator;
@@ -36,9 +37,8 @@ import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.engine.jdbc.spi.ResultSetWrapper;
 import org.hibernate.engine.jdbc.spi.SqlExceptionHelper;
 import org.hibernate.engine.jdbc.spi.SqlStatementLogger;
-import org.hibernate.service.jdbc.connections.spi.ConnectionProvider;
+import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
 import org.hibernate.service.spi.Stoppable;
-
 import org.hibernate.testing.env.ConnectionProviderBuilder;
 
 
@@ -106,6 +106,16 @@ public class BasicTestingJdbcServiceImpl implements JdbcServices {
 	}
 
 	private static class MetaDataSupportImpl implements ExtractedDatabaseMetaData {
+		@Override
+		public boolean supportsRefCursors() {
+			return false;
+		}
+
+		@Override
+		public boolean supportsNamedParameters() {
+			return false;
+		}
+
 		public boolean supportsScrollableResults() {
 			return false;
 		}

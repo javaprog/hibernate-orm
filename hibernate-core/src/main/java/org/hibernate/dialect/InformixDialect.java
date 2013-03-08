@@ -24,6 +24,7 @@
 package org.hibernate.dialect;
 import java.sql.SQLException;
 import java.sql.Types;
+
 import org.hibernate.MappingException;
 import org.hibernate.dialect.function.VarArgsSQLFunction;
 import org.hibernate.exception.spi.TemplatedViolatedConstraintNameExtracter;
@@ -109,7 +110,7 @@ public class InformixDialect extends Dialect {
 			String referencedTable,
 			String[] primaryKey,
 			boolean referencesPrimaryKey) {
-		StringBuffer result = new StringBuffer( 30 )
+		StringBuilder result = new StringBuilder( 30 )
 				.append( " add constraint " )
 				.append( " foreign key (" )
 				.append( StringHelper.join( ", ", foreignKey ) )
@@ -179,7 +180,7 @@ public class InformixDialect extends Dialect {
 		if ( offset > 0 ) {
 			throw new UnsupportedOperationException( "query result offset is not supported" );
 		}
-		return new StringBuffer( querySelect.length() + 8 )
+		return new StringBuilder( querySelect.length() + 8 )
 				.append( querySelect )
 				.insert( querySelect.toLowerCase().indexOf( "select" ) + 6, " first " + limit )
 				.toString();
@@ -239,4 +240,35 @@ public class InformixDialect extends Dialect {
 	public String getCurrentTimestampSelectString() {
 		return "select distinct current timestamp from informix.systables";
 	}
+
+	/**
+	 * Overrides {@link Dialect#supportsTemporaryTables()} to return
+	 * {@code true} when invoked.
+	 *
+	 * @return {@code true} when invoked
+	 */
+	public boolean supportsTemporaryTables() {
+		return true;
+	}
+
+	/**
+	 * Overrides {@link Dialect#getCreateTemporaryTableString()} to
+	 * return "{@code create temp table}" when invoked.
+	 *
+	 * @return "{@code create temp table}" when invoked
+	 */
+	public String getCreateTemporaryTableString() {
+		return "create temp table";
+	}
+
+	/**
+	 * Overrides {@link Dialect#getCreateTemporaryTablePostfix()} to
+	 * return "{@code with no log}" when invoked.
+	 *
+	 * @return "{@code with no log}" when invoked
+	 */
+	public String getCreateTemporaryTablePostfix() {
+		return "with no log";
+	}
+
 }

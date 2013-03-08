@@ -29,9 +29,11 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Map;
+
+import antlr.collections.AST;
+
 import org.hibernate.hql.internal.ast.tree.DisplayableNode;
 import org.hibernate.internal.util.StringHelper;
-import antlr.collections.AST;
 
 /**
  * Utility for generating pretty "ASCII art" representations of syntax trees.
@@ -131,7 +133,7 @@ public class ASTPrinter {
 	 *         or just the integer as a string if none exists.
 	 */
 	public String getTokenTypeName(int type) {
-		final Integer typeInteger = new Integer( type );
+		final Integer typeInteger = type;
 		String value = null;
 		if ( tokenTypeNameCache != null ) {
 			value = ( String ) tokenTypeNameCache.get( typeInteger );
@@ -185,7 +187,7 @@ public class ASTPrinter {
 		if ( ast == null ) {
 			return "{node:null}";
 		}
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		buf.append( "[" ).append( getTokenTypeName( ast.getType() ) ).append( "] " );
 		if ( showClassName ) {
 			buf.append( StringHelper.unqualify( ast.getClass().getName() ) ).append( ": " );
@@ -206,7 +208,7 @@ public class ASTPrinter {
 		return buf.toString();
 	}
 
-    public static void appendEscapedMultibyteChars(String text, StringBuffer buf) {
+    public static void appendEscapedMultibyteChars(String text, StringBuilder buf) {
         char[] chars = text.toCharArray();
         for (int i = 0; i < chars.length; i++) {
             char aChar = chars[i];
@@ -220,7 +222,7 @@ public class ASTPrinter {
     }
 
     public static String escapeMultibyteChars(String text) {
-        StringBuffer buf = new StringBuffer();
+    	StringBuilder buf = new StringBuilder();
         appendEscapedMultibyteChars(text,buf);
         return buf.toString();
     }

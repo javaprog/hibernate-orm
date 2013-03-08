@@ -24,22 +24,23 @@
 package org.hibernate.cfg;
 
 import java.util.Map;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.AnnotationException;
 import org.hibernate.AssertionFailure;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.annotations.ColumnTransformer;
 import org.hibernate.annotations.ColumnTransformers;
 import org.hibernate.annotations.Index;
 import org.hibernate.annotations.common.reflection.XProperty;
 import org.hibernate.cfg.annotations.Nullability;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.mapping.Column;
 import org.hibernate.mapping.Formula;
 import org.hibernate.mapping.Join;
 import org.hibernate.mapping.SimpleValue;
 import org.hibernate.mapping.Table;
-
-import org.jboss.logging.Logger;
 
 /**
  * Wrap state of an EJB3 @Column annotation
@@ -183,7 +184,7 @@ public class Ejb3Column {
 
 	public void bind() {
 		if ( StringHelper.isNotEmpty( formulaString ) ) {
-            LOG.debugf("Binding formula %s", formulaString);
+			LOG.debugf( "Binding formula %s", formulaString );
 			formula = new Formula();
 			formula.setFormula( formulaString );
 		}
@@ -191,7 +192,9 @@ public class Ejb3Column {
 			initMappingColumn(
 					logicalColumnName, propertyName, length, precision, scale, nullable, sqlType, unique, true
 			);
-            LOG.debugf("Binding column: %s", toString());
+			if ( LOG.isDebugEnabled() ) {
+				LOG.debugf( "Binding column: %s", toString() );
+			}
 		}
 	}
 
@@ -422,7 +425,7 @@ public class Ejb3Column {
 					throw new AnnotationException( "AttributeOverride.column() should override all columns for now" );
 				}
 				actualCols = overriddenCols.length == 0 ? null : overriddenCols;
-                LOG.debugf("Column(s) overridden for property %s", inferredData.getPropertyName());
+				LOG.debugf( "Column(s) overridden for property %s", inferredData.getPropertyName() );
 			}
 			if ( actualCols == null ) {
 				columns = buildImplicitColumn(

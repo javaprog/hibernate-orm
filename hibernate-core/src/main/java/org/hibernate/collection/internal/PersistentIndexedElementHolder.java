@@ -28,6 +28,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -39,7 +40,6 @@ import org.hibernate.AssertionFailure;
 import org.hibernate.HibernateException;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
-import org.hibernate.internal.util.collections.CollectionHelper;
 import org.hibernate.loader.CollectionAliases;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.type.Type;
@@ -49,7 +49,12 @@ import org.hibernate.type.XmlRepresentableType;
  * A persistent wrapper for an XML element
  *
  * @author Gavin King
+ *
+ * @deprecated To be removed in 5.  Removed as part of removing the notion of DOM entity-mode.  See Jira issues
+ * <a href="https://hibernate.onjira.com/browse/HHH-7782">HHH-7782</a> and
+ * <a href="https://hibernate.onjira.com/browse/HHH-7783">HHH-7783</a> for more information.
  */
+@Deprecated
 public abstract class PersistentIndexedElementHolder extends AbstractPersistentCollection {
 	protected Element element;
 	
@@ -106,7 +111,7 @@ public abstract class PersistentIndexedElementHolder extends AbstractPersistentC
 	public Collection getOrphans(Serializable snapshot, String entityName) 
 	throws HibernateException {
 		//orphan delete not supported for EntityMode.DOM4J
-		return CollectionHelper.EMPTY_COLLECTION; 
+		return Collections.EMPTY_LIST;
 	}
 
 	public PersistentIndexedElementHolder(SessionImplementor session, CollectionPersister persister, Serializable key) 

@@ -1,25 +1,27 @@
 package org.hibernate.envers.test.integration.onetoone.unidirectional;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.ids.EmbId;
 import org.hibernate.envers.test.entities.ids.EmbIdTestEntity;
-import org.junit.Test;
 
-import javax.persistence.EntityManager;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
-public class UnidirectionalMulIdWithNulls extends AbstractEntityTest {
+public class UnidirectionalMulIdWithNulls extends BaseEnversJPAFunctionalTestCase {
     private EmbId ei;
-    
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(EmbIdTestEntity.class);
-        cfg.addAnnotatedClass(UniRefIngMulIdEntity.class);
+
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { EmbIdTestEntity.class, UniRefIngMulIdEntity.class };
     }
 
     @Test

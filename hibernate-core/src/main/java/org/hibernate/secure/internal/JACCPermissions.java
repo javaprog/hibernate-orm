@@ -23,10 +23,6 @@
  */
 package org.hibernate.secure.internal;
 
-import javax.security.auth.Subject;
-import javax.security.jacc.EJBMethodPermission;
-import javax.security.jacc.PolicyContext;
-import javax.security.jacc.PolicyContextException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.security.AccessController;
 import java.security.CodeSource;
@@ -37,6 +33,10 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.util.Set;
+import javax.security.auth.Subject;
+import javax.security.jacc.EJBMethodPermission;
+import javax.security.jacc.PolicyContext;
+import javax.security.jacc.PolicyContextException;
 
 /**
  * Copied from JBoss org.jboss.ejb3.security.JaccHelper and org.jboss.ejb3.security.SecurityActions
@@ -84,7 +84,7 @@ public class JACCPermissions {
 		PolicyContextActions PRIVILEGED = new PolicyContextActions() {
 			private final PrivilegedExceptionAction exAction = new PrivilegedExceptionAction() {
 				public Object run() throws Exception {
-					return (Subject) PolicyContext.getContext( SUBJECT_CONTEXT_KEY );
+					return PolicyContext.getContext( SUBJECT_CONTEXT_KEY );
 				}
 			};
 

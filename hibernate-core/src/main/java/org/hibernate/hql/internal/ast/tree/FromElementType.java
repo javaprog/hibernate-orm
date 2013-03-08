@@ -27,14 +27,16 @@ package org.hibernate.hql.internal.ast.tree;
 import java.util.List;
 import java.util.Map;
 
+import org.jboss.logging.Logger;
+
+import org.hibernate.MappingException;
+import org.hibernate.QueryException;
 import org.hibernate.engine.internal.JoinSequence;
 import org.hibernate.hql.internal.CollectionProperties;
 import org.hibernate.hql.internal.CollectionSubqueryFactory;
 import org.hibernate.hql.internal.NameGenerator;
-import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.MappingException;
-import org.hibernate.QueryException;
 import org.hibernate.hql.internal.antlr.HqlSqlTokenTypes;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.param.ParameterSpecification;
 import org.hibernate.persister.collection.CollectionPropertyMapping;
@@ -46,7 +48,6 @@ import org.hibernate.persister.entity.PropertyMapping;
 import org.hibernate.persister.entity.Queryable;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
 
 /**
  * Delegate that handles the type and join sequence information for a FromElement.
@@ -138,7 +139,7 @@ class FromElementType {
 	String renderScalarIdentifierSelect(int i) {
 		checkInitialized();
 		String[] cols = getPropertyMapping( EntityPersister.ENTITY_ID ).toColumns( getTableAlias(), EntityPersister.ENTITY_ID );
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		// For property references generate <tablealias>.<columnname> as <projectionalias>
 		for ( int j = 0; j < cols.length; j++ ) {
 			String column = cols[j];
@@ -164,7 +165,7 @@ class FromElementType {
 			// TODO: Replace this with a more elegant solution.
 			String[] idColumnNames = ( persister != null ) ?
 					( ( Queryable ) persister ).getIdentifierColumnNames() : new String[0];
-			StringBuffer buf = new StringBuffer();
+			StringBuilder buf = new StringBuilder();
 			for ( int i = 0; i < idColumnNames.length; i++ ) {
 				buf.append( fromElement.getTableAlias() ).append( '.' ).append( idColumnNames[i] );
 				if ( i != idColumnNames.length - 1 ) buf.append( ", " );
@@ -209,7 +210,7 @@ class FromElementType {
 					getTableAlias(),
 					getSuffix( size, k ),
 					allProperties
-				);
+			);
 			return trimLeadingCommaAndSpaces( fragment );
 		}
 	}
@@ -326,31 +327,40 @@ class FromElementType {
 	String[] toColumns(String tableAlias, String path, boolean inSelect, boolean forceAlias) {
 		checkInitialized();
 		PropertyMapping propertyMapping = getPropertyMapping( path );
-		// If this from element is a collection and the path is a collection property (maxIndex, etc.) then
-		// generate a sub-query.
-		//
-		// NOTE : in the case of this being a collection property in the select, not generating the subquery
-		// will not generally work.  The specific cases I am thinking about are the minIndex, maxIndex
-		// (most likely minElement, maxElement as well) cases.
-		//	todo : if ^^ is the case we should thrown an exception here rather than waiting for the sql error
-		//		if the dialect supports select-clause subqueries we could go ahead and generate the subquery also
+
 		if ( !inSelect && queryableCollection != null && CollectionProperties.isCollectionProperty( path ) ) {
+			// If this from element is a collection and the path is a collection property (maxIndex, etc.)
+			// requiring a sub-query then generate a sub-query.
+			//h
+			// Unless we are in the select clause, because some dialects do not support
+			// Note however, that some dialects do not  However, in the case of this being a collection property reference being in the select, not generating the subquery
+			// will not generally work.  The specific cases I am thinking about are the minIndex, maxIndex
+			// (most likely minElement, maxElement as well) cases.
+			//	todo : if ^^ is the case we should thrown an exception here rather than waiting for the sql error
+			//		if the dialect supports select-clause subqueries we could go ahead and generate the subquery also
 			Map enabledFilters = fromElement.getWalker().getEnabledFilters();
 			String subquery = CollectionSubqueryFactory.createCollectionSubquery(
 					joinSequence.copy().setUseThetaStyle( true ),
 					enabledFilters,
 					propertyMapping.toColumns( tableAlias, path )
 			);
-            LOG.debugf("toColumns(%s,%s) : subquery = %s", tableAlias, path, subquery);
+			LOG.debugf( "toColumns(%s,%s) : subquery = %s", tableAlias, path, subquery );
 			return new String[]{"(" + subquery + ")"};
 		}
+
         if (forceAlias) {
             return propertyMapping.toColumns(tableAlias, path);
-        } else if (fromElement.getWalker().getStatementType() == HqlSqlTokenTypes.SELECT) {
+        }
+
+		if (fromElement.getWalker().getStatementType() == HqlSqlTokenTypes.SELECT) {
             return propertyMapping.toColumns(tableAlias, path);
-        } else if (fromElement.getWalker().getCurrentClauseType() == HqlSqlTokenTypes.SELECT) {
+        }
+
+		if (fromElement.getWalker().getCurrentClauseType() == HqlSqlTokenTypes.SELECT) {
             return propertyMapping.toColumns(tableAlias, path);
-        } else if (fromElement.getWalker().isSubQuery()) {
+        }
+
+		if (fromElement.getWalker().isSubQuery()) {
             // for a subquery, the alias to use depends on a few things (we
             // already know this is not an overall SELECT):
             // 1) if this FROM_ELEMENT represents a correlation to the
@@ -365,15 +375,24 @@ class FromElementType {
             // table name as the column qualification
             // 2) otherwise (not correlated), use the given alias
             if (isCorrelation()) {
-                if (isMultiTable()) return propertyMapping.toColumns(tableAlias, path);
+                if (isMultiTable()) {
+					return propertyMapping.toColumns(tableAlias, path);
+				}
                 return propertyMapping.toColumns(extractTableName(), path);
 			}
             return propertyMapping.toColumns(tableAlias, path);
-        } else {
-            String[] columns = propertyMapping.toColumns(path);
-            LOG.trace("Using non-qualified column reference [" + path + " -> (" + ArrayHelper.toString(columns) + ")]");
-            return columns;
         }
+
+		if ( isManipulationQuery() && isMultiTable() && inWhereClause() ) {
+			// the actual where-clause will end up being ripped out the update/delete and used in
+			// a select to populate the temp table, so its ok to use the table alias to qualify the table refs
+			// and safer to do so to protect from same-named columns
+			return propertyMapping.toColumns( tableAlias, path );
+		}
+
+		String[] columns = propertyMapping.toColumns( path );
+		LOG.tracev( "Using non-qualified column reference [{0} -> ({1})]", path, ArrayHelper.toString( columns ) );
+		return columns;
 	}
 
 	private boolean isCorrelation() {
@@ -393,12 +412,19 @@ class FromElementType {
 		return fromElement.getQueryable().getTableName();
 	}
 
+	private boolean isManipulationQuery() {
+		return fromElement.getWalker().getStatementType() == HqlSqlTokenTypes.UPDATE
+				|| fromElement.getWalker().getStatementType() == HqlSqlTokenTypes.DELETE;
+	}
+
+	private boolean inWhereClause() {
+		return fromElement.getWalker().getCurrentTopLevelClauseType() == HqlSqlTokenTypes.WHERE;
+	}
+
 	private static final List SPECIAL_MANY2MANY_TREATMENT_FUNCTION_NAMES = java.util.Arrays.asList(
-			new String[] {
-					CollectionPropertyNames.COLLECTION_INDEX,
-					CollectionPropertyNames.COLLECTION_MIN_INDEX,
-					CollectionPropertyNames.COLLECTION_MAX_INDEX
-			}
+			CollectionPropertyNames.COLLECTION_INDEX,
+			CollectionPropertyNames.COLLECTION_MIN_INDEX,
+			CollectionPropertyNames.COLLECTION_MAX_INDEX
 	);
 
 	PropertyMapping getPropertyMapping(String propertyName) {

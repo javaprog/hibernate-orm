@@ -29,12 +29,14 @@ import java.io.Writer;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
 import org.dom4j.io.DOMWriter;
 import org.dom4j.io.OutputFormat;
 import org.dom4j.io.XMLWriter;
+
 import org.hibernate.MappingException;
 import org.hibernate.annotations.common.reflection.ReflectionManager;
 import org.hibernate.cfg.Configuration;
@@ -125,7 +127,7 @@ public class EntitiesConfigurator {
         }
 
         // Only if there are any versioned classes
-        if (classesAuditingData.getAllClassAuditedData().size() > 0) {
+        if (auditMetaGen.getEntitiesConfigurations().size() > 0) {
             try {
                 if (revisionInfoXmlMapping !=  null) {
                     //writeDocument(revisionInfoXmlMapping);

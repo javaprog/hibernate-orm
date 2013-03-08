@@ -23,13 +23,14 @@
  */
 package org.hibernate.mapping;
 import java.io.Serializable;
+
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.function.SQLFunctionRegistry;
 import org.hibernate.engine.spi.Mapping;
-import org.hibernate.sql.Template;
 import org.hibernate.internal.util.StringHelper;
+import org.hibernate.sql.Template;
 
 /**
  * A column of a relational database table
@@ -83,7 +84,7 @@ public class Column implements Selectable, Serializable, Cloneable {
 	}
 	public void setName(String name) {
 		if (
-			name.charAt(0)=='`' ||
+			StringHelper.isNotEmpty( name ) &&
 			Dialect.QUOTE.indexOf( name.charAt(0) ) > -1 //TODO: deprecated, remove eventually
 		) {
 			quoted=true;
@@ -158,54 +159,15 @@ public class Column implements Selectable, Serializable, Cloneable {
 		this.typeIndex = typeIndex;
 	}
 
-	public int getSqlTypeCode(Mapping mapping) throws MappingException {
-		org.hibernate.type.Type type = getValue().getType();
-		try {
-			int sqlTypeCode = type.sqlTypes(mapping)[ getTypeIndex() ];
-			if(getSqlTypeCode()!=null && getSqlTypeCode().intValue()!=sqlTypeCode) {
-				throw new MappingException("SQLType code's does not match. mapped as " + sqlTypeCode + " but is " + getSqlTypeCode() );
-			}
-			return sqlTypeCode;
-		}
-		catch (Exception e) {
-			throw new MappingException(
-					"Could not determine type for column " +
-					name +
-					" of type " +
-					type.getClass().getName() +
-					": " +
-					e.getClass().getName(),
-					e
-				);
-		}
-	}
-
-	/**
-	 * Returns the underlying columns sqltypecode.
-	 * If null, it is because the sqltype code is unknown.
-	 * 
-	 * Use #getSqlTypeCode(Mapping) to retreive the sqltypecode used
-	 * for the columns associated Value/Type.
-	 * 
-	 * @return sqltypecode if it is set, otherwise null.
-	 */
-	public Integer getSqlTypeCode() {
-		return sqlTypeCode;
-	}
-	
-	public void setSqlTypeCode(Integer typecode) {
-		sqlTypeCode=typecode;
-	}
-	
 	public boolean isUnique() {
 		return unique;
 	}
 
-
-	public String getSqlType(Dialect dialect, Mapping mapping) throws HibernateException {
-		return sqlType==null ?
-			dialect.getTypeName( getSqlTypeCode(mapping), getLength(), getPrecision(), getScale() ) :
-			sqlType;
+	//used also for generation of FK names!
+	public int hashCode() {
+		return isQuoted() ?
+			name.hashCode() :
+			name.toLowerCase().hashCode();
 	}
 
 	public boolean equals(Object object) {
@@ -221,12 +183,51 @@ public class Column implements Selectable, Serializable, Cloneable {
 			name.equalsIgnoreCase(column.name);
 	}
 
-	//used also for generation of FK names!
-	public int hashCode() {
-		return isQuoted() ? 
-			name.hashCode() : 
-			name.toLowerCase().hashCode();
-	}
+    public int getSqlTypeCode(Mapping mapping) throws MappingException {
+        org.hibernate.type.Type type = getValue().getType();
+        try {
+            int sqlTypeCode = type.sqlTypes( mapping )[getTypeIndex()];
+            if ( getSqlTypeCode() != null && getSqlTypeCode() != sqlTypeCode ) {
+                throw new MappingException( "SQLType code's does not match. mapped as " + sqlTypeCode + " but is " + getSqlTypeCode() );
+            }
+            return sqlTypeCode;
+        }
+        catch ( Exception e ) {
+            throw new MappingException(
+                    "Could not determine type for column " +
+                            name +
+                            " of type " +
+                            type.getClass().getName() +
+                            ": " +
+                            e.getClass().getName(),
+                    e
+            );
+        }
+    }
+
+    /**
+     * Returns the underlying columns sqltypecode.
+     * If null, it is because the sqltype code is unknown.
+     *
+     * Use #getSqlTypeCode(Mapping) to retreive the sqltypecode used
+     * for the columns associated Value/Type.
+     *
+     * @return sqlTypeCode if it is set, otherwise null.
+     */
+    public Integer getSqlTypeCode() {
+        return sqlTypeCode;
+    }
+
+    public void setSqlTypeCode(Integer typeCode) {
+        sqlTypeCode=typeCode;
+    }
+
+    public String getSqlType(Dialect dialect, Mapping mapping) throws HibernateException {
+        if ( sqlType == null ) {
+            sqlType = dialect.getTypeName( getSqlTypeCode( mapping ), getLength(), getPrecision(), getScale() );
+        }
+        return sqlType;
+    }
 
 	public String getSqlType() {
 		return sqlType;
@@ -342,7 +343,8 @@ public class Column implements Selectable, Serializable, Cloneable {
 	/**
 	 * Shallow copy, the value is not copied
 	 */
-	protected Object clone() {
+	@Override
+	public Column clone() {
 		Column copy = new Column();
 		copy.setLength( length );
 		copy.setScale( scale );

@@ -20,11 +20,12 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 package org.hibernate.cache.infinispan.timestamp;
+
+import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.eviction.EvictionStrategy;
+
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.infinispan.TypeOverrides;
-import org.infinispan.config.Configuration;
-import org.infinispan.config.Configuration.CacheMode;
-import org.infinispan.eviction.EvictionStrategy;
 
 /**
  * TimestampTypeOverrides.
@@ -33,15 +34,16 @@ import org.infinispan.eviction.EvictionStrategy;
  * @since 3.5
  */
 public class TimestampTypeOverrides extends TypeOverrides {
+
    @Override
-   public void validateInfinispanConfiguration(Configuration configuration) throws CacheException {
-      CacheMode cacheMode = configuration.getCacheMode();
-      if (cacheMode.equals(CacheMode.INVALIDATION_ASYNC) || cacheMode.equals(CacheMode.INVALIDATION_SYNC)) {
+   public void validateInfinispanConfiguration(Configuration cfg) throws CacheException {
+      if (cfg.clustering().cacheMode().isInvalidation()) {
          throw new CacheException("Timestamp cache cannot be configured with invalidation");
       }
-      EvictionStrategy strategy = configuration.getEvictionStrategy();
+      EvictionStrategy strategy = cfg.eviction().strategy();
       if (!strategy.equals(EvictionStrategy.NONE)) {
          throw new CacheException("Timestamp cache cannot be configured with eviction");
       }
    }
+
 }

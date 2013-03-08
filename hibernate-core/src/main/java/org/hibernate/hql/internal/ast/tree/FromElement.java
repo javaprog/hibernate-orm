@@ -28,15 +28,17 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.hibernate.engine.internal.JoinSequence;
-import org.hibernate.hql.spi.QueryTranslator;
-import org.hibernate.internal.CoreMessageLogger;
+import org.jboss.logging.Logger;
+
 import org.hibernate.QueryException;
+import org.hibernate.engine.internal.JoinSequence;
 import org.hibernate.hql.internal.CollectionProperties;
 import org.hibernate.hql.internal.antlr.HqlSqlTokenTypes;
 import org.hibernate.hql.internal.antlr.SqlTokenTypes;
 import org.hibernate.hql.internal.ast.TypeDiscriminatorMetadata;
 import org.hibernate.hql.internal.ast.util.ASTUtil;
+import org.hibernate.hql.spi.QueryTranslator;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.param.ParameterSpecification;
 import org.hibernate.persister.collection.QueryableCollection;
@@ -46,7 +48,6 @@ import org.hibernate.persister.entity.PropertyMapping;
 import org.hibernate.persister.entity.Queryable;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
 
 /**
  * Represents a single mapped class mentioned in an HQL FROM clause.  Each
@@ -153,7 +154,7 @@ public class FromElement extends HqlSqlWalkerNode implements DisplayableNode, Pa
 		this.elementType = new FromElementType( this, persister, type );
 		// Register the FromElement with the FROM clause, now that we have the names and aliases.
 		fromClause.registerFromElement( this );
-        LOG.debugf("%s : %s (%s) -> %s", fromClause, className, classAlias == null ? "<no alias>" : classAlias, tableAlias);
+		LOG.debugf( "%s : %s (%s) -> %s", fromClause, className, classAlias == null ? "<no alias>" : classAlias, tableAlias );
 	}
 
 	public EntityPersister getEntityPersister() {
@@ -257,14 +258,14 @@ public class FromElement extends HqlSqlWalkerNode implements DisplayableNode, Pa
 	 * @return String - The additional display text.
 	 */
 	public String getDisplayText() {
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		buf.append( "FromElement{" );
 		appendDisplayText( buf );
 		buf.append( "}" );
 		return buf.toString();
 	}
 
-	protected void appendDisplayText(StringBuffer buf) {
+	protected void appendDisplayText(StringBuilder buf) {
 		buf.append( isImplied() ? (
 				isImpliedInFromClause() ? "implied in FROM clause" : "implied" )
 				: "explicit" );
@@ -310,9 +311,8 @@ public class FromElement extends HqlSqlWalkerNode implements DisplayableNode, Pa
 	}
 
 	public void setIncludeSubclasses(boolean includeSubclasses) {
-        if (LOG.isTraceEnabled() && isDereferencedBySuperclassOrSubclassProperty() && !includeSubclasses) LOG.trace("Attempt to disable subclass-inclusions : "
-                                                                                                                    + new Exception(
-                                                                                                                                    "Stack-trace source"));
+		if ( LOG.isTraceEnabled() && isDereferencedBySuperclassOrSubclassProperty() && !includeSubclasses )
+			LOG.trace( "Attempt to disable subclass-inclusions : ", new Exception( "Stack-trace source" ) );
 		this.includeSubclasses = includeSubclasses;
 	}
 
@@ -325,13 +325,23 @@ public class FromElement extends HqlSqlWalkerNode implements DisplayableNode, Pa
 	}
 
 	public String getIdentityColumn() {
+		final String[] cols = getIdentityColumns();
+		if ( cols.length == 1 ) {
+			return cols[0];
+		}
+		else {
+			return "(" + StringHelper.join( ", ", cols ) + ")";
+		}
+	}
+
+	public String[] getIdentityColumns() {
 		checkInitialized();
-		String table = getTableAlias();
+		final String table = getTableAlias();
 		if ( table == null ) {
 			throw new IllegalStateException( "No table alias for node " + this );
 		}
-		String[] cols;
-		String propertyName;
+
+		final String propertyName;
 		if ( getEntityPersister() != null && getEntityPersister().getEntityMetamodel() != null
 				&& getEntityPersister().getEntityMetamodel().hasNonIdentifierPropertyNamedId() ) {
 			propertyName = getEntityPersister().getIdentifierPropertyName();
@@ -339,14 +349,13 @@ public class FromElement extends HqlSqlWalkerNode implements DisplayableNode, Pa
 		else {
 			propertyName = EntityPersister.ENTITY_ID;
 		}
+
 		if ( getWalker().getStatementType() == HqlSqlTokenTypes.SELECT ) {
-			cols = getPropertyMapping( propertyName ).toColumns( table, propertyName );
+			return getPropertyMapping( propertyName ).toColumns( table, propertyName );
 		}
 		else {
-			cols = getPropertyMapping( propertyName ).toColumns( propertyName );
+			return getPropertyMapping( propertyName ).toColumns( propertyName );
 		}
-		String result = StringHelper.join( ", ", cols );
-		return  cols.length == 1 ? result : "(" + result + ")";
 	}
 
 	public void setCollectionJoin(boolean collectionJoin) {
@@ -620,8 +629,10 @@ public class FromElement extends HqlSqlWalkerNode implements DisplayableNode, Pa
 		if ( persister != null ) {
 			try {
 				Queryable.Declarer propertyDeclarer = persister.getSubclassPropertyDeclarer( propertyName );
-                LOG.trace("Handling property dereference [" + persister.getEntityName() + " (" + getClassAlias() + ") -> "
-                          + propertyName + " (" + propertyDeclarer + ")]");
+				if ( LOG.isTraceEnabled() ) {
+					LOG.tracev( "Handling property dereference [{0} ({1}) -> {2} ({3})]",
+							persister.getEntityName(), getClassAlias(), propertyName, propertyDeclarer );
+				}
 				if ( propertyDeclarer == Queryable.Declarer.SUBCLASS ) {
 					dereferencedBySubclassProperty = true;
 					includeSubclasses = true;

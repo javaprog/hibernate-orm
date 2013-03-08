@@ -29,16 +29,18 @@ import org.hibernate.AssertionFailure;
 import org.hibernate.HibernateException;
 import org.hibernate.cache.spi.CacheKey;
 import org.hibernate.cache.spi.access.SoftLock;
+import org.hibernate.engine.spi.CachedNaturalIdValueSource;
 import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.PersistenceContext;
 import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.event.service.spi.EventListenerGroup;
 import org.hibernate.event.spi.EventType;
 import org.hibernate.event.spi.PostDeleteEvent;
 import org.hibernate.event.spi.PostDeleteEventListener;
+import org.hibernate.event.spi.PostInsertEventListener;
 import org.hibernate.event.spi.PreDeleteEvent;
 import org.hibernate.event.spi.PreDeleteEventListener;
 import org.hibernate.persister.entity.EntityPersister;
-import org.hibernate.event.service.spi.EventListenerGroup;
 
 public final class EntityDeleteAction extends EntityAction {
 	private final Object version;
@@ -46,6 +48,7 @@ public final class EntityDeleteAction extends EntityAction {
 	private final Object[] state;
 
 	private SoftLock lock;
+	private Object[] naturalIdValues;
 
 	public EntityDeleteAction(
 			final Serializable id,
@@ -59,6 +62,13 @@ public final class EntityDeleteAction extends EntityAction {
 		this.version = version;
 		this.isCascadeDeleteEnabled = isCascadeDeleteEnabled;
 		this.state = state;
+
+		// before remove we need to remove the local (transactional) natural id cross-reference
+		naturalIdValues = session.getPersistenceContext().getNaturalIdHelper().removeLocalNaturalIdCrossReference(
+				getPersister(),
+				getId(),
+				state
+		);
 	}
 
 	@Override
@@ -108,6 +118,8 @@ public final class EntityDeleteAction extends EntityAction {
 		if ( persister.hasCache() ) {
 			persister.getCacheAccessStrategy().remove( ck );
 		}
+
+		persistenceContext.getNaturalIdHelper().removeSharedNaturalIdCrossReference( persister, id, naturalIdValues );
 
 		postDelete();
 
@@ -178,6 +190,13 @@ public final class EntityDeleteAction extends EntityAction {
 
 	@Override
 	protected boolean hasPostCommitEventListeners() {
-		return ! listenerGroup( EventType.POST_COMMIT_DELETE ).isEmpty();
+		final EventListenerGroup<PostDeleteEventListener> group = listenerGroup( EventType.POST_COMMIT_DELETE );
+		for ( PostDeleteEventListener listener : group.listeners() ) {
+			if ( listener.requiresPostCommitHanding( getPersister() ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }

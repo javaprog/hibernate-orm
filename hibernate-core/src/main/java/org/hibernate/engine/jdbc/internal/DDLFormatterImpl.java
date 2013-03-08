@@ -25,6 +25,8 @@ package org.hibernate.engine.jdbc.internal;
 
 import java.util.StringTokenizer;
 
+import org.hibernate.internal.util.StringHelper;
+
 /**
  * Performs formatting of DDL SQL statements.
  *
@@ -43,6 +45,7 @@ public class DDLFormatterImpl implements Formatter {
 	 * @param sql The statement to be fornmatted.
 	 */
 	public String format(String sql) {
+        if ( StringHelper.isEmpty( sql ) ) return sql;
 		if ( sql.toLowerCase().startsWith( "create table" ) ) {
 			return formatCreateTable( sql );
 		}
@@ -58,7 +61,7 @@ public class DDLFormatterImpl implements Formatter {
 	}
 
 	private String formatCommentOn(String sql) {
-		StringBuffer result = new StringBuffer( 60 ).append( "\n    " );
+		StringBuilder result = new StringBuilder( 60 ).append( "\n    " );
 		StringTokenizer tokens = new StringTokenizer( sql, " '[]\"", true );
 
 		boolean quoted = false;
@@ -79,7 +82,7 @@ public class DDLFormatterImpl implements Formatter {
 	}
 
 	private String formatAlterTable(String sql) {
-		StringBuffer result = new StringBuffer( 60 ).append( "\n    " );
+		StringBuilder result = new StringBuilder( 60 ).append( "\n    " );
 		StringTokenizer tokens = new StringTokenizer( sql, " (,)'[]\"", true );
 
 		boolean quoted = false;
@@ -100,7 +103,7 @@ public class DDLFormatterImpl implements Formatter {
 	}
 
 	private String formatCreateTable(String sql) {
-		StringBuffer result = new StringBuffer( 60 ).append( "\n    " );
+		StringBuilder result = new StringBuilder( 60 ).append( "\n    " );
 		StringTokenizer tokens = new StringTokenizer( sql, "(,)'[]\"", true );
 
 		int depth = 0;

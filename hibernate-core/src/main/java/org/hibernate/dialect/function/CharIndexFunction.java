@@ -23,6 +23,7 @@
  */
 package org.hibernate.dialect.function;
 import java.util.List;
+
 import org.hibernate.QueryException;
 import org.hibernate.engine.spi.Mapping;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
@@ -52,7 +53,7 @@ public class CharIndexFunction implements SQLFunction {
 		Object string = args.get(1);
 		Object start = threeArgs ? args.get(2) : null;
 
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		buf.append("charindex(").append( pattern ).append(", ");
 		if (threeArgs) buf.append( "right(");
 		buf.append( string );

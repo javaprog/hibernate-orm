@@ -28,10 +28,10 @@ import java.io.Serializable;
 import org.jboss.logging.Logger;
 
 import org.hibernate.FlushMode;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.LockOptions;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.AbstractQueryImpl;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.loader.entity.UniqueEntityLoader;
 
 /**
@@ -54,7 +54,7 @@ public final class NamedQueryLoader implements UniqueEntityLoader {
 	}
 
 	public Object load(Serializable id, Object optionalObject, SessionImplementor session, LockOptions lockOptions) {
-        if (lockOptions != null) LOG.debugf("Ignoring lock-options passed to named query loader");
+		if (lockOptions != null) LOG.debug("Ignoring lock-options passed to named query loader");
 		return load( id, optionalObject, session );
 	}
 

@@ -25,10 +25,10 @@ package org.hibernate.engine.transaction.synchronization.internal;
 
 import javax.transaction.Synchronization;
 
-import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.engine.transaction.synchronization.spi.SynchronizationCallbackCoordinator;
-
 import org.jboss.logging.Logger;
+
+import org.hibernate.engine.transaction.synchronization.spi.SynchronizationCallbackCoordinator;
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * The JTA {@link javax.transaction.Synchronization} Hibernate registers when needed for JTA callbacks
@@ -37,8 +37,7 @@ import org.jboss.logging.Logger;
  */
 public class RegisteredSynchronization implements Synchronization {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                       RegisteredSynchronization.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, RegisteredSynchronization.class.getName() );
 
 	private final SynchronizationCallbackCoordinator synchronizationCallbackCoordinator;
 
@@ -50,7 +49,7 @@ public class RegisteredSynchronization implements Synchronization {
 	 * {@inheritDoc}
 	 */
 	public void beforeCompletion() {
-        LOG.trace("JTA sync : beforeCompletion()");
+		LOG.trace( "JTA sync : beforeCompletion()" );
 		synchronizationCallbackCoordinator.beforeCompletion();
 	}
 
@@ -58,7 +57,7 @@ public class RegisteredSynchronization implements Synchronization {
 	 * {@inheritDoc}
 	 */
 	public void afterCompletion(int status) {
-        LOG.tracef("JTA sync : afterCompletion(%s)", status);
+		LOG.tracef( "JTA sync : afterCompletion(%s)", status );
 		synchronizationCallbackCoordinator.afterCompletion( status );
 	}
 }

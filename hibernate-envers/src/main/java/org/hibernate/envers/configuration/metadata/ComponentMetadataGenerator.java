@@ -1,6 +1,8 @@
 package org.hibernate.envers.configuration.metadata;
 import java.util.Iterator;
+
 import org.dom4j.Element;
+
 import org.hibernate.envers.configuration.metadata.reader.ComponentAuditingData;
 import org.hibernate.envers.configuration.metadata.reader.PropertyAuditingData;
 import org.hibernate.envers.entities.mapper.CompositeMapperBuilder;
@@ -42,7 +44,7 @@ public final class ComponentMetadataGenerator {
 			// Checking if that property is audited
 			if (componentPropertyAuditingData != null) {
 				mainGenerator.addValue(parent, property.getValue(), componentMapper, entityName, xmlMappingData,
-						componentPropertyAuditingData, property.isInsertable(), firstPass);
+						componentPropertyAuditingData, property.isInsertable(), firstPass, false);
 			}
 		}
 	}

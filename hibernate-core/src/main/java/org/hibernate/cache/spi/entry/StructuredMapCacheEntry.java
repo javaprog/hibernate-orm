@@ -31,6 +31,8 @@ import java.util.Map;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 
 /**
+ * Structured CacheEntry format for persistent Maps.
+ *
  * @author Gavin King
  */
 public class StructuredMapCacheEntry implements CacheEntryStructure {

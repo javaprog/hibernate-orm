@@ -29,11 +29,12 @@ import java.sql.Blob;
 import java.sql.SQLException;
 
 import org.hibernate.HibernateException;
-import org.hibernate.type.descriptor.BinaryStream;
+import org.hibernate.engine.jdbc.BinaryStream;
+import org.hibernate.engine.jdbc.internal.BinaryStreamImpl;
 import org.hibernate.type.descriptor.WrapperOptions;
 
 /**
- * TODO : javadoc
+ * Descriptor for {@code Byte[]} handling.
  *
  * @author Steve Ebersole
  */
@@ -47,7 +48,7 @@ public class ByteArrayTypeDescriptor extends AbstractTypeDescriptor<Byte[]> {
 
 	@SuppressWarnings({ "UnnecessaryUnboxing" })
 	public String toString(Byte[] bytes) {
-		final StringBuffer buf = new StringBuffer();
+		final StringBuilder buf = new StringBuilder();
 		for ( Byte aByte : bytes ) {
 			final String hexStr = Integer.toHexString( aByte.byteValue() - Byte.MIN_VALUE );
 			if ( hexStr.length() == 1 ) {

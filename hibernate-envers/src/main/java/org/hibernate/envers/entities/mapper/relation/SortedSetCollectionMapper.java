@@ -23,13 +23,13 @@
  */
 package org.hibernate.envers.entities.mapper.relation;
 
+import java.util.Comparator;
+import java.util.SortedSet;
+
 import org.hibernate.envers.configuration.AuditConfiguration;
 import org.hibernate.envers.entities.mapper.relation.lazy.initializor.Initializor;
 import org.hibernate.envers.entities.mapper.relation.lazy.initializor.SortedSetCollectionInitializor;
 import org.hibernate.envers.reader.AuditReaderImplementor;
-
-import java.util.Comparator;
-import java.util.SortedSet;
 
 /**
  * @author Michal Skowronek (mskowr at o2 dot pl)
@@ -39,8 +39,9 @@ public final class SortedSetCollectionMapper extends BasicCollectionMapper<Sorte
 
 	public SortedSetCollectionMapper(CommonCollectionMapperData commonCollectionMapperData,
 									 Class<? extends SortedSet> collectionClass, Class<? extends SortedSet> proxyClass,
-									 MiddleComponentData elementComponentData, Comparator comparator) {
-		super(commonCollectionMapperData, collectionClass, proxyClass, elementComponentData);
+									 MiddleComponentData elementComponentData, Comparator comparator,
+									 boolean revisionTypeInId) {
+		super(commonCollectionMapperData, collectionClass, proxyClass, elementComponentData, revisionTypeInId);
 		this.comparator = comparator;
 	}
 

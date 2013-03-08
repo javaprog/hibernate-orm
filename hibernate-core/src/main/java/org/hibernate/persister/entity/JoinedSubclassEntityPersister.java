@@ -34,11 +34,13 @@ import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.QueryException;
 import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
+import org.hibernate.cache.spi.access.NaturalIdRegionAccessStrategy;
 import org.hibernate.engine.OptimisticLockStyle;
-import org.hibernate.engine.internal.Versioning;
 import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 import org.hibernate.engine.spi.Mapping;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.internal.DynamicFilterAliasGenerator;
+import org.hibernate.internal.FilterAliasGenerator;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.mapping.Column;
 import org.hibernate.mapping.Join;
@@ -109,6 +111,7 @@ public class JoinedSubclassEntityPersister extends AbstractEntityPersister {
 	private final String[] constraintOrderedTableNames;
 	private final String[][] constraintOrderedKeyColumnNames;
 
+	private final Object discriminatorValue;
 	private final String discriminatorSQLString;
 
 	// Span of the tables directly mapped by this entity and super-classes, if any
@@ -121,17 +124,17 @@ public class JoinedSubclassEntityPersister extends AbstractEntityPersister {
 	public JoinedSubclassEntityPersister(
 			final PersistentClass persistentClass,
 			final EntityRegionAccessStrategy cacheAccessStrategy,
+			final NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
 			final SessionFactoryImplementor factory,
 			final Mapping mapping) throws HibernateException {
 
-		super( persistentClass, cacheAccessStrategy, factory );
+		super( persistentClass, cacheAccessStrategy, naturalIdRegionAccessStrategy, factory );
 
 		// DISCRIMINATOR
 
-		final Object discriminatorValue;
 		if ( persistentClass.isPolymorphic() ) {
 			try {
-				discriminatorValue = new Integer( persistentClass.getSubclassId() );
+				discriminatorValue = persistentClass.getSubclassId();
 				discriminatorSQLString = discriminatorValue.toString();
 			}
 			catch ( Exception e ) {
@@ -416,7 +419,7 @@ public class JoinedSubclassEntityPersister extends AbstractEntityPersister {
 					factory.getSettings().getDefaultCatalogName(),
 					factory.getSettings().getDefaultSchemaName()
 			);
-			Integer tabnum = new Integer( getTableId( tabname, subclassTableNameClosure ) );
+			Integer tabnum = getTableId( tabname, subclassTableNameClosure );
 			propTableNumbers.add( tabnum );
 
 			Iterator citer = prop.getColumnIterator();
@@ -474,7 +477,7 @@ public class JoinedSubclassEntityPersister extends AbstractEntityPersister {
 					// we now use subclass ids that are consistent across all
 					// persisters for a class hierarchy, so that the use of
 					// "foo.class = Bar" works in HQL
-					Integer subclassId = new Integer( sc.getSubclassId() );//new Integer(k+1);
+					Integer subclassId = sc.getSubclassId();
 					subclassesByDiscriminatorValue.put( subclassId, sc.getEntityName() );
 					discriminatorValues[k] = subclassId.toString();
 					int id = getTableId(
@@ -506,9 +509,10 @@ public class JoinedSubclassEntityPersister extends AbstractEntityPersister {
 	public JoinedSubclassEntityPersister(
 			final EntityBinding entityBinding,
 			final EntityRegionAccessStrategy cacheAccessStrategy,
+			final NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
 			final SessionFactoryImplementor factory,
 			final Mapping mapping) throws HibernateException {
-		super( entityBinding, cacheAccessStrategy, factory );
+		super( entityBinding, cacheAccessStrategy, naturalIdRegionAccessStrategy, factory );
 		// TODO: implement!!! initializing final fields to null to make compiler happy
 		tableSpan = -1;
 		tableNames = null;
@@ -537,6 +541,7 @@ public class JoinedSubclassEntityPersister extends AbstractEntityPersister {
 		notNullColumnTableNumbers = null;
 		constraintOrderedTableNames = null;
 		constraintOrderedKeyColumnNames = null;
+		discriminatorValue = null;
 		discriminatorSQLString = null;
 		coreTableSpan = -1;
 		isNullableTable = null;
@@ -567,10 +572,13 @@ public class JoinedSubclassEntityPersister extends AbstractEntityPersister {
 		return StandardBasicTypes.INTEGER;
 	}
 
+	public Object getDiscriminatorValue() {
+		return discriminatorValue;
+	}
+
 	public String getDiscriminatorSQLValue() {
 		return discriminatorSQLString;
 	}
-
 
 	public String getSubclassForDiscriminatorValue(Object value) {
 		return (String) subclassesByDiscriminatorValue.get( value );
@@ -688,15 +696,6 @@ public class JoinedSubclassEntityPersister extends AbstractEntityPersister {
 		return tableNames[0];
 	}
 
-	private static int getTableId(String tableName, String[] tables) {
-		for ( int j = 0; j < tables.length; j++ ) {
-			if ( tableName.equals( tables[j] ) ) {
-				return j;
-			}
-		}
-		throw new AssertionFailure( "Table " + tableName + " not found" );
-	}
-
 	public void addDiscriminatorToSelect(SelectFragment select, String name, String suffix) {
 		if ( hasSubclasses() ) {
 			select.setExtraSelectList( discriminatorFragment( name ), getDiscriminatorAlias() );
@@ -808,7 +807,7 @@ public class JoinedSubclassEntityPersister extends AbstractEntityPersister {
 		if ( index == null ) {
 			return null;
 		}
-		return tableNames[propertyTableNumbers[index.intValue()]];
+		return tableNames[propertyTableNumbers[index]];
 	}
 
 	public String[] getConstraintOrderedTableNameClosure() {
@@ -829,9 +828,35 @@ public class JoinedSubclassEntityPersister extends AbstractEntityPersister {
 
 	public Declarer getSubclassPropertyDeclarer(String propertyPath) {
 		if ( "class".equals( propertyPath ) ) {
-			// special case where we need to force incloude all subclass joins
+			// special case where we need to force include all subclass joins
 			return Declarer.SUBCLASS;
 		}
 		return super.getSubclassPropertyDeclarer( propertyPath );
+	}
+
+	@Override
+	public int determineTableNumberForColumn(String columnName) {
+		final String[] subclassColumnNameClosure = getSubclassColumnClosure();
+		for ( int i = 0, max = subclassColumnNameClosure.length; i < max; i++ ) {
+			final boolean quoted = subclassColumnNameClosure[i].startsWith( "\"" )
+					&& subclassColumnNameClosure[i].endsWith( "\"" );
+			if ( quoted ) {
+				if ( subclassColumnNameClosure[i].equals( columnName ) ) {
+					return getSubclassColumnTableNumberClosure()[i];
+				}
+			}
+			else {
+				if ( subclassColumnNameClosure[i].equalsIgnoreCase( columnName ) ) {
+					return getSubclassColumnTableNumberClosure()[i];
+				}
+			}
+		}
+		throw new HibernateException( "Could not locate table which owns column [" + columnName + "] referenced in order-by mapping" );
+	}
+
+
+	@Override
+	public FilterAliasGenerator getFilterAliasGenerator(String rootAlias) {
+		return new DynamicFilterAliasGenerator(subclassTableNameClosure, rootAlias);
 	}
 }

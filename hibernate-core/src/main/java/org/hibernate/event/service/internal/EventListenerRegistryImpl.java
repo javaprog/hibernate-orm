@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.hibernate.HibernateException;
-import org.hibernate.event.spi.EventType;
 import org.hibernate.event.internal.DefaultAutoFlushEventListener;
 import org.hibernate.event.internal.DefaultDeleteEventListener;
 import org.hibernate.event.internal.DefaultDirtyCheckEventListener;
@@ -46,12 +45,14 @@ import org.hibernate.event.internal.DefaultPostLoadEventListener;
 import org.hibernate.event.internal.DefaultPreLoadEventListener;
 import org.hibernate.event.internal.DefaultRefreshEventListener;
 import org.hibernate.event.internal.DefaultReplicateEventListener;
+import org.hibernate.event.internal.DefaultResolveNaturalIdEventListener;
 import org.hibernate.event.internal.DefaultSaveEventListener;
 import org.hibernate.event.internal.DefaultSaveOrUpdateEventListener;
 import org.hibernate.event.internal.DefaultUpdateEventListener;
 import org.hibernate.event.service.spi.DuplicationStrategy;
 import org.hibernate.event.service.spi.EventListenerRegistrationException;
 import org.hibernate.event.service.spi.EventListenerRegistry;
+import org.hibernate.event.spi.EventType;
 
 import static org.hibernate.event.spi.EventType.AUTO_FLUSH;
 import static org.hibernate.event.spi.EventType.DELETE;
@@ -84,6 +85,7 @@ import static org.hibernate.event.spi.EventType.PRE_LOAD;
 import static org.hibernate.event.spi.EventType.PRE_UPDATE;
 import static org.hibernate.event.spi.EventType.REFRESH;
 import static org.hibernate.event.spi.EventType.REPLICATE;
+import static org.hibernate.event.spi.EventType.RESOLVE_NATURAL_ID;
 import static org.hibernate.event.spi.EventType.SAVE;
 import static org.hibernate.event.spi.EventType.SAVE_UPDATE;
 import static org.hibernate.event.spi.EventType.UPDATE;
@@ -113,12 +115,12 @@ public class EventListenerRegistryImpl implements EventListenerRegistry {
 	}
 
 	@Override
-	public <T> void setListeners(EventType<T> type, Class<T>... listenerClasses) {
+	public <T> void setListeners(EventType<T> type, Class<? extends T>... listenerClasses) {
 		setListeners( type, resolveListenerInstances( type, listenerClasses ) );
 	}
 
 	@SuppressWarnings( {"unchecked"})
-	private <T> T[] resolveListenerInstances(EventType<T> type, Class<T>... listenerClasses) {
+	private <T> T[] resolveListenerInstances(EventType<T> type, Class<? extends T>... listenerClasses) {
 		T[] listeners = (T[]) Array.newInstance( type.baseListenerInterface(), listenerClasses.length );
 		for ( int i = 0; i < listenerClasses.length; i++ ) {
 			listeners[i] = resolveListenerInstance( listenerClasses[i] );
@@ -160,7 +162,7 @@ public class EventListenerRegistryImpl implements EventListenerRegistry {
 	}
 
 	@Override
-	public <T> void appendListeners(EventType<T> type, Class<T>... listenerClasses) {
+	public <T> void appendListeners(EventType<T> type, Class<? extends T>... listenerClasses) {
 		appendListeners( type, resolveListenerInstances( type, listenerClasses ) );
 	}
 
@@ -170,7 +172,7 @@ public class EventListenerRegistryImpl implements EventListenerRegistry {
 	}
 
 	@Override
-	public <T> void prependListeners(EventType<T> type, Class<T>... listenerClasses) {
+	public <T> void prependListeners(EventType<T> type, Class<? extends T>... listenerClasses) {
 		prependListeners( type, resolveListenerInstances( type, listenerClasses ) );
 	}
 
@@ -243,6 +245,13 @@ public class EventListenerRegistryImpl implements EventListenerRegistry {
 				LOAD,
 				new DefaultLoadEventListener(),
 				workMap
+		);
+
+		// resolve natural-id listeners
+		prepareListeners( 
+				RESOLVE_NATURAL_ID, 
+				new DefaultResolveNaturalIdEventListener(), 
+				workMap 
 		);
 
 		// load-collection listeners

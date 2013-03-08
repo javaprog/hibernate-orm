@@ -29,6 +29,8 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
 import javax.persistence.ManyToMany;
 import javax.persistence.MapKey;
+import javax.persistence.Table;
+
 import org.hibernate.envers.Audited;
 import org.hibernate.envers.test.entities.components.Component1;
 import org.hibernate.envers.test.entities.components.ComponentTestEntity;
@@ -37,6 +39,7 @@ import org.hibernate.envers.test.entities.components.ComponentTestEntity;
  * @author Adam Warski (adam at warski dot org)
  */
 @Entity
+@Table(name = "CompMapKey")
 public class ComponentMapKeyEntity {
     @Id
     @GeneratedValue

@@ -24,26 +24,26 @@
 
 package org.hibernate.envers.test.integration.inheritance.joined.primarykeyjoin;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.integration.inheritance.joined.ParentEntity;
-import org.hibernate.mapping.Column;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.integration.inheritance.joined.ParentEntity;
+import org.hibernate.mapping.Column;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class ChildPrimaryKeyJoinAuditing extends AbstractEntityTest {
+public class ChildPrimaryKeyJoinAuditing extends BaseEnversJPAFunctionalTestCase {
     private Integer id1;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(ChildPrimaryKeyJoinEntity.class);
-        cfg.addAnnotatedClass(ParentEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { ChildPrimaryKeyJoinEntity.class, ParentEntity.class };
     }
 
     @Test
@@ -63,7 +63,7 @@ public class ChildPrimaryKeyJoinAuditing extends AbstractEntityTest {
         em.getTransaction().begin();
         ce = em.find(ChildPrimaryKeyJoinEntity.class, id1);
         ce.setData("y");
-        ce.setNumber(2l);
+        ce.setNumVal(2l);
         em.getTransaction().commit();
     }
 

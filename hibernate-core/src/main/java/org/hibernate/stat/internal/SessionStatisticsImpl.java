@@ -57,10 +57,10 @@ public class SessionStatisticsImpl implements SessionStatistics {
 	}
 	
 	public String toString() {
-		return new StringBuffer()
+		return new StringBuilder()
 			.append("SessionStatistics[")
 			.append("entity count=").append( getEntityCount() )
-			.append("collection count=").append( getCollectionCount() )
+			.append(",collection count=").append( getCollectionCount() )
 			.append(']')
 			.toString();
 	}

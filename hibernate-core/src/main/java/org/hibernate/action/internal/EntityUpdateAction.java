@@ -32,17 +32,18 @@ import org.hibernate.cache.spi.CacheKey;
 import org.hibernate.cache.spi.access.SoftLock;
 import org.hibernate.cache.spi.entry.CacheEntry;
 import org.hibernate.engine.internal.Versioning;
+import org.hibernate.engine.spi.CachedNaturalIdValueSource;
 import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.engine.spi.Status;
+import org.hibernate.event.service.spi.EventListenerGroup;
 import org.hibernate.event.spi.EventType;
 import org.hibernate.event.spi.PostUpdateEvent;
 import org.hibernate.event.spi.PostUpdateEventListener;
 import org.hibernate.event.spi.PreUpdateEvent;
 import org.hibernate.event.spi.PreUpdateEventListener;
 import org.hibernate.persister.entity.EntityPersister;
-import org.hibernate.event.service.spi.EventListenerGroup;
 import org.hibernate.type.TypeHelper;
 
 public final class EntityUpdateAction extends EntityAction {
@@ -52,6 +53,7 @@ public final class EntityUpdateAction extends EntityAction {
 	private final int[] dirtyFields;
 	private final boolean hasDirtyCollection;
 	private final Object rowId;
+	private final Object[] previousNaturalIdValues;
 	private Object nextVersion;
 	private Object cacheEntry;
 	private SoftLock lock;
@@ -76,6 +78,31 @@ public final class EntityUpdateAction extends EntityAction {
 		this.dirtyFields = dirtyProperties;
 		this.hasDirtyCollection = hasDirtyCollection;
 		this.rowId = rowId;
+
+		this.previousNaturalIdValues = determinePreviousNaturalIdValues( persister, previousState, session, id );
+		session.getPersistenceContext().getNaturalIdHelper().manageLocalNaturalIdCrossReference(
+				persister,
+				id,
+				state,
+				previousNaturalIdValues,
+				CachedNaturalIdValueSource.UPDATE
+		);
+	}
+
+	private Object[] determinePreviousNaturalIdValues(
+			EntityPersister persister,
+			Object[] previousState,
+			SessionImplementor session,
+			Serializable id) {
+		if ( ! persister.hasNaturalIdentifier() ) {
+			return null;
+		}
+
+		if ( previousState != null ) {
+			return session.getPersistenceContext().getNaturalIdHelper().extractNaturalIdValues( previousState, persister );
+		}
+
+		return session.getPersistenceContext().getNaturalIdSnapshot( id, persister );
 	}
 
 	@Override
@@ -158,14 +185,7 @@ public final class EntityUpdateAction extends EntityAction {
 			}
 			else {
 				//TODO: inefficient if that cache is just going to ignore the updated state!
-				CacheEntry ce = new CacheEntry(
-						state, 
-						persister, 
-						persister.hasUninitializedLazyProperties( instance ),
-						nextVersion,
-						getSession(),
-						instance
-				);
+				CacheEntry ce = persister.buildCacheEntry( instance,state, nextVersion, getSession() );
 				cacheEntry = persister.getCacheEntryStructure().structure( ce );
 				boolean put = persister.getCacheAccessStrategy().update( ck, cacheEntry, nextVersion, previousVersion );
 				if ( put && factory.getStatistics().isStatisticsEnabled() ) {
@@ -173,6 +193,14 @@ public final class EntityUpdateAction extends EntityAction {
 				}
 			}
 		}
+
+		session.getPersistenceContext().getNaturalIdHelper().manageSharedNaturalIdCrossReference(
+				persister,
+				id,
+				state,
+				previousNaturalIdValues,
+				CachedNaturalIdValueSource.UPDATE
+		);
 
 		postUpdate();
 
@@ -242,7 +270,14 @@ public final class EntityUpdateAction extends EntityAction {
 
 	@Override
 	protected boolean hasPostCommitEventListeners() {
-		return ! listenerGroup( EventType.POST_COMMIT_UPDATE ).isEmpty();
+		final EventListenerGroup<PostUpdateEventListener> group = listenerGroup( EventType.POST_COMMIT_UPDATE );
+		for ( PostUpdateEventListener listener : group.listeners() ) {
+			if ( listener.requiresPostCommitHanding( getPersister() ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	@Override

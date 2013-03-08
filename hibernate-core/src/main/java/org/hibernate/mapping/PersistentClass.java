@@ -29,11 +29,13 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.StringTokenizer;
+
 import org.hibernate.EntityMode;
 import org.hibernate.MappingException;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 import org.hibernate.engine.spi.Mapping;
+import org.hibernate.internal.FilterConfiguration;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.EmptyIterator;
@@ -75,7 +77,7 @@ public abstract class PersistentClass implements Serializable, Filterable, MetaA
 	private java.util.Map metaAttributes;
 	private ArrayList joins = new ArrayList();
 	private final ArrayList subclassJoins = new ArrayList();
-	private final java.util.Map filters = new HashMap();
+	private final java.util.List filters = new ArrayList();
 	protected final java.util.Set synchronizedTables = new HashSet();
 	private String loaderName;
 	private Boolean isAbstract;
@@ -247,6 +249,7 @@ public abstract class PersistentClass implements Serializable, Filterable, MetaA
 	public abstract boolean isInherited();
 	public abstract boolean isPolymorphic();
 	public abstract boolean isVersioned();
+	public abstract String getNaturalIdCacheRegionName();
 	public abstract String getCacheConcurrencyStrategy();
 	public abstract PersistentClass getSuperclass();
 	public abstract boolean isExplicitPolymorphism();
@@ -633,11 +636,11 @@ public abstract class PersistentClass implements Serializable, Filterable, MetaA
 		return deleteCheckStyle;
 	}
 
-	public void addFilter(String name, String condition) {
-		filters.put(name, condition);
+	public void addFilter(String name, String condition, boolean autoAliasInjection, java.util.Map<String,String> aliasTableMap, java.util.Map<String,String> aliasEntityMap) {
+		filters.add(new FilterConfiguration(name, condition, autoAliasInjection, aliasTableMap, aliasEntityMap,  this));
 	}
 
-	public java.util.Map getFilterMap() {
+	public java.util.List getFilters() {
 		return filters;
 	}
 
@@ -765,14 +768,14 @@ public abstract class PersistentClass implements Serializable, Filterable, MetaA
 	}
 
 	public void prepareTemporaryTables(Mapping mapping, Dialect dialect) {
+		temporaryIdTableName = dialect.generateTemporaryTableName( getTable().getName() );
 		if ( dialect.supportsTemporaryTables() ) {
-			temporaryIdTableName = dialect.generateTemporaryTableName( getTable().getName() );
 			Table table = new Table();
 			table.setName( temporaryIdTableName );
 			Iterator itr = getTable().getPrimaryKey().getColumnIterator();
 			while( itr.hasNext() ) {
 				Column column = (Column) itr.next();
-				table.addColumn( (Column) column.clone()  );
+				table.addColumn( column.clone()  );
 			}
 			temporaryIdTableDDL = table.sqlTemporaryTableCreateString( dialect, mapping );
 		}

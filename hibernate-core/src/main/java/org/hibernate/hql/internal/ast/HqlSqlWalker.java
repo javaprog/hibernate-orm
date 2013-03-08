@@ -35,13 +35,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import antlr.ASTFactory;
+import antlr.RecognitionException;
+import antlr.SemanticException;
+import antlr.collections.AST;
+import org.jboss.logging.Logger;
+
 import org.hibernate.HibernateException;
-import org.hibernate.engine.spi.SessionFactoryImplementor;
-import org.hibernate.hql.spi.QueryTranslator;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.QueryException;
 import org.hibernate.engine.internal.JoinSequence;
 import org.hibernate.engine.internal.ParameterBinder;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.hql.internal.antlr.HqlSqlBaseWalker;
 import org.hibernate.hql.internal.antlr.HqlSqlTokenTypes;
 import org.hibernate.hql.internal.antlr.HqlTokenTypes;
@@ -79,9 +84,10 @@ import org.hibernate.hql.internal.ast.util.LiteralProcessor;
 import org.hibernate.hql.internal.ast.util.NodeTraverser;
 import org.hibernate.hql.internal.ast.util.SessionFactoryHelper;
 import org.hibernate.hql.internal.ast.util.SyntheticAndFactory;
+import org.hibernate.hql.spi.QueryTranslator;
+import org.hibernate.id.BulkInsertionCapableIdentifierGenerator;
 import org.hibernate.id.IdentifierGenerator;
-import org.hibernate.id.PostInsertIdentifierGenerator;
-import org.hibernate.id.SequenceGenerator;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.param.CollectionFilterKeyParameterSpecification;
@@ -98,11 +104,6 @@ import org.hibernate.type.DbTimestampType;
 import org.hibernate.type.Type;
 import org.hibernate.type.VersionType;
 import org.hibernate.usertype.UserVersionType;
-import org.jboss.logging.Logger;
-import antlr.ASTFactory;
-import antlr.RecognitionException;
-import antlr.SemanticException;
-import antlr.collections.AST;
 
 /**
  * Implements methods used by the HQL->SQL tree transform grammar (a.k.a. the second phase).
@@ -136,7 +137,7 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 	 * Maps each top-level result variable to its SelectExpression;
 	 * (excludes result variables defined in subqueries)
 	 **/
-	private Map<String, SelectExpression> selectExpressionsByResultVariable = new HashMap();
+	private Map<String, SelectExpression> selectExpressionsByResultVariable = new HashMap<String, SelectExpression>();
 
 	private Set querySpaces = new HashSet();
 
@@ -185,12 +186,12 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 	private int traceDepth = 0;
 
 	@Override
-    public void traceIn(String ruleName, AST tree) {
-        if (!LOG.isTraceEnabled()) return;
-        if (inputState.guessing > 0) return;
-		String prefix = StringHelper.repeat( '-', (traceDepth++ * 2) ) + "-> ";
-		String traceText = ruleName + " (" + buildTraceNodeName(tree) + ")";
-        LOG.trace(prefix + traceText);
+	public void traceIn(String ruleName, AST tree) {
+		if ( !LOG.isTraceEnabled() ) return;
+		if ( inputState.guessing > 0 ) return;
+		String prefix = StringHelper.repeat( '-', ( traceDepth++ * 2 ) ) + "-> ";
+		String traceText = ruleName + " (" + buildTraceNodeName( tree ) + ")";
+		LOG.trace( prefix + traceText );
 	}
 
 	private String buildTraceNodeName(AST tree) {
@@ -200,13 +201,12 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 	}
 
 	@Override
-    public void traceOut(String ruleName, AST tree) {
-        if (!LOG.isTraceEnabled()) return;
-        if (inputState.guessing > 0) return;
-		String prefix = "<-" + StringHelper.repeat( '-', (--traceDepth * 2) ) + " ";
-        LOG.trace(prefix + ruleName);
+	public void traceOut(String ruleName, AST tree) {
+		if ( !LOG.isTraceEnabled() ) return;
+		if ( inputState.guessing > 0 ) return;
+		String prefix = "<-" + StringHelper.repeat( '-', ( --traceDepth * 2 ) ) + " ";
+		LOG.trace( prefix + ruleName );
 	}
-
 
 	@Override
     protected void prepareFromClauseInputTree(AST fromClauseInput) {
@@ -251,7 +251,7 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 				ASTUtil.createSibling( inputAstFactory, HqlTokenTypes.ALIAS, "this", fromElement );
 				fromClauseInput.addChild( fromElement );
 				// Show the modified AST.
-                LOG.debugf("prepareFromClauseInputTree() : Filter - Added 'this' as a from element...");
+                LOG.debug("prepareFromClauseInputTree() : Filter - Added 'this' as a from element...");
 				queryTranslatorImpl.showHqlAst( hqlParser.getAST() );
 
 				// Create a parameter specification for the collection filter...
@@ -348,7 +348,7 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 		join.addCondition( fkTableAlias, keyColumnNames, " = ?" );
 		fromElement.setJoinSequence( join );
 		fromElement.setFilter( true );
-        LOG.debugf("createFromFilterElement() : processed filter FROM element.");
+        LOG.debug("createFromFilterElement() : processed filter FROM element.");
 		return fromElement;
 	}
 
@@ -492,8 +492,8 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 		private void applyParameterSpecifications(ParameterContainer parameterContainer) {
 			if ( parameterContainer.hasEmbeddedParameters() ) {
 				ParameterSpecification[] specs = parameterContainer.getEmbeddedParameters();
-				for ( int i = 0; i < specs.length; i++ ) {
-					applyParameterSpecification( specs[i] );
+				for ( ParameterSpecification spec : specs ) {
+					applyParameterSpecification( spec );
 				}
 			}
 		}
@@ -590,7 +590,7 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 		if ( fromElements.size() == 1 ) {
 			final FromElement fromElement = ( FromElement ) fromElements.get( 0 );
 			try {
-                LOG.trace("Attempting to resolve property [" + identText + "] as a non-qualified ref");
+				LOG.tracev( "Attempting to resolve property [{0}] as a non-qualified ref", identText );
 				return fromElement.getPropertyMapping( identText ).toType( identText ) != null;
 			}
 			catch( QueryException e ) {
@@ -602,7 +602,7 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 	}
 
 	@Override
-    protected AST lookupNonQualifiedProperty(AST property) throws SemanticException {
+	protected AST lookupNonQualifiedProperty(AST property) throws SemanticException {
 		final FromElement fromElement = ( FromElement ) currentFromClause.getExplicitFromElements().get( 0 );
 		AST syntheticDotNode = generateSyntheticDotNodeForNonQualifiedPropertyRef( property, fromElement );
 		return lookupProperty( syntheticDotNode, false, getCurrentClauseType() == HqlSqlTokenTypes.SELECT );
@@ -624,8 +624,10 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 	}
 
 	@Override
-    protected void processQuery(AST select, AST query) throws SemanticException {
-        LOG.debugf("processQuery() : %s", query.toStringTree());
+	protected void processQuery(AST select, AST query) throws SemanticException {
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "processQuery() : %s", query.toStringTree() );
+		}
 
 		try {
 			QueryNode qn = ( QueryNode ) query;
@@ -721,11 +723,6 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 		postProcessDML( ( DeleteStatement ) delete );
 	}
 
-	public static boolean supportsIdGenWithBulkInsertion(IdentifierGenerator generator) {
-		return SequenceGenerator.class.isAssignableFrom( generator.getClass() )
-		        || PostInsertIdentifierGenerator.class.isAssignableFrom( generator.getClass() );
-	}
-
 	@Override
     protected void postProcessInsert(AST insert) throws SemanticException, QueryException {
 		InsertStatement insertStatement = ( InsertStatement ) insert;
@@ -735,37 +732,37 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 		Queryable persister = insertStatement.getIntoClause().getQueryable();
 
 		if ( !insertStatement.getIntoClause().isExplicitIdInsertion() ) {
-			// We need to generate ids as part of this bulk insert.
-			//
-			// Note that this is only supported for sequence-style generators and
-			// post-insert-style generators; basically, only in-db generators
-			IdentifierGenerator generator = persister.getIdentifierGenerator();
-			if ( !supportsIdGenWithBulkInsertion( generator ) ) {
-				throw new QueryException( "can only generate ids as part of bulk insert with either sequence or post-insert style generators" );
+			// the insert did not explicitly reference the id.  See if
+			//		1) that is allowed
+			//		2) whether we need to alter the SQL tree to account for id
+			final IdentifierGenerator generator = persister.getIdentifierGenerator();
+			if ( !BulkInsertionCapableIdentifierGenerator.class.isInstance( generator ) ) {
+				throw new QueryException(
+						"Invalid identifier generator encountered for implicit id handling as part of bulk insertions"
+				);
+			}
+			final BulkInsertionCapableIdentifierGenerator capableGenerator =
+					BulkInsertionCapableIdentifierGenerator.class.cast( generator );
+			if ( ! capableGenerator.supportsBulkInsertionIdentifierGeneration() ) {
+				throw new QueryException(
+						"Identifier generator reported it does not support implicit id handling as part of bulk insertions"
+				);
 			}
 
-			AST idSelectExprNode = null;
-
-			if ( SequenceGenerator.class.isAssignableFrom( generator.getClass() ) ) {
-				String seqName = ( String ) ( ( SequenceGenerator ) generator ).generatorKey();
-				String nextval = sessionFactoryHelper.getFactory().getDialect().getSelectSequenceNextValString( seqName );
-				idSelectExprNode = getASTFactory().create( HqlSqlTokenTypes.SQL_TOKEN, nextval );
-			}
-			else {
-				//Don't need this, because we should never ever be selecting no columns in an insert ... select...
-				//and because it causes a bug on DB2
-				/*String idInsertString = sessionFactoryHelper.getFactory().getDialect().getIdentityInsertString();
-				if ( idInsertString != null ) {
-					idSelectExprNode = getASTFactory().create( HqlSqlTokenTypes.SQL_TOKEN, idInsertString );
-				}*/
-			}
-
-			if ( idSelectExprNode != null ) {
-				AST currentFirstSelectExprNode = selectClause.getFirstChild();
-				selectClause.setFirstChild( idSelectExprNode );
-				idSelectExprNode.setNextSibling( currentFirstSelectExprNode );
-
-				insertStatement.getIntoClause().prependIdColumnSpec();
+            final String fragment = capableGenerator.determineBulkInsertionIdentifierGenerationSelectFragment(
+					sessionFactoryHelper.getFactory().getDialect()
+			);
+			if ( fragment != null ) {
+                // we got a fragment from the generator, so alter the sql tree...
+                //
+                // first, wrap the fragment as a node
+                AST fragmentNode = getASTFactory().create( HqlSqlTokenTypes.SQL_TOKEN, fragment );
+                // next, rearrange the SQL tree to add the fragment node as the first select expression
+                AST originalFirstSelectExprNode = selectClause.getFirstChild();
+                selectClause.setFirstChild( fragmentNode );
+                fragmentNode.setNextSibling( originalFirstSelectExprNode );
+                // finally, prepend the id column name(s) to the insert-spec
+                insertStatement.getIntoClause().prependIdColumnSpec();
 			}
 		}
 
@@ -869,7 +866,7 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 		select.setNextSibling( sibling );
 		selectClause = ( SelectClause ) select;
 		selectClause.initializeDerivedSelectClause( currentFromClause );
-        LOG.debugf("Derived SELECT clause created.");
+		LOG.debug( "Derived SELECT clause created." );
 	}
 
 	@Override
@@ -929,6 +926,12 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 		if ( namedParameters.size() > 0 ) {
 			throw new SemanticException( "cannot define positional parameter after any named parameters have been defined" );
 		}
+		LOG.warnf(
+				"[DEPRECATION] Encountered positional parameter near line %s, column %s.  Positional parameter " +
+						"are considered deprecated; use named parameters or JPA-style positional parameters instead.",
+				inputNode.getLine(),
+				inputNode.getColumn()
+		);
 		ParameterNode parameter = ( ParameterNode ) astFactory.create( PARAM, "?" );
 		PositionalParameterSpecification paramSpec = new PositionalParameterSpecification(
 				inputNode.getLine(),
@@ -1061,7 +1064,7 @@ public class HqlSqlWalker extends HqlSqlBaseWalker implements ErrorReporter, Par
 			throw qe;
 		}
 		if ( o instanceof Integer ) {
-			return new int[]{( ( Integer ) o ).intValue()};
+			return new int[]{ (Integer) o };
 		}
 		else {
 			return ArrayHelper.toIntArray( (ArrayList) o );

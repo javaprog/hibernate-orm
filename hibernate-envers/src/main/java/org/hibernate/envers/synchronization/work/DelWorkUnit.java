@@ -25,16 +25,20 @@ package org.hibernate.envers.synchronization.work;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
+
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.configuration.AuditConfiguration;
+import org.hibernate.envers.tools.Tools;
 import org.hibernate.persister.entity.EntityPersister;
 
 /**
  * @author Adam Warski (adam at warski dot org)
+ * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 public class DelWorkUnit extends AbstractAuditWorkUnit implements AuditWorkUnit {
     private final Object[] state;
+    private final EntityPersister entityPersister;
     private final String[] propertyNames;
 
     public DelWorkUnit(SessionImplementor sessionImplementor, String entityName, AuditConfiguration verCfg,
@@ -42,6 +46,7 @@ public class DelWorkUnit extends AbstractAuditWorkUnit implements AuditWorkUnit 
         super(sessionImplementor, entityName, verCfg, id, RevisionType.DEL);
 
         this.state = state;
+        this.entityPersister = entityPersister;
         this.propertyNames = entityPersister.getPropertyNames();
     }
 
@@ -56,13 +61,19 @@ public class DelWorkUnit extends AbstractAuditWorkUnit implements AuditWorkUnit 
 		if (verCfg.getGlobalCfg().isStoreDataAtDelete()) {
 			verCfg.getEntCfg().get(getEntityName()).getPropertyMapper().map(sessionImplementor, data,
 					propertyNames, state, state);
+		} else {
+			verCfg.getEntCfg().get(getEntityName()).getPropertyMapper().map(sessionImplementor, data,
+					propertyNames, null, state);
 		}
 
         return data;
     }
 
     public AuditWorkUnit merge(AddWorkUnit second) {
-        return null;
+        if (Tools.arraysEqual(second.getState(), state)) {
+            return null; // Return null if object's state has not changed.
+        }
+        return new ModWorkUnit(sessionImplementor, entityName, verCfg, id, entityPersister, second.getState(), state); 
     }
 
     public AuditWorkUnit merge(ModWorkUnit second) {

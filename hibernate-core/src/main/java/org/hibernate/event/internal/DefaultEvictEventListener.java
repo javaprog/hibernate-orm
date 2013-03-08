@@ -29,7 +29,7 @@ import org.jboss.logging.Logger;
 
 import org.hibernate.HibernateException;
 import org.hibernate.engine.internal.Cascade;
-import org.hibernate.engine.spi.CascadingAction;
+import org.hibernate.engine.spi.CascadingActions;
 import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.EntityKey;
 import org.hibernate.engine.spi.PersistenceContext;
@@ -62,25 +62,29 @@ public class DefaultEvictEventListener implements EvictEventListener {
 	 * @throws HibernateException
 	 */
 	public void onEvict(EvictEvent event) throws HibernateException {
-		EventSource source = event.getSession();
 		final Object object = event.getObject();
+		if ( object == null ) {
+			throw new NullPointerException( "null passed to Session.evict()" );
+		}
+
+		final EventSource source = event.getSession();
 		final PersistenceContext persistenceContext = source.getPersistenceContext();
 
 		if ( object instanceof HibernateProxy ) {
-			LazyInitializer li = ( (HibernateProxy) object ).getHibernateLazyInitializer();
-			Serializable id = li.getIdentifier();
-			EntityPersister persister = source.getFactory().getEntityPersister( li.getEntityName() );
+			final LazyInitializer li = ( (HibernateProxy) object ).getHibernateLazyInitializer();
+			final Serializable id = li.getIdentifier();
 			if ( id == null ) {
-				throw new IllegalArgumentException("null identifier");
+				throw new IllegalArgumentException( "Could not determine identifier of proxy passed to evict()" );
 			}
 
+			final EntityPersister persister = source.getFactory().getEntityPersister( li.getEntityName() );
 			final EntityKey key = source.generateEntityKey( id, persister );
 			persistenceContext.removeProxy( key );
 
 			if ( !li.isUninitialized() ) {
 				final Object entity = persistenceContext.removeEntity( key );
 				if ( entity != null ) {
-					EntityEntry e = event.getSession().getPersistenceContext().removeEntry( entity );
+					EntityEntry e = persistenceContext.removeEntry( entity );
 					doEvict( entity, key, e.getPersister(), event.getSession() );
 				}
 			}
@@ -92,6 +96,23 @@ public class DefaultEvictEventListener implements EvictEventListener {
 				persistenceContext.removeEntity( e.getEntityKey() );
 				doEvict( object, e.getEntityKey(), e.getPersister(), source );
 			}
+			else {
+				// see if the passed object is even an entity, and if not throw an exception
+				// 		this is different than legacy Hibernate behavior, but what JPA 2.1 is calling for
+				//		with EntityManager.detach
+				EntityPersister persister = null;
+				final String entityName = persistenceContext.getSession().guessEntityName( object );
+				if ( entityName != null ) {
+					try {
+						persister = persistenceContext.getSession().getFactory().getEntityPersister( entityName );
+					}
+					catch (Exception ignore) {
+					}
+				}
+				if ( persister == null ) {
+					throw new IllegalArgumentException( "Non-entity object instance passed to evict : " + object );
+				}
+			}
 		}
 	}
 
@@ -102,7 +123,13 @@ public class DefaultEvictEventListener implements EvictEventListener {
 		final EventSource session)
 	throws HibernateException {
 
-        if (LOG.isTraceEnabled()) LOG.trace("Evicting " + MessageHelper.infoString(persister));
+		if ( LOG.isTraceEnabled() ) {
+			LOG.tracev( "Evicting {0}", MessageHelper.infoString( persister ) );
+		}
+
+		if ( persister.hasNaturalIdentifier() ) {
+			session.getPersistenceContext().getNaturalIdHelper().handleEviction( object, persister, key.getIdentifier() );
+		}
 
 		// remove all collections for the entity from the session-level cache
 		if ( persister.hasCollections() ) {
@@ -115,7 +142,7 @@ public class DefaultEvictEventListener implements EvictEventListener {
 		// This is now handled by removeEntity()
 		//session.getPersistenceContext().removeDatabaseSnapshot(key);
 
-		new Cascade( CascadingAction.EVICT, Cascade.AFTER_EVICT, session )
+		new Cascade( CascadingActions.EVICT, Cascade.AFTER_EVICT, session )
 				.cascade( persister, object );
 	}
 }

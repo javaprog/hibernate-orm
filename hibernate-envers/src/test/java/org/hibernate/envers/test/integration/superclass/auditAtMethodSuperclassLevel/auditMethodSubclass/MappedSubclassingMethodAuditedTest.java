@@ -23,16 +23,16 @@
  */
 package org.hibernate.envers.test.integration.superclass.auditAtMethodSuperclassLevel.auditMethodSubclass;
 
-import org.hibernate.ejb.Ejb3Configuration;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
 import org.hibernate.envers.exception.NotAuditedException;
-import org.hibernate.envers.test.AbstractEntityTest;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.integration.superclass.auditAtMethodSuperclassLevel.AuditedMethodMappedSuperclass;
 import org.hibernate.envers.test.integration.superclass.auditAtMethodSuperclassLevel.NotAuditedSubclassEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
 
 /**
  * @author Adam Warski (adam at warski dot org)
@@ -40,14 +40,17 @@ import java.util.Arrays;
  * @author Hern&aacut;n Chanfreau
  * 
  */
-public class MappedSubclassingMethodAuditedTest extends AbstractEntityTest {
+public class MappedSubclassingMethodAuditedTest extends BaseEnversJPAFunctionalTestCase {
 	private Integer id2_1;
 	private Integer id1_1;
 
-	public void configure(Ejb3Configuration cfg) {
-		cfg.addAnnotatedClass(AuditedMethodMappedSuperclass.class);
-		cfg.addAnnotatedClass(AuditedMethodSubclassEntity.class);
-		cfg.addAnnotatedClass(NotAuditedSubclassEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] {
+				AuditedMethodMappedSuperclass.class,
+				AuditedMethodSubclassEntity.class,
+				NotAuditedSubclassEntity.class
+		};
 	}
 
 	@Test

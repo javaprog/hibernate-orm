@@ -26,7 +26,6 @@ package org.hibernate.cache.spi;
 import java.io.Serializable;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.jboss.logging.Logger;
 
@@ -49,109 +48,98 @@ import org.hibernate.internal.CoreMessageLogger;
 public class UpdateTimestampsCache {
 
 	public static final String REGION_NAME = UpdateTimestampsCache.class.getName();
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                                UpdateTimestampsCache.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, UpdateTimestampsCache.class.getName() );
 
-	private ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
-	private final TimestampsRegion region;
 	private final SessionFactoryImplementor factory;
+	private final TimestampsRegion region;
 
 	public UpdateTimestampsCache(Settings settings, Properties props, final SessionFactoryImplementor factory) throws HibernateException {
 		this.factory = factory;
-		String prefix = settings.getCacheRegionPrefix();
-		String regionName = prefix == null ? REGION_NAME : prefix + '.' + REGION_NAME;
-        LOG.startingUpdateTimestampsCache(regionName);
+		final String prefix = settings.getCacheRegionPrefix();
+		final String regionName = prefix == null ? REGION_NAME : prefix + '.' + REGION_NAME;
+
+		LOG.startingUpdateTimestampsCache( regionName );
 		this.region = settings.getRegionFactory().buildTimestampsRegion( regionName, props );
 	}
 
-    public UpdateTimestampsCache(Settings settings, Properties props)
-            throws HibernateException {
-        this(settings, props, null);
+    @SuppressWarnings({"UnusedDeclaration"})
+    public UpdateTimestampsCache(Settings settings, Properties props) throws HibernateException {
+        this( settings, props, null );
     }
 
 	@SuppressWarnings({"UnnecessaryBoxing"})
 	public void preinvalidate(Serializable[] spaces) throws CacheException {
-		// TODO: to handle concurrent writes correctly, this should return a Lock to the client
+		final boolean debug = LOG.isDebugEnabled();
+		final boolean stats = factory != null && factory.getStatistics().isStatisticsEnabled();
 
-		readWriteLock.writeLock().lock();
+		final Long ts = region.nextTimestamp() + region.getTimeout();
 
-		try {
-			Long ts = new Long( region.nextTimestamp() + region.getTimeout() );
-			for ( Serializable space : spaces ) {
-	            LOG.debugf("Pre-invalidating space [%s]", space);
-				//put() has nowait semantics, is this really appropriate?
-				//note that it needs to be async replication, never local or sync
-				region.put( space, ts );
-				if ( factory != null && factory.getStatistics().isStatisticsEnabled() ) {
-					factory.getStatisticsImplementor().updateTimestampsCachePut();
-				}
+		for ( Serializable space : spaces ) {
+			if ( debug ) {
+				LOG.debugf( "Pre-invalidating space [%s], timestamp: %s", space, ts );
 			}
-			//TODO: return new Lock(ts);
-		}
-		finally {
-			readWriteLock.writeLock().unlock();
+			//put() has nowait semantics, is this really appropriate?
+			//note that it needs to be async replication, never local or sync
+			region.put( space, ts );
+			if ( stats ) {
+				factory.getStatisticsImplementor().updateTimestampsCachePut();
+			}
 		}
 	}
 
-	 @SuppressWarnings({"UnnecessaryBoxing"})
+	@SuppressWarnings({"UnnecessaryBoxing"})
 	public void invalidate(Serializable[] spaces) throws CacheException {
-		//TODO: to handle concurrent writes correctly, the client should pass in a Lock
+		 final boolean debug = LOG.isDebugEnabled();
+		 final boolean stats = factory != null && factory.getStatistics().isStatisticsEnabled();
 
-		readWriteLock.writeLock().lock();
+		 final Long ts = region.nextTimestamp();
 
-		try {
-			Long ts = new Long( region.nextTimestamp() );
-			//TODO: if lock.getTimestamp().equals(ts)
-			for (Serializable space : spaces) {
-		        LOG.debugf("Invalidating space [%s], timestamp: %s", space, ts);
-		        //put() has nowait semantics, is this really appropriate?
-				//note that it needs to be async replication, never local or sync
-				region.put( space, ts );
-				if ( factory != null && factory.getStatistics().isStatisticsEnabled() ) {
-					factory.getStatisticsImplementor().updateTimestampsCachePut();
-				}
+		for (Serializable space : spaces) {
+			if ( debug ) {
+				LOG.debugf( "Invalidating space [%s], timestamp: %s", space, ts );
 			}
-		}
-		finally {
-		    readWriteLock.writeLock().unlock();
+			//put() has nowait semantics, is this really appropriate?
+			//note that it needs to be async replication, never local or sync
+			region.put( space, ts );
+			if ( stats ) {
+				factory.getStatisticsImplementor().updateTimestampsCachePut();
+			}
 		}
 	}
 
 	@SuppressWarnings({"unchecked", "UnnecessaryUnboxing"})
 	public boolean isUpToDate(Set spaces, Long timestamp) throws HibernateException {
-		readWriteLock.readLock().lock();
+		final boolean debug = LOG.isDebugEnabled();
+		final boolean stats = factory != null && factory.getStatistics().isStatisticsEnabled();
 
-		try {
-			for ( Serializable space : (Set<Serializable>) spaces ) {
-				Long lastUpdate = (Long) region.get( space );
-				if ( lastUpdate == null ) {
-					if ( factory != null && factory.getStatistics().isStatisticsEnabled() ) {
-						factory.getStatisticsImplementor().updateTimestampsCacheMiss();
-					}
-					//the last update timestamp was lost from the cache
-					//(or there were no updates since startup!)
-					//updateTimestamps.put( space, new Long( updateTimestamps.nextTimestamp() ) );
-					//result = false; // safer
+		for ( Serializable space : (Set<Serializable>) spaces ) {
+			Long lastUpdate = (Long) region.get( space );
+			if ( lastUpdate == null ) {
+				if ( stats ) {
+					factory.getStatisticsImplementor().updateTimestampsCacheMiss();
 				}
-				else {
-                    if ( LOG.isDebugEnabled() ) {
-                        LOG.debugf(
-                                "[%s] last update timestamp: %s",
-                                space,
-                                lastUpdate + ", result set timestamp: " + timestamp
-                        );
-                    }
-					if ( factory != null && factory.getStatistics().isStatisticsEnabled() ) {
-						factory.getStatisticsImplementor().updateTimestampsCacheHit();
-					}
-					if ( lastUpdate.longValue() >= timestamp.longValue() ) return false;
+				//the last update timestamp was lost from the cache
+				//(or there were no updates since startup!)
+				//updateTimestamps.put( space, new Long( updateTimestamps.nextTimestamp() ) );
+				//result = false; // safer
+			}
+			else {
+				if ( debug ) {
+					LOG.debugf(
+							"[%s] last update timestamp: %s",
+							space,
+							lastUpdate + ", result set timestamp: " + timestamp
+					);
+				}
+				if ( stats ) {
+					factory.getStatisticsImplementor().updateTimestampsCacheHit();
+				}
+				if ( lastUpdate >= timestamp ) {
+					return false;
 				}
 			}
-			return true;
 		}
-		finally {
-			readWriteLock.readLock().unlock();
-		}
+		return true;
 	}
 
 	public void clear() throws CacheException {
@@ -163,7 +151,7 @@ public class UpdateTimestampsCache {
 			region.destroy();
 		}
 		catch (Exception e) {
-            LOG.unableToDestroyUpdateTimestampsCache(region.getName(), e.getMessage());
+			LOG.unableToDestroyUpdateTimestampsCache( region.getName(), e.getMessage() );
 		}
 	}
 
@@ -173,7 +161,7 @@ public class UpdateTimestampsCache {
 
 	@Override
     public String toString() {
-        return "UpdateTimestampsCache";
+		return "UpdateTimestampsCache";
 	}
 
 }

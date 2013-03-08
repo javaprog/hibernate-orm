@@ -24,13 +24,17 @@
  */
 package org.hibernate.hql.internal.ast.tree;
 
-import org.hibernate.engine.internal.JoinSequence;
-import org.hibernate.internal.CoreMessageLogger;
+import antlr.SemanticException;
+import antlr.collections.AST;
+import org.jboss.logging.Logger;
+
 import org.hibernate.QueryException;
+import org.hibernate.engine.internal.JoinSequence;
 import org.hibernate.hql.internal.CollectionProperties;
 import org.hibernate.hql.internal.antlr.SqlTokenTypes;
 import org.hibernate.hql.internal.ast.util.ASTUtil;
 import org.hibernate.hql.internal.ast.util.ColumnHelper;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.persister.collection.QueryableCollection;
 import org.hibernate.persister.entity.EntityPersister;
@@ -39,9 +43,6 @@ import org.hibernate.sql.JoinType;
 import org.hibernate.type.CollectionType;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
-import antlr.SemanticException;
-import antlr.collections.AST;
 
 /**
  * Represents a reference to a property or alias expression.  This should duplicate the relevant behaviors in
@@ -304,7 +305,7 @@ public class DotNode extends FromReferenceNode implements DisplayableNode, Selec
 		);
 		FromElement elem = factory.createCollection( queryableCollection, role, joinType, fetch, indexed );
 
-        LOG.debugf("dereferenceCollection() : Created new FROM element for %s : %s", propName, elem);
+		LOG.debugf( "dereferenceCollection() : Created new FROM element for %s : %s", propName, elem );
 
 		setImpliedJoin( elem );
 		setFromElement( elem );	// This 'dot' expression now refers to the resulting from element.
@@ -534,7 +535,9 @@ public class DotNode extends FromReferenceNode implements DisplayableNode, Selec
 	}
 
 	private void checkForCorrelatedSubquery(String methodName) {
-        if (isCorrelatedSubselect()) LOG.debugf("%s() : correlated subquery", methodName);
+		if ( isCorrelatedSubselect() ) {
+			LOG.debugf( "%s() : correlated subquery", methodName );
+		}
 	}
 
 	private boolean isCorrelatedSubselect() {
@@ -555,9 +558,11 @@ public class DotNode extends FromReferenceNode implements DisplayableNode, Selec
 	private void dereferenceEntityIdentifier(String propertyName, DotNode dotParent) {
 		// special shortcut for id properties, skip the join!
 		// this must only occur at the _end_ of a path expression
-        LOG.debugf("dereferenceShortcut() : property %s in %s does not require a join.",
-                   propertyName,
-                   getFromElement().getClassName());
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "dereferenceShortcut() : property %s in %s does not require a join.",
+					propertyName,
+					getFromElement().getClassName() );
+		}
 
 		initText();
 		setPropertyNameAndPath( dotParent ); // Set the unresolved path in this node and the parent.
@@ -577,18 +582,21 @@ public class DotNode extends FromReferenceNode implements DisplayableNode, Selec
 			propertyName = rhs.getText();
 			propertyPath = propertyPath + "." + propertyName; // Append the new property name onto the unresolved path.
 			dotNode.propertyPath = propertyPath;
-            LOG.debugf("Unresolved property path is now '%s'", dotNode.propertyPath);
-        } else LOG.debugf("Terminal propertyPath = [%s]", propertyPath);
+			LOG.debugf( "Unresolved property path is now '%s'", dotNode.propertyPath );
+		}
+		else {
+			LOG.debugf( "Terminal propertyPath = [%s]", propertyPath );
+		}
 	}
 
 	@Override
     public Type getDataType() {
 		if ( super.getDataType() == null ) {
 			FromElement fromElement = getLhs().getFromElement();
-            if (fromElement == null) return null;
+			if ( fromElement == null ) return null;
 			// If the lhs is a collection, use CollectionPropertyMapping
 			Type propertyType = fromElement.getPropertyType( propertyName, propertyPath );
-            LOG.debugf("getDataType() : %s -> %s", propertyPath, propertyType);
+			LOG.debugf( "getDataType() : %s -> %s", propertyPath, propertyType );
 			super.setDataType( propertyType );
 		}
 		return super.getDataType();

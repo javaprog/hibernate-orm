@@ -31,14 +31,18 @@ import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
 import org.hibernate.MappingException;
+import org.hibernate.bytecode.spi.EntityInstrumentationMetadata;
 import org.hibernate.cache.spi.OptimisticCacheSource;
 import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
+import org.hibernate.cache.spi.access.NaturalIdRegionAccessStrategy;
+import org.hibernate.cache.spi.entry.CacheEntry;
 import org.hibernate.cache.spi.entry.CacheEntryStructure;
 import org.hibernate.engine.spi.CascadeStyle;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.engine.spi.ValueInclusion;
 import org.hibernate.id.IdentifierGenerator;
+import org.hibernate.internal.FilterAliasGenerator;
 import org.hibernate.metadata.ClassMetadata;
 import org.hibernate.tuple.entity.EntityMetamodel;
 import org.hibernate.tuple.entity.EntityTuplizer;
@@ -322,6 +326,12 @@ public interface EntityPersister extends OptimisticCacheSource {
 	public boolean hasLazyProperties();
 
 	/**
+	 * Load the id for the entity based on the natural id.
+	 */
+	public Serializable loadEntityIdByNaturalId(Object[] naturalIdValues, LockOptions lockOptions,
+			SessionImplementor session);
+
+	/**
 	 * Load an instance of the persistent class.
 	 */
 	public Object load(Serializable id, Object optionalObject, LockMode lockMode, SessionImplementor session)
@@ -467,6 +477,18 @@ public interface EntityPersister extends OptimisticCacheSource {
 	 */
 	public CacheEntryStructure getCacheEntryStructure();
 
+	public CacheEntry buildCacheEntry(Object entity, Object[] state, Object version, SessionImplementor session);
+
+	/**
+	 * Does this class have a natural id cache
+	 */
+	public boolean hasNaturalIdCache();
+	
+	/**
+	 * Get the NaturalId cache (optional operation)
+	 */
+	public NaturalIdRegionAccessStrategy getNaturalIdCacheAccessStrategy();
+
 	/**
 	 * Get the user-visible metadata for the class (optional operation)
 	 */
@@ -489,6 +511,8 @@ public interface EntityPersister extends OptimisticCacheSource {
 	 */
 	public Object[] getDatabaseSnapshot(Serializable id, SessionImplementor session)
 	throws HibernateException;
+
+	public Serializable getIdByUniqueKey(Serializable key, String uniquePropertyName, SessionImplementor session);
 
 	/**
 	 * Get the current version of the object, or return null if there is no row for
@@ -645,8 +669,8 @@ public interface EntityPersister extends OptimisticCacheSource {
 	 * Get the identifier of an instance (throw an exception if no identifier property)
 	 *
 	 * @deprecated Use {@link #getIdentifier(Object,SessionImplementor)} instead
-	 * @noinspection JavaDoc
 	 */
+	@SuppressWarnings( {"JavaDoc"})
 	public Serializable getIdentifier(Object object) throws HibernateException;
 
 	/**
@@ -727,4 +751,8 @@ public interface EntityPersister extends OptimisticCacheSource {
 
 	public EntityMode getEntityMode();
 	public EntityTuplizer getEntityTuplizer();
+
+	public EntityInstrumentationMetadata getInstrumentationMetadata();
+	
+	public FilterAliasGenerator getFilterAliasGenerator(final String rootAlias);
 }

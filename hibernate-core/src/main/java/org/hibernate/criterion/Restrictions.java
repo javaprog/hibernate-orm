@@ -27,6 +27,8 @@ package org.hibernate.criterion;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
+
+import org.hibernate.Session;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.type.Type;
 
@@ -57,18 +59,44 @@ public class Restrictions {
 	 * Apply an "equal" constraint to the named property
 	 * @param propertyName
 	 * @param value
-	 * @return Criterion
+	 * @return SimpleExpression
 	 */
 	public static SimpleExpression eq(String propertyName, Object value) {
+		return new SimpleExpression(propertyName, value, "=");
+	}
+	/**
+	 * Apply an "equal" constraint to the named property.  If the value
+	 * is null, instead apply "is null".
+	 * @param propertyName
+	 * @param value
+	 * @return Criterion
+	 */
+	public static Criterion eqOrIsNull(String propertyName, Object value) {
+		if (value == null) {
+			return isNull(propertyName);
+		}
 		return new SimpleExpression(propertyName, value, "=");
 	}
 	/**
 	 * Apply a "not equal" constraint to the named property
 	 * @param propertyName
 	 * @param value
-	 * @return Criterion
+	 * @return SimpleExpression
 	 */
 	public static SimpleExpression ne(String propertyName, Object value) {
+		return new SimpleExpression(propertyName, value, "<>");
+	}
+	/**
+	 * Apply a "not equal" constraint to the named property.  If the value
+	 * is null, instead apply "is not null".
+	 * @param propertyName
+	 * @param value
+	 * @return Criterion
+	 */
+	public static Criterion neOrIsNotNull(String propertyName, Object value) {
+		if (value == null) {
+			return isNotNull(propertyName);
+		}
 		return new SimpleExpression(propertyName, value, "<>");
 	}
 	/**
@@ -89,6 +117,7 @@ public class Restrictions {
 	public static SimpleExpression like(String propertyName, String value, MatchMode matchMode) {
 		return new SimpleExpression(propertyName, matchMode.toMatchString(value), " like " );
 	}
+
 	/**
 	 * A case-insensitive "like", similar to Postgres <tt>ilike</tt>
 	 * operator
@@ -109,8 +138,12 @@ public class Restrictions {
 	 * @return Criterion
 	 */
 	public static Criterion ilike(String propertyName, Object value) {
-		return new LikeExpression(propertyName, value.toString());
+		if ( value == null ) {
+			throw new IllegalArgumentException( "Comparison value passed to ilike cannot be null" );
+		}
+		return ilike( propertyName, value.toString(), MatchMode.EXACT );
 	}
+
 	/**
 	 * Apply a "greater than" constraint to the named property
 	 * @param propertyName
@@ -236,6 +269,22 @@ public class Restrictions {
 		return new LogicalExpression(lhs, rhs, "and");
 	}
 	/**
+	 * Return the conjuction of multiple expressions
+	 *
+	 * @param predicates The predicates making up the initial junction
+	 *
+	 * @return The conjunction
+	 */
+	public static Conjunction and(Criterion... predicates) {
+		Conjunction conjunction = conjunction();
+		if ( predicates != null ) {
+			for ( Criterion predicate : predicates ) {
+				conjunction.add( predicate );
+			}
+		}
+		return conjunction;
+	}
+	/**
 	 * Return the disjuction of two expressions
 	 *
 	 * @param lhs
@@ -244,6 +293,22 @@ public class Restrictions {
 	 */
 	public static LogicalExpression or(Criterion lhs, Criterion rhs) {
 		return new LogicalExpression(lhs, rhs, "or");
+	}
+	/**
+	 * Return the disjuction of multiple expressions
+	 *
+	 * @param predicates The predicates making up the initial junction
+	 *
+	 * @return The conjunction
+	 */
+	public static Disjunction or(Criterion... predicates) {
+		Disjunction disjunction = disjunction();
+		if ( predicates != null ) {
+			for ( Criterion predicate : predicates ) {
+				disjunction.add( predicate );
+			}
+		}
+		return disjunction;
 	}
 	/**
 	 * Return the negation of an expression
@@ -382,6 +447,15 @@ public class Restrictions {
 		return new SizeExpression(propertyName, size, ">=");
 	}
 
+	/**
+	 * Consider using any of the natural id based loading stuff from session instead, especially in cases
+	 * where the restriction is the full set of natural id values.
+	 *
+	 * @see Session#byNaturalId(Class)
+	 * @see Session#byNaturalId(String)
+	 * @see Session#bySimpleNaturalId(Class)
+	 * @see Session#bySimpleNaturalId(String)
+	 */
 	public static NaturalIdentifier naturalId() {
 		return new NaturalIdentifier();
 	}

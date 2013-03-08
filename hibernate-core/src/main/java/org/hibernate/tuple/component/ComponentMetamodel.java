@@ -34,7 +34,6 @@ import org.hibernate.mapping.Component;
 import org.hibernate.mapping.Property;
 import org.hibernate.tuple.PropertyFactory;
 import org.hibernate.tuple.StandardProperty;
-import org.hibernate.tuple.Tuplizer;
 
 /**
  * Centralizes metamodel information about a component.
@@ -78,12 +77,10 @@ public class ComponentMetamodel implements Serializable {
 		// todo : move this to SF per HHH-3517; also see HHH-1907 and ComponentMetamodel
 		final ComponentTuplizerFactory componentTuplizerFactory = new ComponentTuplizerFactory();
 		final String tuplizerClassName = component.getTuplizerImplClassName( entityMode );
-		if ( tuplizerClassName == null ) {
-			componentTuplizer = componentTuplizerFactory.constructDefaultTuplizer( entityMode, component );
-		}
-		else {
-			componentTuplizer = componentTuplizerFactory.constructTuplizer( tuplizerClassName, component );
-		}
+		this.componentTuplizer = tuplizerClassName == null ? componentTuplizerFactory.constructDefaultTuplizer(
+				entityMode,
+				component
+		) : componentTuplizerFactory.constructTuplizer( tuplizerClassName, component );
 	}
 
 	public boolean isKey() {
@@ -110,7 +107,7 @@ public class ComponentMetamodel implements Serializable {
 		if ( index == null ) {
 			throw new HibernateException( "component does not contain such a property [" + propertyName + "]" );
 		}
-		return index.intValue();
+		return index;
 	}
 
 	public StandardProperty getProperty(String propertyName) {

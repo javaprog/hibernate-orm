@@ -27,33 +27,38 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Iterator;
 import java.util.List;
+
+import antlr.RecognitionException;
+
 import org.hibernate.HibernateException;
+import org.hibernate.action.internal.BulkOperationCleanupAction;
 import org.hibernate.engine.spi.QueryParameters;
 import org.hibernate.engine.spi.RowSelection;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.event.spi.EventSource;
 import org.hibernate.hql.internal.ast.HqlSqlWalker;
 import org.hibernate.hql.internal.ast.QuerySyntaxException;
 import org.hibernate.hql.internal.ast.SqlGenerator;
 import org.hibernate.param.ParameterSpecification;
 import org.hibernate.persister.entity.Queryable;
-import antlr.RecognitionException;
 
 /**
  * Implementation of BasicExecutor.
  *
  * @author Steve Ebersole
  */
-public class BasicExecutor extends AbstractStatementExecutor {
-
+public class BasicExecutor implements StatementExecutor {
+	private final SessionFactoryImplementor factory;
 	private final Queryable persister;
 	private final String sql;
 	private final List parameterSpecifications;
 
 	public BasicExecutor(HqlSqlWalker walker, Queryable persister) {
-        super(walker, null);
+		this.factory = walker.getSessionFactoryHelper().getFactory();
 		this.persister = persister;
 		try {
-			SqlGenerator gen = new SqlGenerator( getFactory() );
+			SqlGenerator gen = new SqlGenerator( factory );
 			gen.statement( walker.getAST() );
 			sql = gen.getSQL();
 			gen.getParseErrorHandler().throwQueryException();
@@ -69,8 +74,13 @@ public class BasicExecutor extends AbstractStatementExecutor {
 	}
 
 	public int execute(QueryParameters parameters, SessionImplementor session) throws HibernateException {
-
-		coordinateSharedCacheCleanup( session );
+		BulkOperationCleanupAction action = new BulkOperationCleanupAction( session, persister );
+		if ( session.isEventSource() ) {
+			( (EventSource) session ).getActionQueue().addAction( action );
+		}
+		else {
+			action.getAfterTransactionCompletionProcess().doAfterTransactionCompletion( true, session );
+		}
 
 		PreparedStatement st = null;
 		RowSelection selection = parameters.getRowSelection();
@@ -86,29 +96,20 @@ public class BasicExecutor extends AbstractStatementExecutor {
 				}
 				if ( selection != null ) {
 					if ( selection.getTimeout() != null ) {
-						st.setQueryTimeout( selection.getTimeout().intValue() );
+						st.setQueryTimeout( selection.getTimeout() );
 					}
 				}
 
-				return st.executeUpdate();
+				return session.getTransactionCoordinator().getJdbcCoordinator().getResultSetReturn().executeUpdate( st );
 			}
 			finally {
 				if ( st != null ) {
-					st.close();
+					session.getTransactionCoordinator().getJdbcCoordinator().release( st );
 				}
 			}
 		}
 		catch( SQLException sqle ) {
-			throw getFactory().getSQLExceptionHelper().convert(
-			        sqle,
-			        "could not execute update query",
-			        sql
-				);
+			throw factory.getSQLExceptionHelper().convert( sqle, "could not execute update query", sql );
 		}
-	}
-
-	@Override
-    protected Queryable[] getAffectedQueryables() {
-		return new Queryable[] { persister };
 	}
 }

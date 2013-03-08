@@ -23,8 +23,8 @@
  */
 package org.hibernate.metamodel.relational;
 
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
 
 import org.hibernate.AssertionFailure;
 import org.hibernate.dialect.Dialect;
@@ -96,7 +96,7 @@ public abstract class AbstractConstraint implements Constraint {
 		}
 		else {
 			return new String[] {
-					new StringBuffer()
+					new StringBuilder()
 						.append( "alter table " )
 						.append( getTable().getQualifiedName( dialect ) )
 						.append( " drop constraint " )

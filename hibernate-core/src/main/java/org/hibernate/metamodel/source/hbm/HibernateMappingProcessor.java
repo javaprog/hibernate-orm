@@ -31,21 +31,21 @@ import java.util.Set;
 
 import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.internal.jaxb.Origin;
+import org.hibernate.internal.jaxb.mapping.hbm.JaxbFetchProfileElement;
+import org.hibernate.internal.jaxb.mapping.hbm.JaxbHibernateMapping;
+import org.hibernate.internal.jaxb.mapping.hbm.JaxbParamElement;
+import org.hibernate.internal.jaxb.mapping.hbm.JaxbQueryElement;
+import org.hibernate.internal.jaxb.mapping.hbm.JaxbSqlQueryElement;
 import org.hibernate.internal.util.StringHelper;
-import org.hibernate.internal.util.Value;
+import org.hibernate.internal.util.ValueHolder;
 import org.hibernate.metamodel.binding.FetchProfile;
 import org.hibernate.metamodel.binding.TypeDef;
 import org.hibernate.metamodel.relational.AuxiliaryDatabaseObject;
 import org.hibernate.metamodel.relational.BasicAuxiliaryDatabaseObjectImpl;
 import org.hibernate.metamodel.source.MappingException;
 import org.hibernate.metamodel.source.MetadataImplementor;
-import org.hibernate.internal.jaxb.mapping.hbm.JaxbFetchProfileElement;
-import org.hibernate.internal.jaxb.mapping.hbm.JaxbHibernateMapping;
-import org.hibernate.internal.jaxb.mapping.hbm.JaxbParamElement;
-import org.hibernate.internal.jaxb.mapping.hbm.JaxbQueryElement;
-import org.hibernate.internal.jaxb.mapping.hbm.JaxbSqlQueryElement;
-import org.hibernate.service.classloading.spi.ClassLoaderService;
-import org.hibernate.service.classloading.spi.ClassLoadingException;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
+import org.hibernate.boot.registry.classloading.spi.ClassLoadingException;
 import org.hibernate.type.Type;
 
 /**
@@ -59,8 +59,8 @@ public class HibernateMappingProcessor {
 	private final MetadataImplementor metadata;
 	private final MappingDocument mappingDocument;
 
-	private Value<ClassLoaderService> classLoaderService = new Value<ClassLoaderService>(
-			new Value.DeferredInitializer<ClassLoaderService>() {
+	private ValueHolder<ClassLoaderService> classLoaderService = new ValueHolder<ClassLoaderService>(
+			new ValueHolder.DeferredInitializer<ClassLoaderService>() {
 				@Override
 				public ClassLoaderService initialize() {
 					return metadata.getServiceRegistry().getService( ClassLoaderService.class );

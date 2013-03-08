@@ -27,6 +27,11 @@ import java.sql.Types;
 import java.util.Iterator;
 import java.util.Set;
 
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.metamodel.MetadataSources;
 import org.hibernate.metamodel.domain.BasicType;
 import org.hibernate.metamodel.domain.SingularAttribute;
@@ -36,16 +41,10 @@ import org.hibernate.metamodel.relational.SimpleValue;
 import org.hibernate.metamodel.source.MetadataImplementor;
 import org.hibernate.metamodel.source.internal.MetadataImpl;
 import org.hibernate.service.ServiceRegistry;
-import org.hibernate.service.ServiceRegistryBuilder;
-import org.hibernate.service.internal.StandardServiceRegistryImpl;
+import org.hibernate.boot.registry.internal.StandardServiceRegistryImpl;
+import org.hibernate.testing.junit4.BaseUnitTestCase;
 import org.hibernate.type.LongType;
 import org.hibernate.type.StringType;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import org.hibernate.testing.junit4.BaseUnitTestCase;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertFalse;
@@ -65,7 +64,7 @@ public abstract class AbstractBasicBindingTests extends BaseUnitTestCase {
 
 	@Before
 	public void setUp() {
-		serviceRegistry = (StandardServiceRegistryImpl) new ServiceRegistryBuilder().buildServiceRegistry();
+		serviceRegistry = (StandardServiceRegistryImpl) new StandardServiceRegistryBuilder().build();
 	}
 
 	@After

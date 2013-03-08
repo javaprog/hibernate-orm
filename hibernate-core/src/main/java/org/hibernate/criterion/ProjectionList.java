@@ -25,6 +25,7 @@
 package org.hibernate.criterion;
 import java.util.ArrayList;
 import java.util.List;
+
 import org.hibernate.Criteria;
 import org.hibernate.HibernateException;
 import org.hibernate.internal.util.collections.ArrayHelper;
@@ -64,7 +65,7 @@ public class ProjectionList implements EnhancedProjection {
 	
 	public String toSqlString(Criteria criteria, int loc, CriteriaQuery criteriaQuery) 
 	throws HibernateException {
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		for ( int i=0; i<getLength(); i++ ) {
 			Projection proj = getProjection(i);
 			buf.append( proj.toSqlString(criteria, loc, criteriaQuery) );
@@ -76,7 +77,7 @@ public class ProjectionList implements EnhancedProjection {
 	
 	public String toGroupSqlString(Criteria criteria, CriteriaQuery criteriaQuery) 
 	throws HibernateException {
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		for ( int i=0; i<getLength(); i++ ) {
 			Projection proj = getProjection(i);
 			if ( proj.isGrouped() ) {

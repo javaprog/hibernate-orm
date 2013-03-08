@@ -50,7 +50,6 @@ import org.hibernate.type.Type;
  * @author Gavin King
  */
 public final class QueryParameters {
-
     private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, QueryParameters.class.getName());
 
 	private Type[] positionalParameterTypes;
@@ -228,6 +227,7 @@ public final class QueryParameters {
 		this.optionalObject = optionalObject;
 	}
 
+	@SuppressWarnings( {"UnusedDeclaration"})
 	public boolean hasRowSelection() {
 		return rowSelection != null;
 	}
@@ -252,6 +252,7 @@ public final class QueryParameters {
 		return resultTransformer;
 	}
 
+	@SuppressWarnings( {"UnusedDeclaration"})
 	public void setNamedParameters(Map<String,TypedValue> map) {
 		namedParameters = map;
 	}
@@ -264,6 +265,7 @@ public final class QueryParameters {
 		positionalParameterValues = objects;
 	}
 
+	@SuppressWarnings( {"UnusedDeclaration"})
 	public void setRowSelection(RowSelection selection) {
 		rowSelection = selection;
 	}
@@ -278,9 +280,12 @@ public final class QueryParameters {
 
 	public void traceParameters(SessionFactoryImplementor factory) throws HibernateException {
 		EntityPrinter print = new EntityPrinter( factory );
-        if (positionalParameterValues.length != 0) LOG.trace("Parameters: "
-                                                             + print.toString(positionalParameterTypes, positionalParameterValues));
-        if (namedParameters != null) LOG.trace("Named parameters: " + print.toString(namedParameters));
+		if ( positionalParameterValues.length != 0 ) {
+			LOG.tracev( "Parameters: {0}", print.toString( positionalParameterTypes, positionalParameterValues ) );
+		}
+		if ( namedParameters != null ) {
+			LOG.tracev( "Named parameters: {0}", print.toString( namedParameters ) );
+		}
 	}
 
 	public boolean isCacheable() {
@@ -330,6 +335,7 @@ public final class QueryParameters {
 		return collectionKeys;
 	}
 
+	@SuppressWarnings( {"UnusedDeclaration"})
 	public void setCollectionKeys(Serializable[] collectionKeys) {
 		this.collectionKeys = collectionKeys;
 	}
@@ -395,10 +401,17 @@ public final class QueryParameters {
 	}
 
 	/**
-	 * Should entities and proxies loaded by the Query be put in read-only mode? If the
-	 * read-only/modifiable setting was not initialized
-	 * (i.e., QueryParameters#isReadOnlyInitialized() == false), then the default
-	 * read-only/modifiable setting for the persistence context is returned instead.
+	 * Should entities and proxies loaded by the Query be put in read-only mode?  If the
+	 * read-only/modifiable setting was not initialized (i.e., QueryParameters#isReadOnlyInitialized() == false),
+	 * then the default read-only/modifiable setting for the persistence context is returned instead.
+	 * <p/>
+	 * The read-only/modifiable setting has no impact on entities/proxies returned by the
+	 * query that existed in the session before the query was executed.
+	 *
+	 * @param session The originating session
+	 *
+	 * @return {@code true} indicates that entities and proxies loaded by the query will be put in read-only mode;
+	 * {@code false} indicates that entities and proxies loaded by the query will be put in modifiable mode
 	 *
 	 * @see QueryParameters#isReadOnlyInitialized()
 	 * @see QueryParameters#setReadOnly(boolean)
@@ -407,29 +420,26 @@ public final class QueryParameters {
 	 * The read-only/modifiable setting has no impact on entities/proxies returned by the
 	 * query that existed in the session before the query was executed.
 	 *
-	 * @return true, entities and proxies loaded by the query will be put in read-only mode
-	 *         false, entities and proxies loaded by the query will be put in modifiable mode
 	 */
 	public boolean isReadOnly(SessionImplementor session) {
-		return ( isReadOnlyInitialized ?
-				isReadOnly() :
-				session.getPersistenceContext().isDefaultReadOnly()
-		);
+		return isReadOnlyInitialized
+				? isReadOnly()
+				: session.getPersistenceContext().isDefaultReadOnly();
 	}
 
 	/**
 	 * Set the read-only/modifiable mode for entities and proxies loaded by the query.
-	 * 	 *
+	 * <p/>
+	 * The read-only/modifiable setting has no impact on entities/proxies returned by the
+	 * query that existed in the session before the query was executed.
+	 *
+	 * @param readOnly if {@code true}, entities and proxies loaded by the query will be put in read-only mode; if
+	 * {@code false}, entities and proxies loaded by the query will be put in modifiable mode
+	 *
 	 * @see QueryParameters#isReadOnlyInitialized()
 	 * @see QueryParameters#isReadOnly(org.hibernate.engine.spi.SessionImplementor)
 	 * @see QueryParameters#setReadOnly(boolean)
 	 * @see org.hibernate.engine.spi.PersistenceContext#isDefaultReadOnly()
-	 *
-	 * The read-only/modifiable setting has no impact on entities/proxies returned by the
-	 * query that existed in the session before the query was executed.
-	 *
-	 * @return true, entities and proxies loaded by the query will be put in read-only mode
-	 *         false, entities and proxies loaded by the query will be put in modifiable mode
 	 */
 	public void setReadOnly(boolean readOnly) {
 		this.readOnly = readOnly;
@@ -452,8 +462,9 @@ public final class QueryParameters {
 		processFilters( sql, session.getLoadQueryInfluencers().getEnabledFilters(), session.getFactory() );
 	}
 
+	@SuppressWarnings( {"unchecked"})
 	public void processFilters(String sql, Map filters, SessionFactoryImplementor factory) {
-		if ( filters.size() == 0 || sql.indexOf( ParserHelper.HQL_VARIABLE_PREFIX ) < 0 ) {
+		if ( filters.size() == 0 || !sql.contains( ParserHelper.HQL_VARIABLE_PREFIX ) ) {
 			// HELLA IMPORTANT OPTIMIZATION!!!
 			processedPositionalParameterValues = getPositionalParameterValues();
 			processedPositionalParameterTypes = getPositionalParameterTypes();
@@ -461,12 +472,12 @@ public final class QueryParameters {
 		}
 		else {
 			final Dialect dialect = factory.getDialect();
-			String symbols = new StringBuffer().append( ParserHelper.HQL_SEPARATORS )
+			String symbols = new StringBuilder().append( ParserHelper.HQL_SEPARATORS )
 					.append( dialect.openQuote() )
 					.append( dialect.closeQuote() )
 					.toString();
 			StringTokenizer tokens = new StringTokenizer( sql, symbols, true );
-			StringBuffer result = new StringBuffer();
+			StringBuilder result = new StringBuilder();
 
 			List parameters = new ArrayList();
 			List parameterTypes = new ArrayList();
@@ -529,6 +540,7 @@ public final class QueryParameters {
 		return isNaturalKeyLookup;
 	}
 
+	@SuppressWarnings( {"UnusedDeclaration"})
 	public void setNaturalKeyLookup(boolean isNaturalKeyLookup) {
 		this.isNaturalKeyLookup = isNaturalKeyLookup;
 	}

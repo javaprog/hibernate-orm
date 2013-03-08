@@ -23,34 +23,33 @@
  */
 package org.hibernate.envers.test.integration.manytomany.ternary;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.entities.IntTestEntity;
-import org.hibernate.envers.test.entities.StrTestEntity;
-import org.hibernate.envers.test.tools.TestTools;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
 import java.util.Arrays;
 import java.util.HashMap;
+import javax.persistence.EntityManager;
 
-import static org.junit.Assert.*;
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.entities.IntTestPrivSeqEntity;
+import org.hibernate.envers.test.entities.StrTestPrivSeqEntity;
+import org.hibernate.envers.test.tools.TestTools;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class TernaryMapFlush extends AbstractEntityTest {
+public class TernaryMapFlush extends BaseEnversJPAFunctionalTestCase {
     private Integer str1_id;
     private Integer str2_id;
     private Integer int1_id;
     private Integer int2_id;
     private Integer map1_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(TernaryMapEntity.class);
-        cfg.addAnnotatedClass(StrTestEntity.class);
-        cfg.addAnnotatedClass(IntTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { TernaryMapEntity.class, StrTestPrivSeqEntity.class, IntTestPrivSeqEntity.class };
     }
 
     @Test
@@ -58,10 +57,10 @@ public class TernaryMapFlush extends AbstractEntityTest {
     public void createData() {
         EntityManager em = getEntityManager();
 
-        StrTestEntity str1 = new StrTestEntity("a");
-        StrTestEntity str2 = new StrTestEntity("b");
-        IntTestEntity int1 = new IntTestEntity(1);
-        IntTestEntity int2 = new IntTestEntity(2);
+        StrTestPrivSeqEntity str1 = new StrTestPrivSeqEntity("a");
+        StrTestPrivSeqEntity str2 = new StrTestPrivSeqEntity("b");
+        IntTestPrivSeqEntity int1 = new IntTestPrivSeqEntity(1);
+        IntTestPrivSeqEntity int2 = new IntTestPrivSeqEntity(2);
         TernaryMapEntity map1 = new TernaryMapEntity();
 
         // Revision 1 (int1 -> str1)
@@ -83,10 +82,10 @@ public class TernaryMapFlush extends AbstractEntityTest {
         em.getTransaction().begin();
 
         map1 = em.find(TernaryMapEntity.class, map1.getId());
-        str1 = em.find(StrTestEntity.class, str1.getId());
-        int1 = em.find(IntTestEntity.class, int1.getId());
+        str1 = em.find(StrTestPrivSeqEntity.class, str1.getId());
+        int1 = em.find(IntTestPrivSeqEntity.class, int1.getId());
 
-        map1.setMap(new HashMap<IntTestEntity, StrTestEntity>());
+        map1.setMap(new HashMap<IntTestPrivSeqEntity, StrTestPrivSeqEntity>());
         
         em.flush();
 
@@ -100,8 +99,8 @@ public class TernaryMapFlush extends AbstractEntityTest {
         em.getTransaction().begin();
 
         map1 = em.find(TernaryMapEntity.class, map1.getId());
-        str1 = em.find(StrTestEntity.class, str1.getId());
-        int1 = em.find(IntTestEntity.class, int1.getId());
+        str1 = em.find(StrTestPrivSeqEntity.class, str1.getId());
+        int1 = em.find(IntTestPrivSeqEntity.class, int1.getId());
 
         map1.getMap().remove(int1);
 
@@ -123,18 +122,18 @@ public class TernaryMapFlush extends AbstractEntityTest {
     @Test
     public void testRevisionsCounts() {
         assertEquals(Arrays.asList(1, 2, 3), getAuditReader().getRevisions(TernaryMapEntity.class, map1_id));
-        assertEquals(Arrays.asList(1), getAuditReader().getRevisions(StrTestEntity.class, str1_id));
-        assertEquals(Arrays.asList(1), getAuditReader().getRevisions(StrTestEntity.class, str2_id));
-        assertEquals(Arrays.asList(1) ,getAuditReader().getRevisions(IntTestEntity.class, int1_id));
-        assertEquals(Arrays.asList(1) ,getAuditReader().getRevisions(IntTestEntity.class, int2_id));
+        assertEquals(Arrays.asList(1), getAuditReader().getRevisions(StrTestPrivSeqEntity.class, str1_id));
+        assertEquals(Arrays.asList(1), getAuditReader().getRevisions(StrTestPrivSeqEntity.class, str2_id));
+        assertEquals(Arrays.asList(1) ,getAuditReader().getRevisions(IntTestPrivSeqEntity.class, int1_id));
+        assertEquals(Arrays.asList(1) ,getAuditReader().getRevisions(IntTestPrivSeqEntity.class, int2_id));
     }
 
     @Test
     public void testHistoryOfMap1() {
-        StrTestEntity str1 = getEntityManager().find(StrTestEntity.class, str1_id);
-        StrTestEntity str2 = getEntityManager().find(StrTestEntity.class, str2_id);
-        IntTestEntity int1 = getEntityManager().find(IntTestEntity.class, int1_id);
-        IntTestEntity int2 = getEntityManager().find(IntTestEntity.class, int2_id);
+        StrTestPrivSeqEntity str1 = getEntityManager().find(StrTestPrivSeqEntity.class, str1_id);
+        StrTestPrivSeqEntity str2 = getEntityManager().find(StrTestPrivSeqEntity.class, str2_id);
+        IntTestPrivSeqEntity int1 = getEntityManager().find(IntTestPrivSeqEntity.class, int1_id);
+        IntTestPrivSeqEntity int2 = getEntityManager().find(IntTestPrivSeqEntity.class, int2_id);
 
         TernaryMapEntity rev1 = getAuditReader().find(TernaryMapEntity.class, map1_id, 1);
         TernaryMapEntity rev2 = getAuditReader().find(TernaryMapEntity.class, map1_id, 2);

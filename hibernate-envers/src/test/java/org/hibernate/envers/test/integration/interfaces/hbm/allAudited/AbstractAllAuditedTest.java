@@ -1,19 +1,20 @@
 package org.hibernate.envers.test.integration.interfaces.hbm.allAudited;
 
-import org.hibernate.envers.exception.NotAuditedException;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
+import org.hibernate.envers.exception.NotAuditedException;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
 
 /**
  * @author Hern�n Chanfreau
  * @author Adam Warski (adam at warski dot org)
  */
-public abstract class AbstractAllAuditedTest extends AbstractEntityTest {
+public abstract class AbstractAllAuditedTest extends BaseEnversJPAFunctionalTestCase {
 	private long ai_id;
 	private long nai_id;
 	

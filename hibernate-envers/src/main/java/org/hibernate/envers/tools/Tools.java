@@ -31,8 +31,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+
 import javassist.util.proxy.ProxyFactory;
+
 import org.hibernate.Session;
+import org.hibernate.annotations.common.reflection.XClass;
+import org.hibernate.annotations.common.reflection.XProperty;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.persister.entity.EntityPersister;
@@ -40,7 +44,7 @@ import org.hibernate.proxy.HibernateProxy;
 
 /**
  * @author Adam Warski (adam at warski dot org)
- * @author Hern�n Chanfreau
+ * @author HernпїЅn Chanfreau
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 public class Tools {
@@ -78,7 +82,7 @@ public class Tools {
 
 
     public static Object getTargetFromProxy(SessionFactoryImplementor sessionFactoryImplementor, HibernateProxy proxy) {
-        if (!proxy.getHibernateLazyInitializer().isUninitialized()) {
+        if (!proxy.getHibernateLazyInitializer().isUninitialized() || activeProxySession(proxy)) {
             return proxy.getHibernateLazyInitializer().getImplementation();
         }
 
@@ -96,6 +100,11 @@ public class Tools {
 		finally {
             tempSession.close();
         }
+    }
+
+    private static boolean activeProxySession(HibernateProxy proxy) {
+        Session session = (Session) proxy.getHibernateLazyInitializer().getSession();
+        return session != null && session.isOpen() && session.isConnected();
     }
 
     /**
@@ -121,6 +130,17 @@ public class Tools {
         }
 
         return obj1.equals(obj2);
+    }
+
+    public static boolean arraysEqual(Object[] array1, Object[] array2) {
+        if (array1 == null) return array2 == null;
+        if (array2 == null || array1.length != array2.length) return false;
+        for (int i = 0; i < array1.length; ++i) {
+            if (array1[i] != null ? !array1[i].equals(array2[i]) : array2[i] != null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public static <T> List<T> iteratorToList(Iterator<T> iter) {
@@ -186,5 +206,48 @@ public class Tools {
     public static Class getEntityClass(SessionImplementor sessionImplementor, Session session, String entityName) {
         EntityPersister entityPersister = sessionImplementor.getFactory().getEntityPersister(entityName);
         return entityPersister.getMappedClass();
+    }
+
+    /**
+     * Converts map's value set to an array. {@code keys} parameter specifies requested elements and their order. 
+     * @param data Source map.
+     * @param keys Array of keys that represent requested map values.
+     * @return Array of values stored in the map under specified keys. If map does not contain requested key,
+     *         {@code null} is inserted.
+     */
+    public static Object[] mapToArray(Map<String, Object> data, String[] keys) {
+        Object[] ret = new Object[keys.length];
+        for (int i = 0; i < keys.length; ++i) {
+            ret[i] = data.get(keys[i]);
+        }
+        return ret;
+    }
+
+    /**
+     * @param clazz Source class.
+     * @param propertyName Property name.
+     * @return Property object or {@code null} if none with expected name has been found.
+     */
+    public static XProperty getProperty(XClass clazz, String propertyName) {
+        XProperty property = getProperty(clazz, propertyName, "field");
+        if (property == null) {
+            property = getProperty(clazz, propertyName, "property");
+        }
+        return property;
+    }
+
+    /**
+     * @param clazz Source class.
+     * @param propertyName Property name.
+     * @param accessType Expected access type. Legal values are <i>field</i> and <i>property</i>.
+     * @return Property object or {@code null} if none with expected name and access type has been found.
+     */
+    public static XProperty getProperty(XClass clazz, String propertyName, String accessType) {
+        for (XProperty property : clazz.getDeclaredProperties(accessType)) {
+            if (propertyName.equals(property.getName())) {
+                return property;
+            }
+        }
+        return null;
     }
 }

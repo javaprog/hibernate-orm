@@ -63,7 +63,7 @@ public class DB2400Dialect extends DB2Dialect {
 		if ( limit == 0 ) {
 			return sql;
 		}
-		return new StringBuffer( sql.length() + 40 )
+		return new StringBuilder( sql.length() + 40 )
 				.append( sql )
 				.append( " fetch first " )
 				.append( limit )
@@ -71,4 +71,7 @@ public class DB2400Dialect extends DB2Dialect {
 				.toString();
 	}
 
+	public String getForUpdateString() {
+		return " for update with rs";
+	}
 }

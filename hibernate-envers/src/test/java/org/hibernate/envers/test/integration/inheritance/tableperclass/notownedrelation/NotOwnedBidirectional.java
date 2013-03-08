@@ -24,27 +24,26 @@
 
 package org.hibernate.envers.test.integration.inheritance.tableperclass.notownedrelation;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.tools.TestTools;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.tools.TestTools;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class NotOwnedBidirectional extends AbstractEntityTest {
+public class NotOwnedBidirectional extends BaseEnversJPAFunctionalTestCase {
     private Long pc_id;
     private Long a1_id;
     private Long a2_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(Address.class);
-        cfg.addAnnotatedClass(Contact.class);
-        cfg.addAnnotatedClass(PersonalContact.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { Address.class, Contact.class, PersonalContact.class };
     }
 
     @Test

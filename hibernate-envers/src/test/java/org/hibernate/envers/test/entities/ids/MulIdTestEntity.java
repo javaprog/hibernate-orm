@@ -25,12 +25,15 @@ package org.hibernate.envers.test.entities.ids;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.IdClass;
+import javax.persistence.Table;
+
 import org.hibernate.envers.Audited;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
 @Entity
+@Table(name = "MulId")
 @IdClass(MulId.class)
 public class MulIdTestEntity {
     @Id

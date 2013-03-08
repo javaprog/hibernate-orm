@@ -23,29 +23,29 @@
  */
 package org.hibernate.envers.test.integration.naming;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Iterator;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
 import org.hibernate.envers.test.tools.TestTools;
 import org.hibernate.mapping.Column;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Iterator;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class OneToManyUnidirectionalNaming extends AbstractEntityTest {
+public class OneToManyUnidirectionalNaming extends BaseEnversJPAFunctionalTestCase {
     private Integer uni1_id;
     private Integer str1_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(DetachedNamingTestEntity.class);
-        cfg.addAnnotatedClass(StrTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { DetachedNamingTestEntity.class, StrTestEntity.class };
     }
 
     @Test

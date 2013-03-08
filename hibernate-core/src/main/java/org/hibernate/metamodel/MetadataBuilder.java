@@ -43,5 +43,5 @@ public interface MetadataBuilder {
 
 	public MetadataBuilder withNewIdentifierGeneratorsEnabled(boolean enabled);
 
-	public Metadata buildMetadata();
+	public Metadata build();
 }

@@ -27,11 +27,11 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.QueryException;
-
-import org.jboss.logging.Logger;
 import antlr.RecognitionException;
+import org.jboss.logging.Logger;
+
+import org.hibernate.QueryException;
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * An error handler that counts parsing errors and warnings.
@@ -60,12 +60,12 @@ public class ErrorCounter implements ParseErrorHandler {
 	}
 
 	public void reportWarning(String message) {
-        LOG.debugf(message);
+		LOG.debug(message);
 		warningList.add( message );
 	}
 
 	private String getErrorString() {
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		for ( Iterator iterator = errorList.iterator(); iterator.hasNext(); ) {
 			buf.append( ( String ) iterator.next() );
 			if ( iterator.hasNext() ) buf.append( "\n" );
@@ -79,6 +79,6 @@ public class ErrorCounter implements ParseErrorHandler {
             if (recognitionExceptions.size() > 0) throw QuerySyntaxException.convert((RecognitionException)recognitionExceptions.get(0));
             throw new QueryException(getErrorString());
         }
-        LOG.debugf("throwQueryException() : no errors");
+		LOG.debug("throwQueryException() : no errors");
 	}
 }

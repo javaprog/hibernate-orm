@@ -24,16 +24,16 @@
 package org.hibernate.internal.util.xml;
 
 import java.io.StringReader;
+
 import org.dom4j.Document;
 import org.dom4j.io.SAXReader;
-
-import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.InvalidMappingException;
-
 import org.jboss.logging.Logger;
 import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+
+import org.hibernate.InvalidMappingException;
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * Handles reading mapping documents, both {@code hbm} and {@code orm} varieties.
@@ -42,9 +42,11 @@ import org.xml.sax.SAXException;
  */
 public class MappingReader {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, MappingReader.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger(
+			CoreMessageLogger.class,
+			MappingReader.class.getName()
+	);
 
-	public static final String ASSUMED_ORM_XSD_VERSION = "2.0";
 	public static final MappingReader INSTANCE = new MappingReader();
 
 	/**
@@ -74,13 +76,15 @@ public class MappingReader {
 			// first try with orm 2.0 xsd validation
 			setValidationFor( saxReader, "orm_2_0.xsd" );
 			document = saxReader.read( source );
-			if ( errorHandler.getError() != null ) {
-				throw errorHandler.getError();
+			if ( errorHandler.hasErrors() ) {
+				throw errorHandler.getErrors().get( 0 );
 			}
 			return new XmlDocumentImpl( document, origin.getType(), origin.getName() );
 		}
 		catch ( Exception orm2Problem ) {
-            LOG.debugf("Problem parsing XML using orm 2 xsd : %s", orm2Problem.getMessage());
+			if ( LOG.isDebugEnabled() ) {
+				LOG.debugf( "Problem parsing XML using orm 2 xsd : %s", orm2Problem.getMessage() );
+			}
 			failure = orm2Problem;
 			errorHandler.reset();
 
@@ -88,14 +92,17 @@ public class MappingReader {
 				// next try with orm 1.0 xsd validation
 				try {
 					setValidationFor( saxReader, "orm_1_0.xsd" );
-					document = saxReader.read(  new StringReader( document.asXML() ) );
-					if ( errorHandler.getError() != null ) {
-						throw errorHandler.getError();
+					document = saxReader.read( new StringReader( document.asXML() ) );
+					if ( errorHandler.hasErrors() ) {
+						errorHandler.logErrors();
+						throw errorHandler.getErrors().get( 0 );
 					}
 					return new XmlDocumentImpl( document, origin.getType(), origin.getName() );
 				}
 				catch ( Exception orm1Problem ) {
-                    LOG.debugf("Problem parsing XML using orm 1 xsd : %s", orm1Problem.getMessage());
+					if ( LOG.isDebugEnabled() ) {
+						LOG.debugf( "Problem parsing XML using orm 1 xsd : %s", orm1Problem.getMessage() );
+					}
 				}
 			}
 		}

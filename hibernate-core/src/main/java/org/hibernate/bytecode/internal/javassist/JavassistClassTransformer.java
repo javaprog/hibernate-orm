@@ -30,13 +30,15 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.security.ProtectionDomain;
 
+import javassist.ClassClassPath;
+import javassist.ClassPool;
 import javassist.bytecode.ClassFile;
 import org.jboss.logging.Logger;
 
 import org.hibernate.HibernateException;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.bytecode.buildtime.spi.ClassFilter;
 import org.hibernate.bytecode.spi.AbstractClassTransformerImpl;
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * Enhance the classes allowing them to implements InterceptFieldEnabled
@@ -44,6 +46,7 @@ import org.hibernate.bytecode.spi.AbstractClassTransformerImpl;
  *
  * @author Emmanuel Bernard
  * @author Steve Ebersole
+ * @author Dustin Schultz
  */
 public class JavassistClassTransformer extends AbstractClassTransformerImpl {
 
@@ -55,7 +58,7 @@ public class JavassistClassTransformer extends AbstractClassTransformerImpl {
 	}
 
 	@Override
-    protected byte[] doTransform(
+	protected byte[] doTransform(
 			ClassLoader loader,
 			String className,
 			Class classBeingRedefined,
@@ -67,12 +70,22 @@ public class JavassistClassTransformer extends AbstractClassTransformerImpl {
 			classfile = new ClassFile( new DataInputStream( new ByteArrayInputStream( classfileBuffer ) ) );
 		}
 		catch (IOException e) {
-            LOG.unableToBuildEnhancementMetamodel(className);
+			LOG.unableToBuildEnhancementMetamodel( className );
 			return classfileBuffer;
 		}
-		FieldTransformer transformer = getFieldTransformer( classfile );
+		// This is the same as ClassPool.getDefault() but ensures a new ClassPool per
+		ClassPool cp = new ClassPool();
+		cp.appendSystemPath();
+		cp.appendClassPath(new ClassClassPath(this.getClass()));
+		cp.appendClassPath(new ClassClassPath(classfile.getClass()));
+		try {
+			cp.makeClassIfNew(new ByteArrayInputStream(classfileBuffer));
+		} catch (IOException e) {
+			throw new RuntimeException(e.getMessage(), e);
+		}
+		FieldTransformer transformer = getFieldTransformer( classfile, cp );
 		if ( transformer != null ) {
-            LOG.debugf("Enhancing %s", className);
+			LOG.debugf( "Enhancing %s", className );
 			DataOutputStream out = null;
 			try {
 				transformer.transform( classfile );
@@ -82,7 +95,7 @@ public class JavassistClassTransformer extends AbstractClassTransformerImpl {
 				return byteStream.toByteArray();
 			}
 			catch (Exception e) {
-                LOG.unableToTransformClass(e.getMessage());
+				LOG.unableToTransformClass( e.getMessage() );
 				throw new HibernateException( "Unable to transform class: " + e.getMessage() );
 			}
 			finally {
@@ -97,7 +110,7 @@ public class JavassistClassTransformer extends AbstractClassTransformerImpl {
 		return classfileBuffer;
 	}
 
-	protected FieldTransformer getFieldTransformer(final ClassFile classfile) {
+	protected FieldTransformer getFieldTransformer(final ClassFile classfile, final ClassPool classPool) {
 		if ( alreadyInstrumented( classfile ) ) {
 			return null;
 		}
@@ -118,7 +131,7 @@ public class JavassistClassTransformer extends AbstractClassTransformerImpl {
 					public boolean handleWriteAccess(String fieldOwnerClassName, String fieldName) {
 						return fieldFilter.shouldTransformFieldAccess( classfile.getName(), fieldOwnerClassName, fieldName );
 					}
-				}
+				}, classPool
 		);
 	}
 

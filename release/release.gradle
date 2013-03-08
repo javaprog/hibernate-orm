@@ -1,113 +1,103 @@
 apply plugin: 'base'
 apply plugin: 'idea'
+apply from: "../utilities.gradle"
 
 buildDir = "target"
 
-ideaModule {
+idea.module {
 }
 
 
 
 // Javadocs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-javadocBuildDir = dir( buildDirName + "/documentation/javadocs" )
-
-def List subProjectsToSkipForJavadoc = ['release','documentation'];
+ext.javadocBuildDir = mkdir(  "${buildDir}/documentation/javadocs" )
 
 def copyRightYear = new java.util.GregorianCalendar().get( java.util.Calendar.YEAR );
 
 task aggregateJavadocs(type: Javadoc) {
+    // exclude any generated sources (this is not working: http://forums.gradle.org/gradle/topics/excluding_generated_source_from_javadoc)
+    exclude "**/generated-src/**"
+
+    // process each project, building up:
+    //      1) appropriate sources
+    //      2) classpath
+    //      3) the package list for groups
+    Set<String> apiPackages = new HashSet<String>()
+    Set<String> spiPackages = new HashSet<String>()
+    Set<String> internalPackages = new HashSet<String>()
+    parent.subprojects.each{ Project subProject->
+        // skip certain sub-projects
+        if ( ! ['release','documentation'].contains( subProject.name ) ) {
+            subProject.sourceSets.each { SourceSet sourceSet ->
+                // skip certain source sets
+                if ( ! ['test','matrix'].contains( sourceSet.name ) ) {
+                    source sourceSet.java
+
+                    if( classpath ) {
+                        classpath += sourceSet.output + sourceSet.compileClasspath
+                    }
+                    else {
+                        classpath = sourceSet.output + sourceSet.compileClasspath
+                    }
+
+                    sourceSet.java.each { javaFile ->
+                        final String packageName = determinePackageName( sourceSet.java, javaFile );
+                        if ( packageName.endsWith( ".internal" ) || packageName.contains( ".internal." ) ) {
+                            internalPackages.add( packageName );
+                        }
+                        else if ( packageName.endsWith( ".spi" ) || packageName.contains( ".spi." ) ) {
+                            spiPackages.add( packageName );
+                        }
+                        else if ( packageName.startsWith( "org.hibernate.testing" ) ) {
+                            // do nothing as testing support is already handled...
+                        }
+                        else {
+                            apiPackages.add( packageName );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // apply standard config
     description = "Build the aggregated JavaDocs for all modules"
     maxMemory = '512m'
-    destinationDir = javadocBuildDir.dir
+    destinationDir = javadocBuildDir
     configure( options ) {
-        overview = new File( projectDir, 'src/javadoc/package.html' )
+        overview = new File( projectDir, 'src/javadoc/overview.html' )
         stylesheetFile = new File( projectDir, 'src/javadoc/stylesheet.css' )
         windowTitle = 'Hibernate JavaDocs'
         docTitle = "Hibernate JavaDoc ($project.version)"
         bottom = "Copyright &copy; 2001-$copyRightYear <a href=\"http://redhat.com\">Red Hat, Inc.</a>  All Rights Reserved."
         use = true
         links = [ 'http://download.oracle.com/javase/6/docs/api/', 'http://download.oracle.com/javaee/6/api/' ]
-        group(
-            'Core API', [
-                'org.hibernate',
-                'org.hibernate.classic',
-                'org.hibernate.criterion',
-                'org.hibernate.mapping',
-                'org.hibernate.metadata',
-                'org.hibernate.cfg',
-                'org.hibernate.stat'
-            ]
-        )
-        group(
-            'Extension SPI', [
-                'org.hibernate.id*',
-                'org.hibernate.connection',
-                'org.hibernate.transaction',
-                'org.hibernate.type',
-                'org.hibernate.dialect*',
-                'org.hibernate.cache*',
-                'org.hibernate.event*',
-                'org.hibernate.property',
-                'org.hibernate.loader*',
-                'org.hibernate.persister*',
-                'org.hibernate.proxy',
-                'org.hibernate.tuple',
-                'org.hibernate.transform',
-                'org.hibernate.collection',
-                'org.hibernate.jdbc',
-                'org.hibernate.usertype'
-            ]
-        )
-        group(
-            'Bytecode providers', [
-                 'org.hibernate.bytecode*',
-                 'org.hibernate.intercept*'
-            ]
-        )
-        group (
-            'Infinispan Integration', ['org.hibernate.cache.infinispan*']
-        )
-        group (
-            'JBossCache Integration', ['org.hibernate.cache.jbc*']
-        )
-        group (
-            'Testing Support', ['org.hibernate.junit*']
-        )
-    }
-
-    parent.subprojects.each{ subProject->
-        if ( !subProjectsToSkipForJavadoc.contains( subProject.name ) ) {
-            subProject.sourceSets.each { set ->
-                if ( !"test".equals( set.name ) ) {
-                    source set.java
-
-                    if( classpath ) {
-                        classpath += set.classes + set.compileClasspath
-                    }
-                    else {
-                        classpath = set.classes + set.compileClasspath
-                    }
-                }
-            }
-        }
+        group( 'API', apiPackages.asList() )
+        group( 'SPI', spiPackages.asList() )
+        group( 'Internal', internalPackages.asList() )
+        group ( 'Testing Support', ['org.hibernate.testing*'] )
+// ugh, http://issues.gradle.org/browse/GRADLE-1563
+//        tags ["todo:X"]
+// work around:
+        addStringOption( "tag", "todo:X" )
     }
 }
 
 aggregateJavadocs.doLast {
     copy {
         from new File( projectDir, 'src/javadoc/images' )
-        into new File( javadocBuildDir.dir, "/images" )
+        into new File( javadocBuildDir, "/images" )
     }
 }
 
 // release bundles ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-releaseBuildDir = dir( buildDirName )
+ext.releaseBuildDir = mkdir( buildDir )
 task prepareReleaseBundles( dependsOn: [parent.project( 'documentation' ).tasks.buildDocs,aggregateJavadocs] )
 
 
-releaseCopySpec = copySpec {
+ext.releaseCopySpec = copySpec {
     into( "hibernate-release-$project.version" ) {
         from new File( parent.projectDir, 'lgpl.txt' )
         from new File( parent.projectDir, 'changelog.txt' )
@@ -116,7 +106,7 @@ releaseCopySpec = copySpec {
         into('lib/required') {
             from parent.project( 'hibernate-core' ).configurations.provided.files { dep -> dep.name == 'jta' }
             from parent.project( 'hibernate-core' ).configurations.runtime
-            from parent.project( 'hibernate-core' ).configurations.archives.allArtifactFiles.filter{ file -> !file.name.endsWith('-sources.jar') }
+            from parent.project( 'hibernate-core' ).configurations.archives.allArtifacts.files.filter{ file -> !file.name.endsWith('-sources.jar') }
             // for now, 
             from parent.project( 'hibernate-core' ).configurations.provided.files { dep -> dep.name == 'javassist' }
         }
@@ -126,17 +116,17 @@ releaseCopySpec = copySpec {
 //        }
 
         into( 'lib/jpa' ) {
-            from parent.project( 'hibernate-entitymanager' ).configurations.archives.allArtifactFiles.filter{ file -> !file.name.endsWith('-sources.jar') }
+            from parent.project( 'hibernate-entitymanager' ).configurations.archives.allArtifacts.files.filter{ file -> !file.name.endsWith('-sources.jar') }
         }
 
         into( 'lib/envers' ) {
             from(
-                    ( parent.project( 'hibernate-envers' ).configurations.archives.allArtifactFiles.filter{ file -> !file.name.endsWith('-sources.jar') }
+                    ( parent.project( 'hibernate-envers' ).configurations.archives.allArtifacts.files.filter{ file -> !file.name.endsWith('-sources.jar') }
                             + parent.project( 'hibernate-envers' ).configurations.runtime )
                             - parent.project( 'hibernate-core' ).configurations.runtime
-                            - parent.project( 'hibernate-core' ).configurations.archives.allArtifactFiles
+                            - parent.project( 'hibernate-core' ).configurations.archives.allArtifacts.files
                             - parent.project( 'hibernate-entitymanager' ).configurations.runtime
-                            - parent.project( 'hibernate-entitymanager' ).configurations.archives.allArtifactFiles
+                            - parent.project( 'hibernate-entitymanager' ).configurations.archives.allArtifacts.files
             )
         }
 
@@ -148,10 +138,10 @@ releaseCopySpec = copySpec {
 //            into('lib/optional/' + shortName) {
             owner.into('lib/optional/' + shortName) {
                 from (
-                        ( parent.project( feature ).configurations.archives.allArtifactFiles.filter{ file -> !file.name.endsWith('-sources.jar') }
+                        ( parent.project( feature ).configurations.archives.allArtifacts.files.filter{ file -> !file.name.endsWith('-sources.jar') }
                                 + parent.project( feature ).configurations.runtime )
                                 - parent.project( 'hibernate-core' ).configurations.runtime
-                                - parent.project( 'hibernate-core' ).configurations.archives.allArtifactFiles
+                                - parent.project( 'hibernate-core' ).configurations.archives.allArtifacts.files
                 )
             }
         }
@@ -161,7 +151,7 @@ releaseCopySpec = copySpec {
         }
 
         into('documentation/javadocs') {
-            from javadocBuildDir.dir
+            from javadocBuildDir
         }
 
         into( 'project' ) {
@@ -194,14 +184,14 @@ releaseCopySpec = copySpec {
 task buildReleaseZip( type: Zip, dependsOn: [prepareReleaseBundles] ) {
     description = "Build release bundle in ZIP format"
     baseName = 'hibernate-release'
-    destinationDir = releaseBuildDir.dir
+    destinationDir = releaseBuildDir
     with project.releaseCopySpec
 }
 
 task buildReleaseTgz( type: Tar, dependsOn: [prepareReleaseBundles] ) {
     description = "Build release bundle in GZIP format"
     baseName = 'hibernate-release'
-    destinationDir = releaseBuildDir.dir
+    destinationDir = releaseBuildDir
     compression = Compression.GZIP
     with project.releaseCopySpec
 }

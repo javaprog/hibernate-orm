@@ -27,9 +27,10 @@ import java.sql.CallableStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.HibernateException;
-import org.hibernate.exception.spi.ViolatedConstraintNameExtracter;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.cfg.Environment;
 import org.hibernate.dialect.function.NoArgSQLFunction;
 import org.hibernate.dialect.function.NvlFunction;
@@ -37,10 +38,11 @@ import org.hibernate.dialect.function.SQLFunctionTemplate;
 import org.hibernate.dialect.function.StandardSQLFunction;
 import org.hibernate.dialect.function.VarArgsSQLFunction;
 import org.hibernate.exception.spi.TemplatedViolatedConstraintNameExtracter;
+import org.hibernate.exception.spi.ViolatedConstraintNameExtracter;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.JdbcExceptionHelper;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.type.StandardBasicTypes;
-import org.jboss.logging.Logger;
 
 /**
  * An SQL dialect for Oracle 9 (uses ANSI-style syntax where possible).
@@ -50,12 +52,14 @@ import org.jboss.logging.Logger;
  */
 @Deprecated
 public class Oracle9Dialect extends Dialect {
+	
+	private static final int PARAM_LIST_SIZE_LIMIT = 1000;
 
     private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, Oracle9Dialect.class.getName());
 
 	public Oracle9Dialect() {
 		super();
-        LOG.deprecatedOracle9Dialect();
+		LOG.deprecatedOracle9Dialect();
 		registerColumnType( Types.BIT, "number(1,0)" );
 		registerColumnType( Types.BIGINT, "number(19,0)" );
 		registerColumnType( Types.SMALLINT, "number(5,0)" );
@@ -217,7 +221,7 @@ public class Oracle9Dialect extends Dialect {
 			isForUpdate = true;
 		}
 
-		StringBuffer pagingSelect = new StringBuffer( sql.length()+100 );
+		StringBuilder pagingSelect = new StringBuilder( sql.length()+100 );
 		if (hasOffset) {
 			pagingSelect.append("select * from ( select row_.*, rownum rownum_ from ( ");
 		}
@@ -358,14 +362,24 @@ public class Oracle9Dialect extends Dialect {
 		return false;
 	}
 
-
-	// Overridden informational metadata ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 	public boolean supportsEmptyInList() {
 		return false;
 	}
 
 	public boolean supportsExistsInSelect() {
 		return false;
+	}
+
+	/* (non-Javadoc)
+		 * @see org.hibernate.dialect.Dialect#getInExpressionCountLimit()
+		 */
+	@Override
+	public int getInExpressionCountLimit() {
+		return PARAM_LIST_SIZE_LIMIT;
+	}
+	
+	@Override
+	public String getNotExpression( String expression ) {
+		return "not (" + expression + ")";
 	}
 }

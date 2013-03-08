@@ -24,6 +24,7 @@
 package org.hibernate.cfg;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -44,6 +45,7 @@ import org.hibernate.engine.internal.Versioning;
 import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.engine.spi.NamedQueryDefinition;
+import org.hibernate.engine.spi.NamedQueryDefinitionBuilder;
 import org.hibernate.id.PersistentIdentifierGenerator;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ReflectHelper;
@@ -94,9 +96,7 @@ import org.hibernate.mapping.TypeDef;
 import org.hibernate.mapping.UnionSubclass;
 import org.hibernate.mapping.UniqueKey;
 import org.hibernate.mapping.Value;
-import org.hibernate.persister.entity.JoinedSubclassEntityPersister;
-import org.hibernate.persister.entity.SingleTableEntityPersister;
-import org.hibernate.persister.entity.UnionSubclassEntityPersister;
+import org.hibernate.type.BasicType;
 import org.hibernate.type.DiscriminatorType;
 import org.hibernate.type.ForeignKeyDirection;
 import org.hibernate.type.Type;
@@ -230,7 +230,7 @@ public final class HbmBinder {
 		String rename = ( renameNode == null ) ?
 						StringHelper.unqualify( className ) :
 						renameNode.getValue();
-        LOG.debugf("Import: %s -> %s", rename, className);
+		LOG.debugf( "Import: %s -> %s", rename, className );
 		mappings.addImport( className, rename );
 	}
 
@@ -308,7 +308,7 @@ public final class HbmBinder {
 	}
 
 	/**
-	 * Responsible for perfoming the bind operation related to an &lt;class/&gt; mapping element.
+	 * Responsible for performing the bind operation related to an &lt;class/&gt; mapping element.
 	 *
 	 * @param node The DOM Element for the &lt;class/&gt; element.
 	 * @param rootClass The mapping instance to which to bind the information.
@@ -342,12 +342,14 @@ public final class HbmBinder {
 				catalog,
 				getClassTableName( entity, node, schema, catalog, null, mappings ),
 				getSubselect( node ),
-		        entity.isAbstract() != null && entity.isAbstract().booleanValue()
+		        entity.isAbstract() != null && entity.isAbstract()
 			);
 		entity.setTable( table );
 		bindComment(table, node);
 
-        LOG.debugf( "Mapping class: %s -> %s", entity.getEntityName(), entity.getTable().getName() );
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "Mapping class: %s -> %s", entity.getEntityName(), entity.getTable().getName() );
+		}
 
 		// MUTABLE
 		Attribute mutableNode = node.attribute( "mutable" );
@@ -453,6 +455,7 @@ public final class HbmBinder {
 			prop.setValue( id );
 			bindProperty( idNode, prop, mappings, inheritedMetas );
 			entity.setIdentifierProperty( prop );
+			entity.setDeclaredIdentifierProperty( prop );
 		}
 
 		// TODO:
@@ -486,6 +489,7 @@ public final class HbmBinder {
 			prop.setValue( id );
 			bindProperty( idNode, prop, mappings, inheritedMetas );
 			entity.setIdentifierProperty( prop );
+			entity.setDeclaredIdentifierProperty( prop );
 		}
 
 		makeIdentifier( idNode, id, mappings );
@@ -543,10 +547,14 @@ public final class HbmBinder {
 			// ( (Column) discrim.getColumnIterator().next() ).setType(type);
 		}
 		entity.setPolymorphic( true );
-		if ( "true".equals( subnode.attributeValue( "force" ) ) )
-			entity.setForceDiscriminator( true );
-		if ( "false".equals( subnode.attributeValue( "insert" ) ) )
+		final String explicitForceValue = subnode.attributeValue( "force" );
+		boolean forceDiscriminatorInSelects = explicitForceValue == null
+				? mappings.forceDiscriminatorInSelectsByDefault()
+				: "true".equals( explicitForceValue );
+		entity.setForceDiscriminator( forceDiscriminatorInSelects );
+		if ( "false".equals( subnode.attributeValue( "insert" ) ) ) {
 			entity.setDiscriminatorInsertable( false );
+		}
 	}
 
 	public static void bindClass(Element node, PersistentClass persistentClass, Mappings mappings,
@@ -566,6 +574,7 @@ public final class HbmBinder {
 			throw new MappingException( "Unable to determine entity name" );
 		}
 		persistentClass.setEntityName( entityName );
+		persistentClass.setJpaEntityName( StringHelper.unqualify( entityName ) );
 
 		bindPojoRepresentation( node, persistentClass, mappings, inheritedMetas );
 		bindDom4jRepresentation( node, persistentClass, mappings, inheritedMetas );
@@ -821,11 +830,6 @@ public final class HbmBinder {
 		bindClass( node, unionSubclass, mappings, inheritedMetas );
 		inheritedMetas = getMetas( node, inheritedMetas, true ); // get meta's from <subclass>
 
-		if ( unionSubclass.getEntityPersisterClass() == null ) {
-			unionSubclass.getRootClass().setEntityPersisterClass(
-				UnionSubclassEntityPersister.class );
-		}
-
 		Attribute schemaNode = node.attribute( "schema" );
 		String schema = schemaNode == null ?
 				mappings.getSchemaName() : schemaNode.getValue();
@@ -839,15 +843,15 @@ public final class HbmBinder {
 				schema,
 				catalog,
 				getClassTableName(unionSubclass, node, schema, catalog, denormalizedSuperTable, mappings ),
-		        unionSubclass.isAbstract() != null && unionSubclass.isAbstract().booleanValue(),
+		        unionSubclass.isAbstract() != null && unionSubclass.isAbstract(),
 				getSubselect( node ),
 				denormalizedSuperTable
 			);
 		unionSubclass.setTable( mytable );
 
-        LOG.debugf(
-				"Mapping union-subclass: %s -> %s", unionSubclass.getEntityName(), unionSubclass.getTable().getName()
-		);
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "Mapping union-subclass: %s -> %s", unionSubclass.getEntityName(), unionSubclass.getTable().getName() );
+		}
 
 		createClassProperties( node, unionSubclass, mappings, inheritedMetas );
 
@@ -859,12 +863,9 @@ public final class HbmBinder {
 		bindClass( node, subclass, mappings, inheritedMetas );
 		inheritedMetas = getMetas( node, inheritedMetas, true ); // get meta's from <subclass>
 
-		if ( subclass.getEntityPersisterClass() == null ) {
-			subclass.getRootClass()
-					.setEntityPersisterClass( SingleTableEntityPersister.class );
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "Mapping subclass: %s -> %s", subclass.getEntityName(), subclass.getTable().getName() );
 		}
-
-        LOG.debugf( "Mapping subclass: %s -> %s", subclass.getEntityName(), subclass.getTable().getName() );
 
 		// properties
 		createClassProperties( node, subclass, mappings, inheritedMetas );
@@ -900,11 +901,6 @@ public final class HbmBinder {
 																	// <joined-subclass>
 
 		// joined subclasses
-		if ( joinedSubclass.getEntityPersisterClass() == null ) {
-			joinedSubclass.getRootClass()
-				.setEntityPersisterClass( JoinedSubclassEntityPersister.class );
-		}
-
 		Attribute schemaNode = node.attribute( "schema" );
 		String schema = schemaNode == null ?
 				mappings.getSchemaName() : schemaNode.getValue();
@@ -923,9 +919,9 @@ public final class HbmBinder {
 		joinedSubclass.setTable( mytable );
 		bindComment(mytable, node);
 
-        LOG.debugf(
-				"Mapping joined-subclass: %s -> %s", joinedSubclass.getEntityName(), joinedSubclass.getTable().getName()
-		);
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "Mapping joined-subclass: %s -> %s", joinedSubclass.getEntityName(), joinedSubclass.getTable().getName() );
+		}
 
 		// KEY
 		Element keyNode = node.element( "key" );
@@ -987,8 +983,9 @@ public final class HbmBinder {
 			join.setOptional( "true".equals( nullNode.getValue() ) );
 		}
 
-
-        LOG.debugf( "Mapping class join: %s -> %s", persistentClass.getEntityName(), join.getTable().getName() );
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "Mapping class join: %s -> %s", persistentClass.getEntityName(), join.getTable().getName() );
+		}
 
 		// KEY
 		Element keyNode = node.element( "key" );
@@ -1196,8 +1193,12 @@ public final class HbmBinder {
 		Properties parameters = new Properties();
 
 		Attribute typeNode = node.attribute( "type" );
-		if ( typeNode == null ) typeNode = node.attribute( "id-type" ); // for an any
-		if ( typeNode != null ) typeName = typeNode.getValue();
+        if ( typeNode == null ) {
+            typeNode = node.attribute( "id-type" ); // for an any
+        }
+        else {
+            typeName = typeNode.getValue();
+        }
 
 		Element typeChild = node.element( "type" );
 		if ( typeName == null && typeChild != null ) {
@@ -1213,6 +1214,11 @@ public final class HbmBinder {
 			}
 		}
 
+		resolveAndBindTypeDef(simpleValue, mappings, typeName, parameters);
+	}
+
+	private static void resolveAndBindTypeDef(SimpleValue simpleValue,
+			Mappings mappings, String typeName, Properties parameters) {
 		TypeDef typeDef = mappings.getTypeDef( typeName );
 		if ( typeDef != null ) {
 			typeName = typeDef.getTypeClass();
@@ -1222,6 +1228,19 @@ public final class HbmBinder {
 			allParameters.putAll( typeDef.getParameters() );
 			allParameters.putAll( parameters );
 			parameters = allParameters;
+		}else if (typeName!=null && !mappings.isInSecondPass()){
+			BasicType basicType=mappings.getTypeResolver().basic(typeName);
+			if (basicType==null) {
+				/*
+				 * If the referenced typeName isn't a basic-type, it's probably a typedef defined 
+				 * in a mapping file not read yet.
+				 * It should be solved by deferring the resolution and binding of this type until 
+				 * all mapping files are read - the second passes.
+				 * Fixes issue HHH-7300
+				 */
+				SecondPass resolveUserTypeMappingSecondPass=new ResolveUserTypeMappingSecondPass(simpleValue,typeName,mappings,parameters);
+				mappings.addSecondPass(resolveUserTypeMappingSecondPass);
+			}
 		}
 
 		if ( !parameters.isEmpty() ) simpleValue.setTypeParameters( parameters );
@@ -1323,13 +1342,13 @@ public final class HbmBinder {
 			property.setLazy( lazyNode != null && "true".equals( lazyNode.getValue() ) );
 		}
 
-        if (LOG.isDebugEnabled()) {
+		if ( LOG.isDebugEnabled() ) {
 			String msg = "Mapped property: " + property.getName();
 			String columns = columns( property.getValue() );
 			if ( columns.length() > 0 ) msg += " -> " + columns;
 			// TODO: this fails if we run with debug on!
 			// if ( model.getType()!=null ) msg += ", type: " + model.getType().getName();
-            LOG.debugf(msg);
+			LOG.debug( msg );
 		}
 
 		property.setMetaAttributes( getMetas( node, inheritedMetas ) );
@@ -1337,7 +1356,7 @@ public final class HbmBinder {
 	}
 
 	private static String columns(Value val) {
-		StringBuffer columns = new StringBuffer();
+		StringBuilder columns = new StringBuilder();
 		Iterator iter = val.getColumnIterator();
 		while ( iter.hasNext() ) {
 			columns.append( ( (Selectable) iter.next() ).getText() );
@@ -1385,6 +1404,12 @@ public final class HbmBinder {
 		if ( nodeName == null ) nodeName = node.attributeValue( "name" );
 		collection.setNodeName( nodeName );
 		String embed = node.attributeValue( "embed-xml" );
+		// sometimes embed is set to the default value when not specified in the mapping,
+		// so can't seem to determine if an attribute was explicitly set;
+		// log a warning if embed has a value different from the default.
+		if ( !StringHelper.isEmpty( embed ) &&  !"true".equals( embed ) ) {
+			LOG.embedXmlAttributesNoLongerSupported();
+		}
 		collection.setEmbedded( embed==null || "true".equals(embed) );
 
 
@@ -1479,9 +1504,9 @@ public final class HbmBinder {
 			collection.setCollectionTable( table );
 			bindComment(table, node);
 
-            LOG.debugf(
-					"Mapping collection: %s -> %s", collection.getRole(), collection.getCollectionTable().getName()
-			);
+			if ( LOG.isDebugEnabled() ) {
+				LOG.debugf( "Mapping collection: %s -> %s", collection.getRole(), collection.getCollectionTable().getName() );
+			}
 		}
 
 		// SORT
@@ -1567,11 +1592,11 @@ public final class HbmBinder {
 	) {
 		if ( "no-proxy".equals( node.attributeValue( "lazy" ) ) ) {
 			fetchable.setUnwrapProxy(true);
-			fetchable.setLazy(true);
+			fetchable.setLazy( true );
 			//TODO: better to degrade to lazy="false" if uninstrumented
 		}
 		else {
-			initLaziness(node, fetchable, mappings, "proxy", defaultLazy);
+			initLaziness( node, fetchable, mappings, "proxy", defaultLazy );
 		}
 	}
 
@@ -1608,6 +1633,12 @@ public final class HbmBinder {
 		manyToOne.setReferencedEntityName( getEntityName( node, mappings ) );
 
 		String embed = node.attributeValue( "embed-xml" );
+		// sometimes embed is set to the default value when not specified in the mapping,
+		// so can't seem to determine if an attribute was explicitly set;
+		// log a warning if embed has a value different from the default.
+		if ( !StringHelper.isEmpty( embed ) &&  !"true".equals( embed ) ) {
+			LOG.embedXmlAttributesNoLongerSupported();
+		}
 		manyToOne.setEmbedded( embed == null || "true".equals( embed ) );
 
 		String notFound = node.attributeValue( "not-found" );
@@ -1683,7 +1714,14 @@ public final class HbmBinder {
 		initOuterJoinFetchSetting( node, oneToOne );
 		initLaziness( node, oneToOne, mappings, true );
 
-		oneToOne.setEmbedded( "true".equals( node.attributeValue( "embed-xml" ) ) );
+		String embed = node.attributeValue( "embed-xml" );
+		// sometimes embed is set to the default value when not specified in the mapping,
+		// so can't seem to determine if an attribute was explicitly set;
+		// log a warning if embed has a value different from the default.
+		if ( !StringHelper.isEmpty( embed ) &&  !"true".equals( embed ) ) {
+			LOG.embedXmlAttributesNoLongerSupported();
+		}
+		oneToOne.setEmbedded( "true".equals( embed ) );
 
 		Attribute fkNode = node.attribute( "foreign-key" );
 		if ( fkNode != null ) oneToOne.setForeignKeyName( fkNode.getValue() );
@@ -1711,6 +1749,12 @@ public final class HbmBinder {
 		oneToMany.setReferencedEntityName( getEntityName( node, mappings ) );
 
 		String embed = node.attributeValue( "embed-xml" );
+		// sometimes embed is set to the default value when not specified in the mapping,
+		// so can't seem to determine if an attribute was explicitly set;
+		// log a warning if embed has a value different from the default.
+		if ( !StringHelper.isEmpty( embed ) &&  !"true".equals( embed ) ) {
+			LOG.embedXmlAttributesNoLongerSupported();
+		}
 		oneToMany.setEmbedded( embed == null || "true".equals( embed ) );
 
 		String notFound = node.attributeValue( "not-found" );
@@ -1783,7 +1827,7 @@ public final class HbmBinder {
 				mappings,
 				inheritedMetas,
 				false
-			);
+		);
 	}
 
 	public static void bindCompositeId(Element node, Component component,
@@ -2230,12 +2274,24 @@ public final class HbmBinder {
 			}
 
 			if ( value != null ) {
-				Property property = createProperty( value, propertyName, persistentClass
-					.getClassName(), subnode, mappings, inheritedMetas );
-				if ( !mutable ) property.setUpdateable(false);
-				if ( naturalId ) property.setNaturalIdentifier(true);
+				final Property property = createProperty(
+						value,
+						propertyName,
+						persistentClass.getClassName(),
+						subnode,
+						mappings,
+						inheritedMetas
+				);
+				if ( !mutable ) {
+					property.setUpdateable(false);
+				}
+				if ( naturalId ) {
+					property.setNaturalIdentifier( true );
+				}
 				persistentClass.addProperty( property );
-				if ( uniqueKey!=null ) uniqueKey.addColumns( property.getColumnIterator() );
+				if ( uniqueKey!=null ) {
+					uniqueKey.addColumns( property.getColumnIterator() );
+				}
 			}
 
 		}
@@ -2321,7 +2377,7 @@ public final class HbmBinder {
 				list.isOneToMany(),
 				IndexedCollection.DEFAULT_INDEX_COLUMN_NAME,
 				mappings
-			);
+		);
 		iv.setTypeName( "integer" );
 		list.setIndex( iv );
 		String baseIndex = subnode.attributeValue( "base" );
@@ -2464,9 +2520,9 @@ public final class HbmBinder {
 			oneToMany.setAssociatedClass( persistentClass );
 			collection.setCollectionTable( persistentClass.getTable() );
 
-            LOG.debugf(
-					"Mapping collection: %s -> %s", collection.getRole(), collection.getCollectionTable().getName()
-			);
+			if ( LOG.isDebugEnabled() ) {
+				LOG.debugf( "Mapping collection: %s -> %s", collection.getRole(), collection.getCollectionTable().getName() );
+			}
 		}
 
 		// CHECK
@@ -2612,32 +2668,18 @@ public final class HbmBinder {
 			if ( condition==null) {
 				throw new MappingException("no filter condition found for filter: " + name);
 			}
-            LOG.debugf("Applying many-to-many filter [%s] as [%s] to role [%s]", name, condition, collection.getRole());
-			collection.addManyToManyFilter( name, condition );
-		}
-	}
-
-	public static final FlushMode getFlushMode(String flushMode) {
-		if ( flushMode == null ) {
-			return null;
-		}
-		else if ( "auto".equals( flushMode ) ) {
-			return FlushMode.AUTO;
-		}
-		else if ( "commit".equals( flushMode ) ) {
-			return FlushMode.COMMIT;
-		}
-		else if ( "never".equals( flushMode ) ) {
-			return FlushMode.NEVER;
-		}
-		else if ( "manual".equals( flushMode ) ) {
-			return FlushMode.MANUAL;
-		}
-		else if ( "always".equals( flushMode ) ) {
-			return FlushMode.ALWAYS;
-		}
-		else {
-			throw new MappingException( "unknown flushmode" );
+			Iterator aliasesIterator = filterElement.elementIterator("aliases");
+			java.util.Map<String, String> aliasTables = new HashMap<String, String>();
+			while (aliasesIterator.hasNext()){
+				Element alias = (Element) aliasesIterator.next();
+				aliasTables.put(alias.attributeValue("alias"), alias.attributeValue("table"));
+			}
+			if ( LOG.isDebugEnabled() ) {
+				LOG.debugf( "Applying many-to-many filter [%s] as [%s] to role [%s]", name, condition, collection.getRole() );
+			}
+			String autoAliasInjectionText = filterElement.attributeValue("autoAliasInjection");
+			boolean autoAliasInjection = StringHelper.isEmpty(autoAliasInjectionText) ? true : Boolean.parseBoolean(autoAliasInjectionText);
+			collection.addManyToManyFilter(name, condition, autoAliasInjection, aliasTables, null);
 		}
 	}
 
@@ -2645,14 +2687,14 @@ public final class HbmBinder {
 		String queryName = queryElem.attributeValue( "name" );
 		if (path!=null) queryName = path + '.' + queryName;
 		String query = queryElem.getText();
-        LOG.debugf("Named query: %s -> %s", queryName, query);
+		LOG.debugf( "Named query: %s -> %s", queryName, query );
 
 		boolean cacheable = "true".equals( queryElem.attributeValue( "cacheable" ) );
 		String region = queryElem.attributeValue( "cache-region" );
 		Attribute tAtt = queryElem.attribute( "timeout" );
-		Integer timeout = tAtt == null ? null : new Integer( tAtt.getValue() );
+		Integer timeout = tAtt == null ? null : Integer.valueOf( tAtt.getValue() );
 		Attribute fsAtt = queryElem.attribute( "fetch-size" );
-		Integer fetchSize = fsAtt == null ? null : new Integer( fsAtt.getValue() );
+		Integer fetchSize = fsAtt == null ? null : Integer.valueOf( fsAtt.getValue() );
 		Attribute roAttr = queryElem.attribute( "read-only" );
 		boolean readOnly = roAttr != null && "true".equals( roAttr.getValue() );
 		Attribute cacheModeAtt = queryElem.attribute( "cache-mode" );
@@ -2660,31 +2702,20 @@ public final class HbmBinder {
 		Attribute cmAtt = queryElem.attribute( "comment" );
 		String comment = cmAtt == null ? null : cmAtt.getValue();
 
-		NamedQueryDefinition namedQuery = new NamedQueryDefinition(
-				queryName,
-				query,
-				cacheable,
-				region,
-				timeout,
-				fetchSize,
-				getFlushMode( queryElem.attributeValue( "flush-mode" ) ) ,
-				getCacheMode( cacheMode ),
-				readOnly,
-				comment,
-				getParameterTypes(queryElem)
-			);
+		NamedQueryDefinition namedQuery = new NamedQueryDefinitionBuilder().setName( queryName )
+				.setQuery( query )
+				.setCacheable( cacheable )
+				.setCacheRegion( region )
+				.setTimeout( timeout )
+				.setFetchSize( fetchSize )
+				.setFlushMode( FlushMode.interpretExternalSetting( queryElem.attributeValue( "flush-mode" ) ) )
+				.setCacheMode( CacheMode.interpretExternalSetting( cacheMode ) )
+				.setReadOnly( readOnly )
+				.setComment( comment )
+				.setParameterTypes( getParameterTypes( queryElem ) )
+				.createNamedQueryDefinition();
 
 		mappings.addQuery( namedQuery.getName(), namedQuery );
-	}
-
-	public static CacheMode getCacheMode(String cacheMode) {
-		if (cacheMode == null) return null;
-		if ( "get".equals( cacheMode ) ) return CacheMode.GET;
-		if ( "ignore".equals( cacheMode ) ) return CacheMode.IGNORE;
-		if ( "normal".equals( cacheMode ) ) return CacheMode.NORMAL;
-		if ( "put".equals( cacheMode ) ) return CacheMode.PUT;
-		if ( "refresh".equals( cacheMode ) ) return CacheMode.REFRESH;
-		throw new MappingException("Unknown Cache Mode: " + cacheMode);
 	}
 
 	public static java.util.Map getParameterTypes(Element queryElem) {
@@ -2979,7 +3010,7 @@ public final class HbmBinder {
 
 	private static void parseFilterDef(Element element, Mappings mappings) {
 		String name = element.attributeValue( "name" );
-        LOG.debugf("Parsing filter-def [%s]", name);
+		LOG.debugf( "Parsing filter-def [%s]", name );
 		String defaultCondition = element.getTextTrim();
 		if ( StringHelper.isEmpty( defaultCondition ) ) {
 			defaultCondition = element.attributeValue( "condition" );
@@ -2990,12 +3021,12 @@ public final class HbmBinder {
 			final Element param = (Element) params.next();
 			final String paramName = param.attributeValue( "name" );
 			final String paramType = param.attributeValue( "type" );
-            LOG.debugf("Adding filter parameter : %s -> %s", paramName, paramType);
+			LOG.debugf( "Adding filter parameter : %s -> %s", paramName, paramType );
 			final Type heuristicType = mappings.getTypeResolver().heuristicType( paramType );
-            LOG.debugf("Parameter heuristic type : %s", heuristicType);
+			LOG.debugf( "Parameter heuristic type : %s", heuristicType );
 			paramMappings.put( paramName, heuristicType );
 		}
-        LOG.debugf("Parsed filter-def [%s]", name);
+		LOG.debugf( "Parsed filter-def [%s]", name );
 		FilterDefinition def = new FilterDefinition( name, defaultCondition, paramMappings );
 		mappings.addFilterDefinition( def );
 	}
@@ -3009,7 +3040,7 @@ public final class HbmBinder {
 		//TODO: bad implementation, cos it depends upon ordering of mapping doc
 		//      fixing this requires that Collection/PersistentClass gain access
 		//      to the Mappings reference from Configuration (or the filterDefinitions
-		//      map directly) sometime during Configuration.buildSessionFactory
+		//      map directly) sometime during Configuration.build
 		//      (after all the types/filter-defs are known and before building
 		//      persisters).
 		if ( StringHelper.isEmpty(condition) ) {
@@ -3018,8 +3049,16 @@ public final class HbmBinder {
 		if ( condition==null) {
 			throw new MappingException("no filter condition found for filter: " + name);
 		}
-        LOG.debugf("Applying filter [%s] as [%s]", name, condition);
-		filterable.addFilter( name, condition );
+		Iterator aliasesIterator = filterElement.elementIterator("aliases");
+		java.util.Map<String, String> aliasTables = new HashMap<String, String>();
+		while (aliasesIterator.hasNext()){
+			Element alias = (Element) aliasesIterator.next();
+			aliasTables.put(alias.attributeValue("alias"), alias.attributeValue("table"));
+		}
+		LOG.debugf( "Applying filter [%s] as [%s]", name, condition );
+		String autoAliasInjectionText = filterElement.attributeValue("autoAliasInjection");
+		boolean autoAliasInjection = StringHelper.isEmpty(autoAliasInjectionText) ? true : Boolean.parseBoolean(autoAliasInjectionText);
+		filterable.addFilter(name, condition, autoAliasInjection, aliasTables, null);
 	}
 
 	private static void parseFetchProfile(Element element, Mappings mappings, String containingEntityName) {
@@ -3153,5 +3192,28 @@ public final class HbmBinder {
 
 	private static interface EntityElementHandler {
 		public void handleEntity(String entityName, String className, Mappings mappings);
+	}
+	
+	private static class ResolveUserTypeMappingSecondPass implements SecondPass{
+
+		private SimpleValue simpleValue;
+		private String typeName;
+		private Mappings mappings;
+		private Properties parameters;
+
+		public ResolveUserTypeMappingSecondPass(SimpleValue simpleValue,
+				String typeName, Mappings mappings, Properties parameters) {
+			this.simpleValue=simpleValue;
+			this.typeName=typeName;
+			this.parameters=parameters;
+			this.mappings=mappings;
+		}
+
+		@Override
+		public void doSecondPass(java.util.Map persistentClasses)
+				throws MappingException {
+			resolveAndBindTypeDef(simpleValue, mappings, typeName, parameters);		
+		}
+		
 	}
 }

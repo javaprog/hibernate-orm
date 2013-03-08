@@ -1,34 +1,25 @@
 package org.hibernate.envers.test.integration.onetomany.inverseToSuperclass;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.junit.Test;
-
 import javax.persistence.EntityManager;
-import java.io.File;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.ArrayList;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+
+import org.junit.Test;
 
 /**
  * @author Hern�n Chanfreau
  * 
  */
 
-public class OneToManyInverseToSuperclassTest extends AbstractEntityTest {
+public class OneToManyInverseToSuperclassTest extends BaseEnversJPAFunctionalTestCase {
 
 	private long m1_id;
 
-	public void configure(Ejb3Configuration cfg) {
-		try {
-			URL url = Thread.currentThread().getContextClassLoader()
-					.getResource(
-							"mappings/oneToMany/inverseToSuperclass/mappings.hbm.xml");
-			cfg.addFile(new File(url.toURI()));
-		} catch (URISyntaxException e) {
-			throw new RuntimeException(e);
-		}
+	@Override
+	protected String[] getMappings() {
+		return new String[] { "mappings/oneToMany/inverseToSuperclass/mappings.hbm.xml" };
 	}
 
 	@Test

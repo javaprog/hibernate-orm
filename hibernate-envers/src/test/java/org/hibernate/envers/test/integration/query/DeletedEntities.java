@@ -23,26 +23,27 @@
  */
 package org.hibernate.envers.test.integration.query;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.DefaultRevisionEntity;
-import org.hibernate.envers.RevisionType;
-import org.hibernate.envers.query.AuditEntity;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.entities.StrIntTestEntity;
+import java.util.List;
+import javax.persistence.EntityManager;
+
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.List;
+import org.hibernate.envers.enhanced.SequenceIdRevisionEntity;
+import org.hibernate.envers.RevisionType;
+import org.hibernate.envers.query.AuditEntity;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.entities.StrIntTestEntity;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class DeletedEntities extends AbstractEntityTest {
+public class DeletedEntities extends BaseEnversJPAFunctionalTestCase {
     private Integer id2;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(StrIntTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { StrIntTestEntity.class };
     }
 
     @Test
@@ -81,7 +82,7 @@ public class DeletedEntities extends AbstractEntityTest {
         assert (Long) getAuditReader().createQuery().forEntitiesAtRevision(StrIntTestEntity.class, 1)
             .addProjection(AuditEntity.id().count("id")).getResultList().get(0) == 2;
         assert (Long) getAuditReader().createQuery().forEntitiesAtRevision(StrIntTestEntity.class, 2)
-            .addProjection(AuditEntity.id().count("id")).getResultList().get(0) == 1;
+            .addProjection(AuditEntity.id().count()).getResultList().get(0) == 1;
     }
 
     @Test
@@ -94,7 +95,7 @@ public class DeletedEntities extends AbstractEntityTest {
         assert result.size() == 1;
 
         assert ((Object []) result.get(0))[0].equals(new StrIntTestEntity("b", 11, id2));
-        assert ((DefaultRevisionEntity) ((Object []) result.get(0))[1]).getId() == 1;
+        assert ((SequenceIdRevisionEntity) ((Object []) result.get(0))[1]).getId() == 1;
         assert ((Object []) result.get(0))[2].equals(RevisionType.ADD);
     }
 }

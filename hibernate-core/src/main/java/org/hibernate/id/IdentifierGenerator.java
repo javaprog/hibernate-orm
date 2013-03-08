@@ -24,6 +24,7 @@
  */
 package org.hibernate.id;
 import java.io.Serializable;
+
 import org.hibernate.HibernateException;
 import org.hibernate.engine.spi.SessionImplementor;
 
@@ -51,7 +52,12 @@ public interface IdentifierGenerator {
      * The configuration parameter holding the entity name
      */
     public static final String ENTITY_NAME = "entity_name";
-    
+
+    /**
+     * The configuration parameter holding the JPA entity name
+     */
+    public static final String JPA_ENTITY_NAME = "jpa_entity_name";
+
 	/**
 	 * Generate a new identifier.
 	 * @param session

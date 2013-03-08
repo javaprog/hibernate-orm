@@ -24,6 +24,7 @@
 package org.hibernate.metamodel.relational;
 
 import org.hibernate.dialect.Dialect;
+import org.hibernate.internal.util.StringHelper;
 
 /**
  * Models a SQL <tt>INDEX</tt> defined as UNIQUE
@@ -47,60 +48,20 @@ public class UniqueKey extends AbstractConstraint implements Constraint {
 	}
 
 	@Override
-    public boolean isCreationVetoed(Dialect dialect) {
-		if ( dialect.supportsNotNullUnique() ) {
-			return false;
-		}
-
-		for ( Column column : getColumns() ) {
-			if ( column.isNullable() ) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	public String sqlConstraintStringInCreateTable(Dialect dialect) {
-		StringBuffer buf = new StringBuffer( "unique (" );
-		boolean hadNullableColumn = false;
-		boolean first = true;
-		for ( Column column : getColumns() ) {
-			if ( first ) {
-				first = false;
-			}
-			else {
-				buf.append( ", " );
-			}
-			if ( !hadNullableColumn && column.isNullable() ) {
-				hadNullableColumn = true;
-			}
-			buf.append( column.getColumnName().encloseInQuotesIfQuoted( dialect ) );
-		}
-		//do not add unique constraint on DB not supporting unique and nullable columns
-		return !hadNullableColumn || dialect.supportsNotNullUnique() ?
-				buf.append( ')' ).toString() :
-				null;
+	public String[] sqlCreateStrings(Dialect dialect) {
+		String s = dialect.getUniqueDelegate().applyUniquesOnAlter(this);
+		return StringHelper.toArrayElement( s );
 	}
 
 	@Override
-    public String sqlConstraintStringInAlterTable(Dialect dialect) {
-		StringBuffer buf = new StringBuffer(
-				dialect.getAddUniqueConstraintString( getName() )
-		).append( '(' );
-		boolean nullable = false;
-		boolean first = true;
-		for ( Column column : getColumns() ) {
-			if ( first ) {
-				first = false;
-			}
-			else {
-				buf.append( ", " );
-			}
-			if ( !nullable && column.isNullable() ) {
-				nullable = true;
-			}
-			buf.append( column.getColumnName().encloseInQuotesIfQuoted( dialect ) );
-		}
-		return !nullable || dialect.supportsNotNullUnique() ? buf.append( ')' ).toString() : null;
+	public String[] sqlDropStrings(Dialect dialect) {
+		String s = dialect.getUniqueDelegate().dropUniquesOnAlter(this);
+		return StringHelper.toArrayElement( s );
+	}
+
+	@Override
+    protected String sqlConstraintStringInAlterTable(Dialect dialect) {
+		// not used
+		return "";
 	}
 }

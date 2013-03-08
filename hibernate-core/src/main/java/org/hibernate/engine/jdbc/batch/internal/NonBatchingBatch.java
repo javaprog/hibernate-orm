@@ -27,10 +27,9 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Map;
 
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.engine.jdbc.batch.spi.BatchKey;
 import org.hibernate.engine.jdbc.spi.JdbcCoordinator;
-
+import org.hibernate.internal.CoreMessageLogger;
 import org.jboss.logging.Logger;
 
 /**
@@ -41,10 +40,13 @@ import org.jboss.logging.Logger;
  */
 public class NonBatchingBatch extends AbstractBatchImpl {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, NonBatchingBatch.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, NonBatchingBatch.class.getName() );
 
+	private JdbcCoordinator jdbcCoordinator;
+	
 	protected NonBatchingBatch(BatchKey key, JdbcCoordinator jdbcCoordinator) {
 		super( key, jdbcCoordinator );
+		this.jdbcCoordinator = jdbcCoordinator;
 	}
 
 	@Override
@@ -53,17 +55,12 @@ public class NonBatchingBatch extends AbstractBatchImpl {
 		for ( Map.Entry<String,PreparedStatement> entry : getStatements().entrySet() ) {
 			try {
 				final PreparedStatement statement = entry.getValue();
-				final int rowCount = statement.executeUpdate();
+				final int rowCount = jdbcCoordinator.getResultSetReturn().executeUpdate( statement );
 				getKey().getExpectation().verifyOutcome( rowCount, statement, 0 );
-				try {
-					statement.close();
-				}
-				catch (SQLException e) {
-                    LOG.debug("Unable to close non-batched batch statement", e);
-				}
+				jdbcCoordinator.release( statement );
 			}
 			catch ( SQLException e ) {
-                LOG.debug("SQLException escaped proxy", e);
+				LOG.debug( "SQLException escaped proxy", e );
 				throw sqlExceptionHelper().convert( e, "could not execute batch statement", entry.getKey() );
 			}
 		}

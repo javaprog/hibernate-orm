@@ -32,8 +32,8 @@ import org.jboss.logging.Logger;
 
 import org.hibernate.HibernateException;
 import org.hibernate.engine.spi.QueryParameters;
-import org.hibernate.engine.spi.TypedValue;
 import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.engine.spi.TypedValue;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.type.Type;
 
@@ -121,7 +121,9 @@ public class ParameterBinder {
 				TypedValue typedval = (TypedValue) e.getValue();
 				int[] locations = source.getNamedParameterLocations( name );
 				for ( int i = 0; i < locations.length; i++ ) {
-                    LOG.debugf("bindNamedParameters() %s -> %s [%s]", typedval.getValue(), name, locations[i] + start);
+					if ( LOG.isDebugEnabled() ) {
+						LOG.debugf("bindNamedParameters() %s -> %s [%s]", typedval.getValue(), name, locations[i] + start);
+					}
 					typedval.getType().nullSafeSet( ps, typedval.getValue(), locations[i] + start, session );
 				}
 				result += locations.length;

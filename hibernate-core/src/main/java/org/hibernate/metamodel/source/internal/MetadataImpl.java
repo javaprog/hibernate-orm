@@ -29,12 +29,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.AssertionFailure;
 import org.hibernate.DuplicateMappingException;
 import org.hibernate.MappingException;
 import org.hibernate.SessionFactory;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 import org.hibernate.cache.spi.RegionFactory;
 import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.cfg.NamingStrategy;
@@ -45,7 +44,7 @@ import org.hibernate.engine.spi.NamedSQLQueryDefinition;
 import org.hibernate.id.factory.IdentifierGeneratorFactory;
 import org.hibernate.id.factory.spi.MutableIdentifierGeneratorFactory;
 import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.internal.util.Value;
+import org.hibernate.internal.util.ValueHolder;
 import org.hibernate.metamodel.MetadataSourceProcessingOrder;
 import org.hibernate.metamodel.MetadataSources;
 import org.hibernate.metamodel.SessionFactoryBuilder;
@@ -66,8 +65,8 @@ import org.hibernate.metamodel.source.annotations.AnnotationMetadataSourceProces
 import org.hibernate.metamodel.source.hbm.HbmMetadataSourceProcessorImpl;
 import org.hibernate.persister.spi.PersisterClassResolver;
 import org.hibernate.service.ServiceRegistry;
-import org.hibernate.service.classloading.spi.ClassLoaderService;
 import org.hibernate.type.TypeResolver;
+import org.jboss.logging.Logger;
 
 /**
  * Container for configuration data collected during binding the metamodel.
@@ -86,12 +85,10 @@ public class MetadataImpl implements MetadataImplementor, Serializable {
 	private final ServiceRegistry serviceRegistry;
 	private final Options options;
 
-	private final Value<ClassLoaderService> classLoaderService;
-	private final Value<PersisterClassResolver> persisterClassResolverService;
+	private final ValueHolder<ClassLoaderService> classLoaderService;
+	private final ValueHolder<PersisterClassResolver> persisterClassResolverService;
 
 	private TypeResolver typeResolver = new TypeResolver();
-
-	private SessionFactoryBuilder sessionFactoryBuilder = new SessionFactoryBuilderImpl( this );
 
 	private final MutableIdentifierGeneratorFactory identifierGeneratorFactory;
 
@@ -117,7 +114,7 @@ public class MetadataImpl implements MetadataImplementor, Serializable {
     private boolean globallyQuotedIdentifiers = false;
 
 	public MetadataImpl(MetadataSources metadataSources, Options options) {
-		this.serviceRegistry =  metadataSources.getServiceRegistry();
+		this.serviceRegistry =  options.getServiceRegistry();
 		this.options = options;
 		this.identifierGeneratorFactory = serviceRegistry.getService( MutableIdentifierGeneratorFactory.class );
 				//new DefaultIdentifierGeneratorFactory( dialect );
@@ -139,16 +136,16 @@ public class MetadataImpl implements MetadataImplementor, Serializable {
 			};
 		}
 
-		this.classLoaderService = new org.hibernate.internal.util.Value<ClassLoaderService>(
-				new org.hibernate.internal.util.Value.DeferredInitializer<ClassLoaderService>() {
+		this.classLoaderService = new ValueHolder<ClassLoaderService>(
+				new ValueHolder.DeferredInitializer<ClassLoaderService>() {
 					@Override
 					public ClassLoaderService initialize() {
 						return serviceRegistry.getService( ClassLoaderService.class );
 					}
 				}
 		);
-		this.persisterClassResolverService = new org.hibernate.internal.util.Value<PersisterClassResolver>(
-				new org.hibernate.internal.util.Value.DeferredInitializer<PersisterClassResolver>() {
+		this.persisterClassResolverService = new ValueHolder<PersisterClassResolver>(
+				new ValueHolder.DeferredInitializer<PersisterClassResolver>() {
 					@Override
 					public PersisterClassResolver initialize() {
 						return serviceRegistry.getService( PersisterClassResolver.class );
@@ -336,11 +333,6 @@ public class MetadataImpl implements MetadataImplementor, Serializable {
 	}
 
 	@Override
-	public SessionFactory buildSessionFactory() {
-		return sessionFactoryBuilder.buildSessionFactory();
-	}
-
-	@Override
 	public ServiceRegistry getServiceRegistry() {
 		return serviceRegistry;
 	}
@@ -358,9 +350,9 @@ public class MetadataImpl implements MetadataImplementor, Serializable {
 	}
 
 	@Override
-	public Value<Class<?>> makeClassReference(final String className) {
-		return new Value<Class<?>>(
-				new Value.DeferredInitializer<Class<?>>() {
+	public ValueHolder<Class<?>> makeClassReference(final String className) {
+		return new ValueHolder<Class<?>>(
+				new ValueHolder.DeferredInitializer<Class<?>>() {
 					@Override
 					public Class<?> initialize() {
 						return classLoaderService.getValue().classForName( className );
@@ -435,7 +427,7 @@ public class MetadataImpl implements MetadataImplementor, Serializable {
 		if ( importName == null || entityName == null ) {
 			throw new IllegalArgumentException( "Import name or entity name is null" );
 		}
-		LOG.trace( "Import: " + importName + " -> " + entityName );
+		LOG.tracev( "Import: {0} -> {1}", importName, entityName );
 		String old = imports.put( importName, entityName );
 		if ( old != null ) {
 			LOG.debug( "import name [" + importName + "] overrode previous [{" + old + "}]" );
@@ -458,7 +450,12 @@ public class MetadataImpl implements MetadataImplementor, Serializable {
 
 	@Override
 	public SessionFactoryBuilder getSessionFactoryBuilder() {
-		return sessionFactoryBuilder;
+		return new SessionFactoryBuilderImpl( this );
+	}
+
+	@Override
+	public SessionFactory buildSessionFactory() {
+		return getSessionFactoryBuilder().build();
 	}
 
 	@Override
@@ -582,8 +579,8 @@ public class MetadataImpl implements MetadataImplementor, Serializable {
 			return true;
 		}
 
-		private final Value<AccessType> regionFactorySpecifiedDefaultAccessType = new Value<AccessType>(
-				new Value.DeferredInitializer<AccessType>() {
+		private final ValueHolder<AccessType> regionFactorySpecifiedDefaultAccessType = new ValueHolder<AccessType>(
+				new ValueHolder.DeferredInitializer<AccessType>() {
 					@Override
 					public AccessType initialize() {
 						final RegionFactory regionFactory = getServiceRegistry().getService( RegionFactory.class );

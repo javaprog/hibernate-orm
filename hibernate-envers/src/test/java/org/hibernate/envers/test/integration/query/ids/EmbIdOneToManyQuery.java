@@ -23,35 +23,35 @@
  */
 package org.hibernate.envers.test.integration.query.ids;
 
-import org.hibernate.ejb.Ejb3Configuration;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
 import org.hibernate.envers.query.AuditEntity;
-import org.hibernate.envers.test.AbstractEntityTest;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.ids.EmbId;
 import org.hibernate.envers.test.entities.onetomany.ids.SetRefEdEmbIdEntity;
 import org.hibernate.envers.test.entities.onetomany.ids.SetRefIngEmbIdEntity;
 import org.hibernate.envers.test.tools.TestTools;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
 @SuppressWarnings({"unchecked"})
-public class EmbIdOneToManyQuery extends AbstractEntityTest {
+public class EmbIdOneToManyQuery extends BaseEnversJPAFunctionalTestCase {
     private EmbId id1;
     private EmbId id2;
 
     private EmbId id3;
     private EmbId id4;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(SetRefEdEmbIdEntity.class);
-        cfg.addAnnotatedClass(SetRefIngEmbIdEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { SetRefEdEmbIdEntity.class, SetRefIngEmbIdEntity.class };
     }
 
     @Test

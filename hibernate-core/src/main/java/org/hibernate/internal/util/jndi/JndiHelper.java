@@ -23,22 +23,22 @@
  */
 package org.hibernate.internal.util.jndi;
 
+import java.util.Hashtable;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.Name;
 import javax.naming.NameNotFoundException;
 import javax.naming.NamingException;
-import java.util.Hashtable;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
 
 import org.hibernate.cfg.Environment;
 
 /**
  * Helper for dealing with JNDI.
  *
- * @deprecated As JNDI access should get routed through {@link org.hibernate.service.jndi.spi.JndiService}
+ * @deprecated As JNDI access should get routed through {@link org.hibernate.engine.jndi.spi.JndiService}
  */
 @Deprecated
 public final class JndiHelper {

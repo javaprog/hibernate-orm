@@ -28,6 +28,8 @@ import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+import javax.persistence.MapKeyColumn;
+
 import org.hibernate.envers.Audited;
 
 /**
@@ -41,6 +43,7 @@ public class StringMapEntity {
 
     @Audited
     @ElementCollection
+	@MapKeyColumn(nullable=false)
     private Map<String, String> strings;
 
     public StringMapEntity() {

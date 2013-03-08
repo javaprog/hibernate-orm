@@ -25,6 +25,7 @@ package org.hibernate.envers.event;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Set;
 
 import org.hibernate.collection.spi.PersistentCollection;
 import org.hibernate.engine.spi.CollectionEntry;
@@ -46,8 +47,9 @@ import org.hibernate.persister.collection.AbstractCollectionPersister;
  * Base class for Envers' collection event related listeners
  *
  * @author Adam Warski (adam at warski dot org)
- * @author Hern�n Chanfreau
+ * @author HernпїЅn Chanfreau
  * @author Steve Ebersole
+ * @author Michal Skowronek (mskowr at o2 dot pl)
  */
 public abstract class BaseEnversCollectionEventListener extends BaseEnversEventListener {
 	protected BaseEnversCollectionEventListener(AuditConfiguration enversConfiguration) {
@@ -68,6 +70,8 @@ public abstract class BaseEnversCollectionEventListener extends BaseEnversEventL
             return;
         }
         if ( getAuditConfiguration().getEntCfg().isVersioned( entityName ) ) {
+            checkIfTransactionInProgress(event.getSession());
+            
             AuditProcess auditProcess = getAuditConfiguration().getSyncManager().get(event.getSession());
 
             String ownerEntityName = ((AbstractCollectionPersister) collectionEntry.getLoadedPersister()).getOwnerEntityName();
@@ -106,6 +110,7 @@ public abstract class BaseEnversCollectionEventListener extends BaseEnversEventL
 							new CollectionChangeWorkUnit(
 									event.getSession(),
 									event.getAffectedOwnerEntityName(),
+									referencingPropertyName,
 									getAuditConfiguration(),
 									event.getAffectedOwnerIdOrNull(),
 									event.getAffectedOwnerOrNull()
@@ -151,7 +156,7 @@ public abstract class BaseEnversCollectionEventListener extends BaseEnversEventL
 				.getEntCfg()
 				.get( collectionEntityName )
 				.getPropertyMapper()
-                .mapCollectionChanges( referencingPropertyName, newColl, oldColl, event.getAffectedOwnerIdOrNull() );
+                .mapCollectionChanges( event.getSession(), referencingPropertyName, newColl, oldColl, event.getAffectedOwnerIdOrNull() );
 
         // Getting the id mapper for the related entity, as the work units generated will corrspond to the related
         // entities.
@@ -174,6 +179,7 @@ public abstract class BaseEnversCollectionEventListener extends BaseEnversEventL
             AuditWorkUnit nestedWorkUnit = new CollectionChangeWorkUnit(
 					event.getSession(),
 					realRelatedEntityName,
+					rd.getMappedByPropertyName(),
 					getAuditConfiguration(),
                     relatedId,
 					relatedObj
@@ -200,6 +206,7 @@ public abstract class BaseEnversCollectionEventListener extends BaseEnversEventL
 				new CollectionChangeWorkUnit(
 						event.getSession(),
 						collectionEntityName,
+						referencingPropertyName,
 						getAuditConfiguration(),
 						event.getAffectedOwnerIdOrNull(),
 						event.getAffectedOwnerOrNull()
@@ -224,6 +231,10 @@ public abstract class BaseEnversCollectionEventListener extends BaseEnversEventL
             String relatedEntityName = rd.getToEntityName();
             IdMapper relatedIdMapper = getAuditConfiguration().getEntCfg().get( relatedEntityName ).getIdMapper();
 
+			Set<String> toPropertyNames = getAuditConfiguration().getEntCfg()
+					.getToPropertyNames(event.getAffectedOwnerEntityName(), rd.getFromPropertyName(), relatedEntityName);
+			String toPropertyName = toPropertyNames.iterator().next();
+
             for ( PersistentCollectionChangeData changeData : workUnit.getCollectionChanges() ) {
                 Object relatedObj = changeData.getChangedElement();
                 Serializable relatedId = (Serializable) relatedIdMapper.mapToIdFromEntity( relatedObj );
@@ -231,7 +242,8 @@ public abstract class BaseEnversCollectionEventListener extends BaseEnversEventL
                 auditProcess.addWorkUnit(
 						new CollectionChangeWorkUnit(
 								event.getSession(),
-								relatedEntityName,
+								event.getSession().bestGuessEntityName(relatedObj),
+								toPropertyName,
 								getAuditConfiguration(),
 								relatedId,
 								relatedObj

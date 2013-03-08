@@ -26,10 +26,13 @@ package org.hibernate.proxy.pojo.javassist;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+
 import javassist.util.proxy.MethodFilter;
 import javassist.util.proxy.MethodHandler;
 import javassist.util.proxy.ProxyFactory;
 import javassist.util.proxy.ProxyObject;
+import org.jboss.logging.Logger;
+
 import org.hibernate.HibernateException;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.CoreMessageLogger;
@@ -37,7 +40,6 @@ import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.proxy.HibernateProxy;
 import org.hibernate.proxy.pojo.BasicLazyInitializer;
 import org.hibernate.type.CompositeType;
-import org.jboss.logging.Logger;
 
 /**
  * A Javassist-based lazy initializer proxy.
@@ -46,8 +48,7 @@ import org.jboss.logging.Logger;
  */
 public class JavassistLazyInitializer extends BasicLazyInitializer implements MethodHandler {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                       JavassistLazyInitializer.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, JavassistLazyInitializer.class.getName());
 
 	private static final MethodFilter FINALIZE_FILTER = new MethodFilter() {
 		public boolean isHandled(Method m) {
@@ -61,37 +62,39 @@ public class JavassistLazyInitializer extends BasicLazyInitializer implements Me
 
 	private JavassistLazyInitializer(
 			final String entityName,
-	        final Class persistentClass,
-	        final Class[] interfaces,
-	        final Serializable id,
-	        final Method getIdentifierMethod,
-	        final Method setIdentifierMethod,
-	        final CompositeType componentIdType,
-	        final SessionImplementor session) {
-		super( entityName, persistentClass, id, getIdentifierMethod, setIdentifierMethod, componentIdType, session );
+			final Class persistentClass,
+			final Class[] interfaces,
+			final Serializable id,
+			final Method getIdentifierMethod,
+			final Method setIdentifierMethod,
+			final CompositeType componentIdType,
+			final SessionImplementor session,
+			final boolean overridesEquals) {
+		super( entityName, persistentClass, id, getIdentifierMethod, setIdentifierMethod, componentIdType, session, overridesEquals );
 		this.interfaces = interfaces;
 	}
 
 	public static HibernateProxy getProxy(
 			final String entityName,
-	        final Class persistentClass,
-	        final Class[] interfaces,
-	        final Method getIdentifierMethod,
-	        final Method setIdentifierMethod,
-	        CompositeType componentIdType,
-	        final Serializable id,
-	        final SessionImplementor session) throws HibernateException {
+			final Class persistentClass,
+			final Class[] interfaces,
+			final Method getIdentifierMethod,
+			final Method setIdentifierMethod,
+			CompositeType componentIdType,
+			final Serializable id,
+			final SessionImplementor session) throws HibernateException {
 		// note: interface is assumed to already contain HibernateProxy.class
 		try {
 			final JavassistLazyInitializer instance = new JavassistLazyInitializer(
 					entityName,
-			        persistentClass,
-			        interfaces,
-			        id,
-			        getIdentifierMethod,
-			        setIdentifierMethod,
-			        componentIdType,
-			        session
+					persistentClass,
+					interfaces,
+					id,
+					getIdentifierMethod,
+					setIdentifierMethod,
+					componentIdType,
+					session,
+					ReflectHelper.overridesEquals(persistentClass)
 			);
 			ProxyFactory factory = new ProxyFactory();
 			factory.setSuperclass( interfaces.length == 1 ? persistentClass : null );
@@ -104,30 +107,32 @@ public class JavassistLazyInitializer extends BasicLazyInitializer implements Me
 			return proxy;
 		}
 		catch ( Throwable t ) {
-            LOG.error(LOG.javassistEnhancementFailed(entityName), t);
-            throw new HibernateException(LOG.javassistEnhancementFailed(entityName), t);
+			LOG.error(LOG.javassistEnhancementFailed(entityName), t);
+			throw new HibernateException(LOG.javassistEnhancementFailed(entityName), t);
 		}
 	}
 
 	public static HibernateProxy getProxy(
 			final Class factory,
-	        final String entityName,
-	        final Class persistentClass,
-	        final Class[] interfaces,
-	        final Method getIdentifierMethod,
-	        final Method setIdentifierMethod,
-	        final CompositeType componentIdType,
-	        final Serializable id,
-	        final SessionImplementor session) throws HibernateException {
+			final String entityName,
+			final Class persistentClass,
+			final Class[] interfaces,
+			final Method getIdentifierMethod,
+			final Method setIdentifierMethod,
+			final CompositeType componentIdType,
+			final Serializable id,
+			final SessionImplementor session,
+			final boolean classOverridesEquals) throws HibernateException {
 
 		final JavassistLazyInitializer instance = new JavassistLazyInitializer(
 				entityName,
-		        persistentClass,
-		        interfaces, id,
-		        getIdentifierMethod,
-		        setIdentifierMethod,
-		        componentIdType,
-		        session
+				persistentClass,
+				interfaces, id,
+				getIdentifierMethod,
+				setIdentifierMethod,
+				componentIdType,
+				session,
+				classOverridesEquals
 		);
 
 		final HibernateProxy proxy;
@@ -147,7 +152,7 @@ public class JavassistLazyInitializer extends BasicLazyInitializer implements Me
 
 	public static Class getProxyFactory(
 			Class persistentClass,
-	        Class[] interfaces) throws HibernateException {
+			Class[] interfaces) throws HibernateException {
 		// note: interfaces is assumed to already contain HibernateProxy.class
 
 		try {
@@ -158,8 +163,8 @@ public class JavassistLazyInitializer extends BasicLazyInitializer implements Me
 			return factory.createClass();
 		}
 		catch ( Throwable t ) {
-            LOG.error(LOG.javassistEnhancementFailed(persistentClass.getName()), t);
-            throw new HibernateException(LOG.javassistEnhancementFailed(persistentClass.getName()), t);
+			LOG.error(LOG.javassistEnhancementFailed(persistentClass.getName()), t);
+			throw new HibernateException(LOG.javassistEnhancementFailed(persistentClass.getName()), t);
 		}
 	}
 
@@ -214,16 +219,16 @@ public class JavassistLazyInitializer extends BasicLazyInitializer implements Me
 	}
 
 	@Override
-    protected Object serializableProxy() {
+	protected Object serializableProxy() {
 		return new SerializableProxy(
 				getEntityName(),
-		        persistentClass,
-		        interfaces,
-		        getIdentifier(),
-		        ( isReadOnlySettingAvailable() ? Boolean.valueOf( isReadOnly() ) : isReadOnlyBeforeAttachedToSession() ),
-		        getIdentifierMethod,
-		        setIdentifierMethod,
-		        componentIdType
+				persistentClass,
+				interfaces,
+				getIdentifier(),
+				( isReadOnlySettingAvailable() ? Boolean.valueOf( isReadOnly() ) : isReadOnlyBeforeAttachedToSession() ),
+				getIdentifierMethod,
+				setIdentifierMethod,
+				componentIdType
 		);
 	}
 }

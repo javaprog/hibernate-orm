@@ -22,10 +22,12 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.mapping;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+
 import org.hibernate.AssertionFailure;
 import org.hibernate.EntityMode;
 import org.hibernate.internal.util.collections.JoinedIterator;
@@ -54,6 +56,11 @@ public class Subclass extends PersistentClass {
 		return subclassId;
 	}
 	
+	@Override
+	public String getNaturalIdCacheRegionName() {
+		return getSuperclass().getNaturalIdCacheRegionName();
+	}
+
 	public String getCacheConcurrencyStrategy() {
 		return getSuperclass().getCacheConcurrencyStrategy();
 	}
@@ -248,8 +255,10 @@ public class Subclass extends PersistentClass {
 		return mv.accept(this);
 	}
 
-	public Map getFilterMap() {
-		return getSuperclass().getFilterMap();
+	public java.util.List getFilters() {
+		java.util.List filters = new ArrayList(super.getFilters());
+		filters.addAll(getSuperclass().getFilters());
+		return filters;
 	}
 
 	public boolean hasSubselectLoadableCollections() {

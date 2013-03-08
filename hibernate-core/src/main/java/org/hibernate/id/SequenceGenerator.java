@@ -22,13 +22,16 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.id;
+
 import java.io.Serializable;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Properties;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.HibernateException;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.MappingException;
 import org.hibernate.cfg.ObjectNameNormalizer;
 import org.hibernate.dialect.Dialect;
@@ -36,7 +39,6 @@ import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.mapping.Table;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
 
 /**
  * <b>sequence</b><br>
@@ -47,12 +49,12 @@ import org.jboss.logging.Logger;
  * Mapping parameters supported: sequence, parameters.
  *
  * @see SequenceHiLoGenerator
- * @see TableHiLoGenerator
  * @author Gavin King
  */
-public class SequenceGenerator implements PersistentIdentifierGenerator, Configurable {
+public class SequenceGenerator
+		implements PersistentIdentifierGenerator, BulkInsertionCapableIdentifierGenerator, Configurable {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, SequenceGenerator.class.getName());
+    private static final Logger LOG = Logger.getLogger( SequenceGenerator.class.getName() );
 
 	/**
 	 * The sequence parameter
@@ -74,6 +76,15 @@ public class SequenceGenerator implements PersistentIdentifierGenerator, Configu
 		return identifierType;
 	}
 
+	public Object generatorKey() {
+		return getSequenceName();
+	}
+
+	public String getSequenceName() {
+		return sequenceName;
+	}
+
+	@Override
 	public void configure(Type type, Properties params, Dialect dialect) throws MappingException {
 		ObjectNameNormalizer normalizer = ( ObjectNameNormalizer ) params.get( IDENTIFIER_NORMALIZER );
 		sequenceName = normalizer.normalizeIdentifierQuoting(
@@ -99,6 +110,7 @@ public class SequenceGenerator implements PersistentIdentifierGenerator, Configu
 		sql = dialect.getSequenceNextValString( sequenceName );
 	}
 
+	@Override
 	public Serializable generate(SessionImplementor session, Object obj) {
 		return generateHolder( session ).makeValue();
 	}
@@ -107,20 +119,20 @@ public class SequenceGenerator implements PersistentIdentifierGenerator, Configu
 		try {
 			PreparedStatement st = session.getTransactionCoordinator().getJdbcCoordinator().getStatementPreparer().prepareStatement( sql );
 			try {
-				ResultSet rs = st.executeQuery();
+				ResultSet rs = session.getTransactionCoordinator().getJdbcCoordinator().getResultSetReturn().extract( st );
 				try {
 					rs.next();
 					IntegralDataTypeHolder result = buildHolder();
 					result.initialize( rs, 1 );
-                    LOG.debugf("Sequence identifier generated: %s", result);
+					LOG.debugf( "Sequence identifier generated: %s", result );
 					return result;
 				}
 				finally {
-					rs.close();
+					session.getTransactionCoordinator().getJdbcCoordinator().release( rs );
 				}
 			}
 			finally {
-				st.close();
+				session.getTransactionCoordinator().getJdbcCoordinator().release( st );
 			}
 
 		}
@@ -137,23 +149,28 @@ public class SequenceGenerator implements PersistentIdentifierGenerator, Configu
 		return IdentifierGeneratorHelper.getIntegralDataTypeHolder( identifierType.getReturnedClass() );
 	}
 
+	@Override
+	@SuppressWarnings( {"deprecation"})
 	public String[] sqlCreateStrings(Dialect dialect) throws HibernateException {
-		String[] ddl = dialect.getCreateSequenceStrings(sequenceName);
+		String[] ddl = dialect.getCreateSequenceStrings( sequenceName );
 		if ( parameters != null ) {
 			ddl[ddl.length - 1] += ' ' + parameters;
 		}
 		return ddl;
 	}
 
+	@Override
 	public String[] sqlDropStrings(Dialect dialect) throws HibernateException {
 		return dialect.getDropSequenceStrings(sequenceName);
 	}
 
-	public Object generatorKey() {
-		return sequenceName;
+	@Override
+	public boolean supportsBulkInsertionIdentifierGeneration() {
+		return true;
 	}
 
-	public String getSequenceName() {
-		return sequenceName;
+	@Override
+	public String determineBulkInsertionIdentifierGenerationSelectFragment(Dialect dialect) {
+		return dialect.getSelectSequenceNextValString( getSequenceName() );
 	}
 }

@@ -1,16 +1,18 @@
 package org.hibernate.envers.test.entities.reventity.trackmodifiedentities;
 
-import org.hibernate.envers.DefaultTrackingModifiedEntitiesRevisionEntity;
-import org.hibernate.envers.RevisionEntity;
-
+import javax.persistence.Column;
 import javax.persistence.Entity;
+
+import org.hibernate.envers.enhanced.SequenceIdTrackingModifiedEntitiesRevisionEntity;
+import org.hibernate.envers.RevisionEntity;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 @Entity
 @RevisionEntity(ExtendedRevisionListener.class)
-public class ExtendedRevisionEntity extends DefaultTrackingModifiedEntitiesRevisionEntity {
+public class ExtendedRevisionEntity extends SequenceIdTrackingModifiedEntitiesRevisionEntity {
+    @Column(name = "USER_COMMENT")
     private String comment;
 
     public String getComment() {

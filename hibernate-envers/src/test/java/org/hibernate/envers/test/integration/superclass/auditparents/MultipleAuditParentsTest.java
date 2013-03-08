@@ -1,35 +1,37 @@
 package org.hibernate.envers.test.integration.superclass.auditparents;
 
-import org.hibernate.ejb.Ejb3Configuration;
+import java.util.Set;
+import javax.persistence.EntityManager;
+import javax.persistence.MappedSuperclass;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.hibernate.envers.Audited;
-import org.hibernate.envers.test.AbstractEntityTest;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrIntTestEntity;
 import org.hibernate.envers.test.tools.TestTools;
 import org.hibernate.mapping.Column;
 import org.hibernate.mapping.Table;
-import org.junit.Assert;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import javax.persistence.MappedSuperclass;
-import java.util.Set;
 
 /**
  * Tests mapping of child entity that declares all of its ancestors as audited with {@link Audited#auditParents()} property.
  * All supperclasses are marked with {@link MappedSuperclass} annotation but not {@link Audited}.
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
-public class MultipleAuditParentsTest extends AbstractEntityTest {
+public class MultipleAuditParentsTest extends BaseEnversJPAFunctionalTestCase {
     private long childMultipleId = 1L;
     private Integer siteMultipleId = null;
 
-    @Override
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(MappedGrandparentEntity.class);
-        cfg.addAnnotatedClass(MappedParentEntity.class);
-        cfg.addAnnotatedClass(ChildMultipleParentsEntity.class);
-        cfg.addAnnotatedClass(StrIntTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] {
+				MappedGrandparentEntity.class,
+				MappedParentEntity.class,
+				ChildMultipleParentsEntity.class,
+				StrIntTestEntity.class
+		};
     }
 
     @Test

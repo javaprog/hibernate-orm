@@ -24,12 +24,13 @@
 package org.hibernate.dialect;
 import java.sql.Types;
 
+import org.jboss.logging.Logger;
+
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.sql.CaseFragment;
 import org.hibernate.sql.DecodeCaseFragment;
 import org.hibernate.sql.JoinFragment;
 import org.hibernate.sql.OracleJoinFragment;
-import org.jboss.logging.Logger;
 
 /**
  * An SQL dialect for Oracle, compatible with Oracle 8.
@@ -40,11 +41,11 @@ import org.jboss.logging.Logger;
 @Deprecated
 public class OracleDialect extends Oracle9Dialect {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, OracleDialect.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, OracleDialect.class.getName());
 
 	public OracleDialect() {
 		super();
-        LOG.deprecatedOracleDialect();
+		LOG.deprecatedOracleDialect();
 		// Oracle8 and previous define only a "DATE" type which
 		//      is used to represent all aspects of date/time
 		registerColumnType( Types.TIMESTAMP, "date" );
@@ -71,7 +72,7 @@ public class OracleDialect extends Oracle9Dialect {
 			isForUpdate = true;
 		}
 
-		StringBuffer pagingSelect = new StringBuffer( sql.length()+100 );
+		StringBuilder pagingSelect = new StringBuilder( sql.length()+100 );
 		if (hasOffset) {
 			pagingSelect.append("select * from ( select row_.*, rownum rownum_ from ( ");
 		}

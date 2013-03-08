@@ -22,9 +22,11 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.envers.query.impl;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
 import org.hibernate.Query;
 import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.configuration.AuditConfiguration;
@@ -33,9 +35,13 @@ import org.hibernate.envers.entities.mapper.relation.MiddleIdData;
 import org.hibernate.envers.query.criteria.AuditCriterion;
 import org.hibernate.envers.reader.AuditReaderImplementor;
 
+import static org.hibernate.envers.entities.mapper.relation.query.QueryConstants.REFERENCED_ENTITY_ALIAS;
+import static org.hibernate.envers.entities.mapper.relation.query.QueryConstants.REFERENCED_ENTITY_ALIAS_DEF_AUD_STR;
+import static org.hibernate.envers.entities.mapper.relation.query.QueryConstants.REVISION_PARAMETER;
+
 /**
  * @author Adam Warski (adam at warski dot org)
- * @author Hern�n Chanfreau
+ * @author HernпїЅn Chanfreau
  */
 public class EntitiesAtRevisionQuery extends AbstractAuditQuery {
     private final Number revision;
@@ -83,21 +89,21 @@ public class EntitiesAtRevisionQuery extends AbstractAuditQuery {
         // --> based on auditStrategy (see above)
         verCfg.getAuditStrategy().addEntityAtRevisionRestriction(verCfg.getGlobalCfg(), qb, revisionPropertyPath, 
         		verEntCfg.getRevisionEndFieldName(), true, referencedIdData, 
-				revisionPropertyPath, originalIdPropertyName, "e", "e2");
+				revisionPropertyPath, originalIdPropertyName, REFERENCED_ENTITY_ALIAS, REFERENCED_ENTITY_ALIAS_DEF_AUD_STR);
         
          // e.revision_type != DEL
          qb.getRootParameters().addWhereWithParam(verEntCfg.getRevisionTypePropName(), "<>", RevisionType.DEL);
 
         // all specified conditions
         for (AuditCriterion criterion : criterions) {
-            criterion.addToQuery(verCfg, entityName, qb, qb.getRootParameters());
+            criterion.addToQuery(verCfg, versionsReader, entityName, qb, qb.getRootParameters());
         }
         
         Query query = buildQuery();
         // add named parameter (only used for ValidAuditTimeStrategy) 
         List<String> params = Arrays.asList(query.getNamedParameters());
-        if (params.contains("revision")) {
-            query.setParameter("revision", revision);
+        if (params.contains(REVISION_PARAMETER)) {
+            query.setParameter(REVISION_PARAMETER, revision);
         }
         List queryResult = query.list();
 

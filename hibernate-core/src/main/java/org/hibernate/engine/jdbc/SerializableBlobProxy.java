@@ -22,13 +22,16 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.engine.jdbc;
+
 import java.io.Serializable;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.sql.Blob;
+
 import org.hibernate.HibernateException;
+import org.hibernate.internal.util.ClassLoaderHelper;
 
 /**
  * Manages aspects of proxying {@link Blob Blobs} to add serializability.
@@ -61,9 +64,7 @@ public class SerializableBlobProxy implements InvocationHandler, Serializable {
 		}
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 		if ( "getWrappedBlob".equals( method.getName() ) ) {
 			return getWrappedBlob();
@@ -101,7 +102,7 @@ public class SerializableBlobProxy implements InvocationHandler, Serializable {
 	 * @return The class loader appropriate for proxy construction.
 	 */
 	public static ClassLoader getProxyClassLoader() {
-		ClassLoader cl = Thread.currentThread().getContextClassLoader();
+		ClassLoader cl = ClassLoaderHelper.getContextClassLoader();
 		if ( cl == null ) {
 			cl = WrappedBlob.class.getClassLoader();
 		}

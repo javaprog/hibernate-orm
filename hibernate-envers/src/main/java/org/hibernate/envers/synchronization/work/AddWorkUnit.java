@@ -25,23 +25,28 @@ package org.hibernate.envers.synchronization.work;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
+
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.configuration.AuditConfiguration;
+import org.hibernate.envers.tools.Tools;
 import org.hibernate.persister.entity.EntityPersister;
 
 /**
  * @author Adam Warski (adam at warski dot org)
+ * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 public class AddWorkUnit extends AbstractAuditWorkUnit implements AuditWorkUnit {
+    private final Object[] state;
     private final Map<String, Object> data;
 
     public AddWorkUnit(SessionImplementor sessionImplementor, String entityName, AuditConfiguration verCfg,
 					   Serializable id, EntityPersister entityPersister, Object[] state) {
         super(sessionImplementor, entityName, verCfg, id, RevisionType.ADD);
 
-        data = new HashMap<String, Object>();
-        verCfg.getEntCfg().get(getEntityName()).getPropertyMapper().map(sessionImplementor, data,
+        this.data = new HashMap<String, Object>();
+        this.state = state;
+        this.verCfg.getEntCfg().get(getEntityName()).getPropertyMapper().map(sessionImplementor, data,
 				entityPersister.getPropertyNames(), state, null);
     }
 
@@ -50,6 +55,8 @@ public class AddWorkUnit extends AbstractAuditWorkUnit implements AuditWorkUnit 
         super(sessionImplementor, entityName, verCfg, id, RevisionType.ADD);
 
         this.data = data;
+        final String[] propertyNames = sessionImplementor.getFactory().getEntityPersister(getEntityName()).getPropertyNames();
+        this.state = Tools.mapToArray(data, propertyNames);
     }
 
     public boolean containsWork() {
@@ -59,6 +66,10 @@ public class AddWorkUnit extends AbstractAuditWorkUnit implements AuditWorkUnit 
     public Map<String, Object> generateData(Object revisionData) {
         fillDataWithId(data, revisionData);
         return data;
+    }
+
+    public Object[] getState() {
+        return state;
     }
 
     public AuditWorkUnit merge(AddWorkUnit second) {
@@ -74,8 +85,9 @@ public class AddWorkUnit extends AbstractAuditWorkUnit implements AuditWorkUnit 
     }
 
     public AuditWorkUnit merge(CollectionChangeWorkUnit second) {
-        return this;
-    }
+		second.mergeCollectionModifiedData(data);
+		return this;
+	}
 
     public AuditWorkUnit merge(FakeBidirectionalRelationWorkUnit second) {
         return FakeBidirectionalRelationWorkUnit.merge(second, this, second.getNestedWorkUnit());

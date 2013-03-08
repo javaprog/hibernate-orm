@@ -26,6 +26,8 @@ import java.util.Map;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.ManyToMany;
+import javax.persistence.MapKeyColumn;
+
 import org.hibernate.envers.Audited;
 import org.hibernate.envers.test.entities.StrTestEntity;
 
@@ -43,6 +45,7 @@ public class MapUniEntity {
 
     @Audited
     @ManyToMany
+	@MapKeyColumn(nullable=false)
     private Map<String, StrTestEntity> map;
 
     public MapUniEntity() {

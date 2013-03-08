@@ -26,14 +26,15 @@ package org.hibernate.dialect;
 import java.lang.reflect.Method;
 import java.sql.Types;
 
-import org.hibernate.internal.CoreMessageLogger;
+import org.jboss.logging.Logger;
+
 import org.hibernate.MappingException;
 import org.hibernate.dialect.function.AnsiTrimFunction;
 import org.hibernate.dialect.function.DerbyConcatFunction;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.sql.CaseFragment;
 import org.hibernate.sql.DerbyCaseFragment;
-import org.jboss.logging.Logger;
 
 /**
  * Hibernate Dialect for Cloudscape 10 - aka Derby. This implements both an
@@ -55,7 +56,9 @@ public class DerbyDialect extends DB2Dialect {
 
 	public DerbyDialect() {
 		super();
-		LOG.deprecatedDerbyDialect();
+		if (this.getClass() == DerbyDialect.class) {
+			LOG.deprecatedDerbyDialect();
+		}
 		registerFunction( "concat", new DerbyConcatFunction() );
 		registerFunction( "trim", new AnsiTrimFunction() );
         registerColumnType( Types.BLOB, "blob" );
@@ -77,7 +80,7 @@ public class DerbyDialect extends DB2Dialect {
 			driverVersionMinor = ( (Integer) minorVersionGetter.invoke( null, ReflectHelper.NO_PARAMS ) ).intValue();
 		}
 		catch ( Exception e ) {
-            LOG.unableToLoadDerbyDriver(e.getMessage());
+			LOG.unableToLoadDerbyDriver( e.getMessage() );
 			driverVersionMajor = -1;
 			driverVersionMinor = -1;
 		}
@@ -177,7 +180,7 @@ public String getForUpdateString() {
 	 */
 	@Override
     public String getLimitString(String query, final int offset, final int limit) {
-		StringBuffer sb = new StringBuffer(query.length() + 50);
+		StringBuilder sb = new StringBuilder(query.length() + 50);
 
 		final String normalizedSelect = query.toLowerCase().trim();
 		final int forUpdateIndex = normalizedSelect.lastIndexOf( "for update") ;

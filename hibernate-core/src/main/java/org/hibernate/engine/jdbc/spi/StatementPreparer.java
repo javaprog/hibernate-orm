@@ -23,14 +23,27 @@
  */
 package org.hibernate.engine.jdbc.spi;
 
+import java.sql.PreparedStatement;
+import java.sql.Statement;
+
 import org.hibernate.ScrollMode;
 
-import java.sql.PreparedStatement;
-
 /**
+ * Contracting for preparing SQL statements
+ *
  * @author Steve Ebersole
+ * @author Brett Meyer
  */
 public interface StatementPreparer {
+	/**
+	 * Create a statement.
+	 *
+	 * @param sql The SQL the statement to be created
+	 *
+	 * @return the statement
+	 */
+	public Statement createStatement();
+	
 	/**
 	 * Prepare a statement.
 	 *
@@ -91,7 +104,4 @@ public interface StatementPreparer {
 	 * @return the prepared statement
 	 */
 	public PreparedStatement prepareQueryStatement(String sql, boolean isCallable, ScrollMode scrollMode);
-
-	public void setTransactionTimeOut(int timeout);
-	public void unsetTransactionTimeOut();
 }

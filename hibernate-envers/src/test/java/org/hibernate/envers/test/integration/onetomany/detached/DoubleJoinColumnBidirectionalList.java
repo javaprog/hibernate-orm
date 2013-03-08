@@ -23,26 +23,27 @@
  */
 package org.hibernate.envers.test.integration.onetomany.detached;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.onetomany.detached.DoubleListJoinColumnBidirectionalRefEdEntity1;
 import org.hibernate.envers.test.entities.onetomany.detached.DoubleListJoinColumnBidirectionalRefEdEntity2;
 import org.hibernate.envers.test.entities.onetomany.detached.DoubleListJoinColumnBidirectionalRefIngEntity;
-import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-
-import static org.hibernate.envers.test.tools.TestTools.*;
-import static org.junit.Assert.*;
+import static org.hibernate.envers.test.tools.TestTools.checkList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test for a double "fake" bidirectional mapping where one side uses @OneToMany+@JoinColumn
  * (and thus owns the relation), and the other uses a @ManyToOne(insertable=false, updatable=false).
  * @author Adam Warski (adam at warski dot org)
  */
-public class DoubleJoinColumnBidirectionalList extends AbstractEntityTest {
+public class DoubleJoinColumnBidirectionalList extends BaseEnversJPAFunctionalTestCase {
     private Integer ed1_1_id;
     private Integer ed2_1_id;
     private Integer ed1_2_id;
@@ -51,10 +52,13 @@ public class DoubleJoinColumnBidirectionalList extends AbstractEntityTest {
     private Integer ing1_id;
     private Integer ing2_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(DoubleListJoinColumnBidirectionalRefIngEntity.class);
-        cfg.addAnnotatedClass(DoubleListJoinColumnBidirectionalRefEdEntity1.class);
-        cfg.addAnnotatedClass(DoubleListJoinColumnBidirectionalRefEdEntity2.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] {
+				DoubleListJoinColumnBidirectionalRefIngEntity.class,
+				DoubleListJoinColumnBidirectionalRefEdEntity1.class,
+				DoubleListJoinColumnBidirectionalRefEdEntity2.class
+		};
     }
 
     @Test

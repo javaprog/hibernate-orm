@@ -26,12 +26,12 @@ package org.hibernate.metamodel.source.hbm;
 import java.util.List;
 
 import org.hibernate.FetchMode;
+import org.hibernate.internal.jaxb.mapping.hbm.JaxbManyToManyElement;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.metamodel.source.LocalBindingContext;
 import org.hibernate.metamodel.source.binder.ManyToManyPluralAttributeElementSource;
 import org.hibernate.metamodel.source.binder.PluralAttributeElementNature;
 import org.hibernate.metamodel.source.binder.RelationalValueSource;
-import org.hibernate.internal.jaxb.mapping.hbm.JaxbManyToManyElement;
 
 /**
  * @author Steve Ebersole
@@ -134,7 +134,7 @@ public class ManyToManyPluralAttributeElementSourceImpl implements ManyToManyPlu
 
 	@Override
 	public FetchMode getFetchMode() {
-		return null;  //To change body of implemented methods use File | Settings | File Templates.
+		return null;
 	}
 
 	@Override

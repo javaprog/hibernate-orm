@@ -25,9 +25,10 @@ package org.hibernate.cache.internal;
 
 import java.util.Map;
 
+import org.hibernate.boot.registry.StandardServiceInitiator;
+import org.hibernate.boot.registry.selector.spi.StrategySelector;
 import org.hibernate.cache.spi.RegionFactory;
-import org.hibernate.service.classloading.spi.ClassLoaderService;
-import org.hibernate.service.spi.BasicServiceInitiator;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 import org.hibernate.service.spi.ServiceException;
 import org.hibernate.service.spi.ServiceRegistryImplementor;
 
@@ -36,7 +37,7 @@ import org.hibernate.service.spi.ServiceRegistryImplementor;
  *
  * @author Hardy Ferentschik
  */
-public class RegionFactoryInitiator implements BasicServiceInitiator<RegionFactory> {
+public class RegionFactoryInitiator implements StandardServiceInitiator<RegionFactory> {
 	public static final RegionFactoryInitiator INSTANCE = new RegionFactoryInitiator();
 
 	/**
@@ -52,32 +53,37 @@ public class RegionFactoryInitiator implements BasicServiceInitiator<RegionFacto
 	@Override
 	@SuppressWarnings( { "unchecked" })
 	public RegionFactory initiateService(Map configurationValues, ServiceRegistryImplementor registry) {
-		final Object impl = configurationValues.get( IMPL_NAME );
-		if ( impl == null ) {
-			return new NoCachingRegionFactory();
-		}
-
-		if ( getServiceInitiated().isInstance( impl ) ) {
-			return (RegionFactory) impl;
-		}
-
-		Class<? extends RegionFactory> customImplClass = null;
-		if ( Class.class.isInstance( impl ) ) {
-			customImplClass = (Class<? extends RegionFactory>) impl;
-		}
-		else {
-			customImplClass = registry.getService( ClassLoaderService.class )
-					.classForName( mapLegacyNames( impl.toString() ) );
-		}
-
-		try {
-			return customImplClass.newInstance();
-		}
-		catch ( Exception e ) {
-			throw new ServiceException(
-					"Could not initialize custom RegionFactory impl [" + customImplClass.getName() + "]", e
-			);
-		}
+		final Object setting = configurationValues.get( IMPL_NAME );
+		return registry.getService( StrategySelector.class ).resolveDefaultableStrategy(
+				RegionFactory.class,
+				setting,
+				NoCachingRegionFactory.INSTANCE
+		);
+//		if ( setting == null ) {
+//			return new NoCachingRegionFactory();
+//		}
+//
+//		if ( getServiceInitiated().isInstance( setting ) ) {
+//			return (RegionFactory) setting;
+//		}
+//
+//		Class<? extends RegionFactory> customImplClass = null;
+//		if ( Class.class.isInstance( setting ) ) {
+//			customImplClass = (Class<? extends RegionFactory>) setting;
+//		}
+//		else {
+//			customImplClass = registry.getService( ClassLoaderService.class )
+//					.classForName( mapLegacyNames( setting.toString() ) );
+//		}
+//
+//		try {
+//			return customImplClass.newInstance();
+//		}
+//		catch ( Exception e ) {
+//			throw new ServiceException(
+//					"Could not initialize custom RegionFactory impl [" + customImplClass.getName() + "]", e
+//			);
+//		}
 	}
 
 	// todo this shouldn't be public (nor really static):

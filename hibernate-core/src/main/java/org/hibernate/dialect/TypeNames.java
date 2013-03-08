@@ -25,6 +25,7 @@ package org.hibernate.dialect;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
+
 import org.hibernate.MappingException;
 import org.hibernate.internal.util.StringHelper;
 
@@ -78,15 +79,15 @@ public class TypeNames {
 
 	/**
 	 * get type name for specified type and size
-	 * @param typecode the type key
+	 * @param typeCode the type key
 	 * @param size the SQL length
 	 * @param scale the SQL scale
 	 * @param precision the SQL precision
 	 * @return the associated name with smallest capacity >= size,
 	 * if available and the default type name otherwise
 	 */
-	public String get(int typecode, long size, int precision, int scale) throws MappingException {
-		Map<Long, String> map = weighted.get( typecode );
+	public String get(int typeCode, long size, int precision, int scale) throws MappingException {
+		Map<Long, String> map = weighted.get( typeCode );
 		if ( map!=null && map.size()>0 ) {
 			// iterate entries ordered by capacity to find first fit
 			for (Map.Entry<Long, String> entry: map.entrySet()) {
@@ -95,7 +96,7 @@ public class TypeNames {
 				}
 			}
 		}
-		return replace( get(typecode), size, precision, scale );
+		return replace( get(typeCode), size, precision, scale );
 	}
 	
 	private static String replace(String type, long size, int precision, int scale) {

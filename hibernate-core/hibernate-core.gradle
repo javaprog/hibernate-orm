@@ -1,51 +1,59 @@
-apply plugin: 'java'
 apply plugin: 'antlr'
 apply plugin: org.hibernate.build.gradle.inject.InjectionPlugin
-apply plugin: org.hibernate.gradle.testing.matrix.MatrixTestingPlugin
+apply plugin: org.hibernate.build.gradle.testing.matrix.MatrixTestingPlugin
 
 dependencies {
-	compile( libraries.commons_collections )
     compile( libraries.jta )
-    compile( libraries.dom4j ) {
-        transitive = false
-    }
+    compile( libraries.dom4j )
     compile( libraries.commons_annotations )
-    compile( libraries.jandex )
-    compile( libraries.classmate )
     compile( libraries.jpa )
     compile( libraries.javassist )
     compile( libraries.antlr )
+    compile( libraries.jandex )
+    compile( libraries.classmate )
+
     antlr( libraries.antlr )
+
     provided( libraries.ant )
     provided( libraries.jacc )
     provided( libraries.validation )
+
     testCompile( project(':hibernate-testing') )
     testCompile( libraries.validation )
+    testCompile( libraries.jandex )
+    testCompile( libraries.classmate )
+    testCompile( libraries.mockito )
     testCompile( libraries.validator ) {
         // for test runtime
         transitive = true
     }
+
     testRuntime( 'jaxen:jaxen:1.1' )
     testRuntime( libraries.javassist )
+
 }
 
 manifest.mainAttributes(
         'Main-Class': 'org.hibernate.Version'
 )
-sourceSets {
-    matrix {
-        java {
-            srcDir 'src/matrix/java'
-        }
-        resources {
-            srcDir 'src/matrix/resources'
-        }
+
+jar {
+    manifest {
+        instruction 'Bundle-Description', 'Hibernate ORM Core'
+        instruction 'Bundle-SymbolicName', 'org.hibernate.core'
+        
+        // TODO: Uncomment once EntityManagerFactoryBuilderImpl no longer
+        // uses ClassLoaderServiceImpl.
+        instruction 'Export-Package',
+            'org.hibernate.boot.registry.classloading.internal',
+            '*'
     }
 }
+
 sourceSets.main {
-    originalJavaSrcDirs = java.srcDirs
-    jaxbTargetDir = file( "${buildDir}/generated-src/jaxb/main" )
+    ext.jaxbTargetDir = file( "${buildDir}/generated-src/jaxb/main" )
     java.srcDir jaxbTargetDir
+	originalJavaSrcDirs = java.srcDirs
 }
 
 // resources inherently exclude sources
@@ -53,25 +61,27 @@ sourceSets.test.resources {
     setSrcDirs( ['src/test/java','src/test/resources'] )
 }
 
-ideaModule {
-    sourceDirs += file( '$buildDir/generated-src/antlr/main' )
-    testSourceDirs += file( 'src/matrix/java')
-    testSourceDirs += file( 'src/matrix/resources')
+idea {
+	module {
+		sourceDirs += file( '$buildDir/generated-src/antlr/main' )
+	}
 }
 
 task jaxb {
-    // output directory
-    jaxbTargetDir = file( "${buildDir}/generated-src/jaxb/main" )
+	ext {
+        // output directory
+        jaxbTargetDir = file( "${buildDir}/generated-src/jaxb/main" )
 
-    // input schemas
-    cfgXsd = file( 'src/main/resources/org/hibernate/hibernate-configuration-4.0.xsd')
-    hbmXsd = file( 'src/main/resources/org/hibernate/hibernate-mapping-4.0.xsd' )
-    ormXsd = file( 'src/main/resources/org/hibernate/ejb/orm_2_0.xsd' )
+        // input schemas
+        cfgXsd = file( 'src/main/resources/org/hibernate/hibernate-configuration-4.0.xsd')
+        hbmXsd = file( 'src/main/resources/org/hibernate/hibernate-mapping-4.0.xsd' )
+        ormXsd = file( 'src/main/resources/org/hibernate/ejb/orm_2_0.xsd' )
 
-    // input bindings
-    cfgXjb = file( 'src/main/xjb/hbm-configuration-bindings.xjb' )
-    hbmXjb = file( 'src/main/xjb/hbm-mapping-bindings.xjb' )
-    ormXjb = file( 'src/main/xjb/orm-bindings.xjb' )
+        // input bindings
+        cfgXjb = file( 'src/main/xjb/hbm-configuration-bindings.xjb' )
+        hbmXjb = file( 'src/main/xjb/hbm-mapping-bindings.xjb' )
+        ormXjb = file( 'src/main/xjb/orm-bindings.xjb' )
+    }
 
     // configure Gradle up-to-date checking
     inputs.files( [cfgXsd, hbmXsd, ormXsd, cfgXjb, hbmXjb, ormXjb] )
@@ -113,6 +123,8 @@ task jaxb {
     }
 
 }
+generateMainLoggingClasses.dependsOn jaxb
+generateMainLoggingClasses.dependsOn generateGrammarSource
 compileJava.dependsOn jaxb
 
 

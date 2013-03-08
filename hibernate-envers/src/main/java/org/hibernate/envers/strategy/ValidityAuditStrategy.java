@@ -1,23 +1,47 @@
 package org.hibernate.envers.strategy;
+
+import static org.hibernate.envers.entities.mapper.relation.query.QueryConstants.MIDDLE_ENTITY_ALIAS;
+import static org.hibernate.envers.entities.mapper.relation.query.QueryConstants.REVISION_PARAMETER;
+
 import java.io.Serializable;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.hibernate.LockOptions;
 import org.hibernate.Session;
+import org.hibernate.dialect.Dialect;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.configuration.AuditConfiguration;
 import org.hibernate.envers.configuration.AuditEntitiesConfiguration;
 import org.hibernate.envers.configuration.GlobalConfiguration;
 import org.hibernate.envers.entities.mapper.PersistentCollectionChangeData;
-import org.hibernate.envers.entities.mapper.id.IdMapper;
 import org.hibernate.envers.entities.mapper.relation.MiddleComponentData;
 import org.hibernate.envers.entities.mapper.relation.MiddleIdData;
 import org.hibernate.envers.synchronization.SessionCacheCleaner;
 import org.hibernate.envers.tools.query.Parameters;
 import org.hibernate.envers.tools.query.QueryBuilder;
+import org.hibernate.event.service.spi.EventListenerRegistry;
+import org.hibernate.event.spi.AutoFlushEvent;
+import org.hibernate.event.spi.AutoFlushEventListener;
+import org.hibernate.event.spi.EventSource;
+import org.hibernate.event.spi.EventType;
+import org.hibernate.jdbc.ReturningWork;
+import org.hibernate.persister.entity.Queryable;
+import org.hibernate.persister.entity.UnionSubclassEntityPersister;
 import org.hibernate.property.Getter;
+import org.hibernate.sql.Update;
+import org.hibernate.type.CollectionType;
+import org.hibernate.type.ComponentType;
+import org.hibernate.type.Type;
+import org.jboss.logging.Logger;
 
 /**
  *  Audit strategy which persists and retrieves audit information using a validity algorithm, based on the 
@@ -40,10 +64,12 @@ import org.hibernate.property.Getter;
  * 
  * @author Stephanie Pau
  * @author Adam Warski (adam at warski dot org)
+ * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 public class ValidityAuditStrategy implements AuditStrategy {
+	private static final Logger log = Logger.getLogger( ValidityAuditStrategy.class );
 
-    /** getter for the revision entity field annotated with @RevisionTimestamp */
+	/** getter for the revision entity field annotated with @RevisionTimestamp */
     private Getter revisionTimestampGetter = null;
 
     private final SessionCacheCleaner sessionCacheCleaner;
@@ -52,55 +78,198 @@ public class ValidityAuditStrategy implements AuditStrategy {
         sessionCacheCleaner = new SessionCacheCleaner();
     }
 
-    public void perform(Session session, String entityName, AuditConfiguration auditCfg, Serializable id, Object data,
-                        Object revision) {
-        AuditEntitiesConfiguration audEntCfg = auditCfg.getAuditEntCfg();
-        String auditedEntityName = audEntCfg.getAuditEntityName(entityName);
+    public void perform(
+			final Session session,
+			String entityName,
+			final AuditConfiguration auditCfg,
+			final Serializable id,
+			Object data,
+			final Object revision) {
 
-        // Update the end date of the previous row if this operation is expected to have a previous row
-        if (getRevisionType(auditCfg, data) != RevisionType.ADD) {
-            /*
-             Constructing a query:
-             select e from audited_ent e where e.end_rev is null and e.id = :id
-             */
-
-            QueryBuilder qb = new QueryBuilder(auditedEntityName, "e");
-
-            // e.id = :id
-            IdMapper idMapper = auditCfg.getEntCfg().get(entityName).getIdMapper();
-            idMapper.addIdEqualsToQuery(qb.getRootParameters(), id, auditCfg.getAuditEntCfg().getOriginalIdPropName(), true);
-
-            addEndRevisionNullRestriction(auditCfg, qb);
-
-            @SuppressWarnings({"unchecked"})
-            List<Object> l = qb.toQuery(session).setLockOptions(LockOptions.UPGRADE).list();
-
-            updateLastRevision(session, auditCfg, l, id, auditedEntityName, revision);
-        }
+        final AuditEntitiesConfiguration audEntitiesCfg = auditCfg.getAuditEntCfg();
+        final String auditedEntityName = audEntitiesCfg.getAuditEntityName( entityName );
+		final String revisionInfoEntityName = auditCfg.getAuditEntCfg().getRevisionInfoEntityName();
+		final SessionImplementor sessionImplementor = (SessionImplementor) session;
+		final Dialect dialect = sessionImplementor.getFactory().getDialect();
 
         // Save the audit data
         session.save(auditedEntityName, data);
         sessionCacheCleaner.scheduleAuditDataRemoval(session, data);
+
+        // Update the end date of the previous row if this operation is expected to have a previous row
+        if (getRevisionType(auditCfg, data) != RevisionType.ADD) {
+			final Queryable productionEntityQueryable = getQueryable( entityName, sessionImplementor );
+			final Queryable rootProductionEntityQueryable = getQueryable( productionEntityQueryable.getRootEntityName(), sessionImplementor );
+			final Queryable auditedEntityQueryable = getQueryable( auditedEntityName, sessionImplementor );
+			final Queryable rootAuditedEntityQueryable = getQueryable( auditedEntityQueryable.getRootEntityName(), sessionImplementor );
+			final Queryable revisionInfoEntityQueryable = getQueryable( revisionInfoEntityName, sessionImplementor );
+
+			final String updateTableName;
+			if ( UnionSubclassEntityPersister.class.isInstance( rootProductionEntityQueryable ) ) {
+				// this is the condition causing all the problems in terms of the generated SQL UPDATE
+				// the problem being that we currently try to update the in-line view made up of the union query
+				//
+				// this is extremely hacky means to get the root table name for the union subclass style entities.
+				// hacky because it relies on internal behavior of UnionSubclassEntityPersister
+				// !!!!!! NOTICE - using subclass persister, not root !!!!!!
+				updateTableName = auditedEntityQueryable.getSubclassTableName( 0 );
+			}
+			else {
+				updateTableName = rootAuditedEntityQueryable.getTableName();
+			}
+
+
+			// first we need to flush the session in order to have the new audit data inserted
+			// todo: expose org.hibernate.internal.SessionImpl.autoFlushIfRequired via SessionImplementor
+			// for now, we duplicate some of that logic here
+			autoFlushIfRequired( sessionImplementor, rootAuditedEntityQueryable, revisionInfoEntityQueryable );
+
+			final Type revisionInfoIdType = sessionImplementor.getFactory()
+					.getEntityPersister( revisionInfoEntityName )
+					.getIdentifierType();
+			final String revEndColumnName = rootAuditedEntityQueryable.toColumns( auditCfg.getAuditEntCfg().getRevisionEndFieldName() )[0];
+
+			final boolean isRevisionEndTimestampEnabled = auditCfg.getAuditEntCfg().isRevisionEndTimestampEnabled();
+
+			// update audit_ent set REVEND = ? [, REVEND_TSTMP = ?] where (prod_ent_id) = ? and REV <> ? and REVEND is null
+			final Update update = new Update( dialect ).setTableName( updateTableName );
+			// set REVEND = ?
+			update.addColumn( revEndColumnName );
+			// set [, REVEND_TSTMP = ?]
+			if ( isRevisionEndTimestampEnabled ) {
+				update.addColumn(
+						rootAuditedEntityQueryable.toColumns(
+								auditCfg.getAuditEntCfg().getRevisionEndTimestampFieldName()
+						)[0]
+				);
+			}
+
+			// where (prod_ent_id) = ?
+			update.addPrimaryKeyColumns( rootProductionEntityQueryable.getIdentifierColumnNames() );
+			// where REV <> ?
+			update.addWhereColumn(
+					rootAuditedEntityQueryable.toColumns(
+							auditCfg.getAuditEntCfg().getRevisionNumberPath()
+					)[0],
+					"<> ?"
+			);
+			// where REVEND is null
+			update.addWhereColumn( revEndColumnName, " is null" );
+
+			// Now lets execute the sql...
+			final String updateSql = update.toStatementString();
+
+			int rowCount = session.doReturningWork(
+					new ReturningWork<Integer>() {
+						@Override
+						public Integer execute(Connection connection) throws SQLException {
+							PreparedStatement preparedStatement = sessionImplementor.getTransactionCoordinator().getJdbcCoordinator().getStatementPreparer().prepareStatement( updateSql );
+
+							try {
+								int index = 1;
+
+								// set REVEND = ?
+								final Number revisionNumber = auditCfg.getRevisionInfoNumberReader().getRevisionNumber( revision );
+								revisionInfoIdType.nullSafeSet( preparedStatement, revisionNumber, index, sessionImplementor );
+								index += revisionInfoIdType.getColumnSpan( sessionImplementor.getFactory() );
+
+								// set [, REVEND_TSTMP = ?]
+								if ( isRevisionEndTimestampEnabled ) {
+									final Object revEndTimestampObj = revisionTimestampGetter.get( revision );
+									final Date revisionEndTimestamp = convertRevEndTimestampToDate( revEndTimestampObj );
+									final Type revEndTsType = rootAuditedEntityQueryable.getPropertyType(
+											auditCfg.getAuditEntCfg().getRevisionEndTimestampFieldName()
+									);
+									revEndTsType.nullSafeSet( preparedStatement, revisionEndTimestamp, index, sessionImplementor );
+									index += revEndTsType.getColumnSpan( sessionImplementor.getFactory() );
+								}
+
+								// where (prod_ent_id) = ?
+								final Type idType = rootProductionEntityQueryable.getIdentifierType();
+								idType.nullSafeSet( preparedStatement, id, index, sessionImplementor );
+								index += idType.getColumnSpan( sessionImplementor.getFactory() );
+
+								// where REV <> ?
+								final Type revType = rootAuditedEntityQueryable.getPropertyType(
+										auditCfg.getAuditEntCfg().getRevisionNumberPath()
+								);
+								revType.nullSafeSet( preparedStatement, revisionNumber, index, sessionImplementor );
+
+								// where REVEND is null
+								// 		nothing to bind....
+
+								return sessionImplementor.getTransactionCoordinator().getJdbcCoordinator().getResultSetReturn().executeUpdate( preparedStatement );
+							}
+							finally {
+								sessionImplementor.getTransactionCoordinator().getJdbcCoordinator().release( preparedStatement );
+							}
+						}
+					}
+			);
+
+			if ( rowCount != 1 ) {
+				throw new RuntimeException(
+						"Cannot update previous revision for entity " + auditedEntityName + " and id " + id
+				);
+			}
+		}
     }
 
+	private Queryable getQueryable(String entityName, SessionImplementor sessionImplementor) {
+		return (Queryable) sessionImplementor.getFactory().getEntityPersister( entityName );
+	}
+
+	private void autoFlushIfRequired(
+			SessionImplementor sessionImplementor,
+			Queryable auditedEntityQueryable,
+			Queryable revisionInfoEntityQueryable) {
+		final Set<String> querySpaces = new HashSet<String>();
+		querySpaces.add( auditedEntityQueryable.getTableName() );
+		querySpaces.add( revisionInfoEntityQueryable.getTableName() );
+		final AutoFlushEvent event = new AutoFlushEvent( querySpaces, (EventSource) sessionImplementor );
+		final Iterable<AutoFlushEventListener> listeners = sessionImplementor.getFactory().getServiceRegistry()
+				.getService( EventListenerRegistry.class )
+				.getEventListenerGroup( EventType.AUTO_FLUSH )
+				.listeners();
+		for ( AutoFlushEventListener listener : listeners ) {
+			listener.onAutoFlush( event );
+		}
+	}
+
     @SuppressWarnings({"unchecked"})
-    public void performCollectionChange(Session session, AuditConfiguration auditCfg,
+    public void performCollectionChange(Session session, String entityName, String propertyName, AuditConfiguration auditCfg,
                                         PersistentCollectionChangeData persistentCollectionChangeData, Object revision) {
+        final QueryBuilder qb = new QueryBuilder(persistentCollectionChangeData.getEntityName(), MIDDLE_ENTITY_ALIAS);
 
-        final QueryBuilder qb = new QueryBuilder(persistentCollectionChangeData.getEntityName(), "e");
-
-        // Adding a parameter for each id component, except the rev number
         final String originalIdPropName = auditCfg.getAuditEntCfg().getOriginalIdPropName();
-        final Map<String, Object> originalId = (Map<String, Object>) persistentCollectionChangeData.getData().get(
-                originalIdPropName);
+        final Map<String, Object> originalId = (Map<String, Object>) persistentCollectionChangeData.getData().get(originalIdPropName);
+		final String revisionFieldName = auditCfg.getAuditEntCfg().getRevisionFieldName();
+		final String revisionTypePropName = auditCfg.getAuditEntCfg().getRevisionTypePropName();
+
+		// Adding a parameter for each id component, except the rev number and type.
         for (Map.Entry<String, Object> originalIdEntry : originalId.entrySet()) {
-            if (!auditCfg.getAuditEntCfg().getRevisionFieldName().equals(originalIdEntry.getKey())) {
+            if (!revisionFieldName.equals(originalIdEntry.getKey()) && !revisionTypePropName.equals(originalIdEntry.getKey())) {
                 qb.getRootParameters().addWhereWithParam(originalIdPropName + "." + originalIdEntry.getKey(),
                         true, "=", originalIdEntry.getValue());
             }
         }
 
-        addEndRevisionNullRestriction(auditCfg, qb);
+		final SessionFactoryImplementor sessionFactory = ( (SessionImplementor) session ).getFactory();
+		final Type propertyType = sessionFactory.getEntityPersister( entityName ).getPropertyType( propertyName );
+		if ( propertyType.isCollectionType() ) {
+			CollectionType collectionPropertyType = (CollectionType) propertyType;
+			// Handling collection of components.
+			if ( collectionPropertyType.getElementType( sessionFactory ) instanceof ComponentType ) {
+				// Adding restrictions to compare data outside of primary key.
+				for ( Map.Entry<String, Object> dataEntry : persistentCollectionChangeData.getData().entrySet() ) {
+					if ( !originalIdPropName.equals( dataEntry.getKey() ) ) {
+						qb.getRootParameters().addWhereWithParam( dataEntry.getKey(), true, "=", dataEntry.getValue() );
+					}
+				}
+			}
+		}
+
+        addEndRevisionNullRestriction(auditCfg, qb.getRootParameters());
 
         final List<Object> l = qb.toQuery(session).setLockOptions(LockOptions.UPGRADE).list();
 
@@ -116,9 +285,8 @@ public class ValidityAuditStrategy implements AuditStrategy {
         sessionCacheCleaner.scheduleAuditDataRemoval(session, persistentCollectionChangeData.getData());
     }
 
-    private void addEndRevisionNullRestriction(AuditConfiguration auditCfg, QueryBuilder qb) {
-        // e.end_rev is null
-        qb.getRootParameters().addWhere(auditCfg.getAuditEntCfg().getRevisionEndFieldName(), true, "is", "null", false);
+    private void addEndRevisionNullRestriction(AuditConfiguration auditCfg, Parameters rootParameters) {
+        rootParameters.addWhere(auditCfg.getAuditEntCfg().getRevisionEndFieldName(), true, "is", "null", false);
     }
 
     public void addEntityAtRevisionRestriction(GlobalConfiguration globalCfg, QueryBuilder rootQueryBuilder,
@@ -132,7 +300,7 @@ public class ValidityAuditStrategy implements AuditStrategy {
 	public void addAssociationAtRevisionRestriction(QueryBuilder rootQueryBuilder,  String revisionProperty, 
 		    String revisionEndProperty, boolean addAlias, MiddleIdData referencingIdData, 
 		    String versionsMiddleEntityName, String eeOriginalIdPropertyPath, String revisionPropertyPath,
-		    String originalIdPropertyName, MiddleComponentData... componentDatas) {
+		    String originalIdPropertyName, String alias1, MiddleComponentData... componentDatas) {
 		Parameters rootParameters = rootQueryBuilder.getRootParameters();
 		addRevisionRestriction(rootParameters, revisionProperty, revisionEndProperty, addAlias);
 	}
@@ -146,8 +314,8 @@ public class ValidityAuditStrategy implements AuditStrategy {
     	
 		// e.revision <= _revision and (e.endRevision > _revision or e.endRevision is null)
 		Parameters subParm = rootParameters.addSubParameters("or");
-		rootParameters.addWhereWithNamedParam(revisionProperty, addAlias, "<=", "revision");
-		subParm.addWhereWithNamedParam(revisionEndProperty + ".id", addAlias, ">", "revision");
+		rootParameters.addWhereWithNamedParam(revisionProperty, addAlias, "<=", REVISION_PARAMETER);
+		subParm.addWhereWithNamedParam(revisionEndProperty + ".id", addAlias, ">", REVISION_PARAMETER);
 		subParm.addWhere(revisionEndProperty, addAlias, "is", "null", false);
 	}
 
@@ -169,16 +337,9 @@ public class ValidityAuditStrategy implements AuditStrategy {
 
             if (auditCfg.getAuditEntCfg().isRevisionEndTimestampEnabled()) {
                 // Determine the value of the revision property annotated with @RevisionTimestamp
-            	Date revisionEndTimestamp;
             	String revEndTimestampFieldName = auditCfg.getAuditEntCfg().getRevisionEndTimestampFieldName();
             	Object revEndTimestampObj = this.revisionTimestampGetter.get(revision);
-
-            	// convert to a java.util.Date
-            	if (revEndTimestampObj instanceof Date) {
-            		revisionEndTimestamp = (Date) revEndTimestampObj;
-            	} else {
-            		revisionEndTimestamp = new Date((Long) revEndTimestampObj);
-            	}
+               Date revisionEndTimestamp = convertRevEndTimestampToDate(revEndTimestampObj);
 
             	// Setting the end revision timestamp
             	((Map<String, Object>) previousData).put(revEndTimestampFieldName, revisionEndTimestamp);
@@ -190,6 +351,14 @@ public class ValidityAuditStrategy implements AuditStrategy {
         } else {
             throw new RuntimeException("Cannot find previous revision for entity " + auditedEntityName + " and id " + id);
         }
+    }
+
+    private Date convertRevEndTimestampToDate(Object revEndTimestampObj) {
+        // convert to a java.util.Date
+        if (revEndTimestampObj instanceof Date) {
+            return (Date) revEndTimestampObj;
+        }
+        return new Date((Long) revEndTimestampObj);
     }
 }
 

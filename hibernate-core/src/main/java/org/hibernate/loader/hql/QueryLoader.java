@@ -27,6 +27,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -239,7 +240,7 @@ public class QueryLoader extends BasicLoader {
 	/**
 	 * The SQL query string to be called.
 	 */
-	protected String getSQLString() {
+	public String getSQLString() {
 		return queryTranslator.getSQLString();
 	}
 
@@ -307,15 +308,34 @@ public class QueryLoader extends BasicLoader {
 		return lockModesArray;
 	}
 
-	protected String applyLocks(String sql, LockOptions lockOptions, Dialect dialect) throws QueryException {
+	@Override
+	protected String applyLocks(
+			String sql,
+			QueryParameters parameters,
+			Dialect dialect,
+			List<AfterLoadAction> afterLoadActions) throws QueryException {
 		// can't cache this stuff either (per-invocation)
 		// we are given a map of user-alias -> lock mode
 		// create a new map of sql-alias -> lock mode
+
+		final LockOptions lockOptions = parameters.getLockOptions();
 
 		if ( lockOptions == null ||
 			( lockOptions.getLockMode() == LockMode.NONE && lockOptions.getAliasLockCount() == 0 ) ) {
 			return sql;
 		}
+
+
+		// user is request locking, lets see if we can apply locking directly to the SQL...
+
+		// 		some dialects wont allow locking with paging...
+		if ( shouldUseFollowOnLocking( parameters, dialect, afterLoadActions ) ) {
+			return sql;
+		}
+
+		//		there are other conditions we might want to add here, such as checking the result types etc
+		//		but those are better served after we have redone the SQL generation to use ASTs.
+
 
 		// we need both the set of locks and the columns to reference in locks
 		// as the ultimate output of this section...
@@ -487,11 +507,11 @@ public class QueryLoader extends BasicLoader {
 		}
 
 		try {
-			final PreparedStatement st = prepareQueryStatement( queryParameters, false, session );
 			if ( queryParameters.isCallable() ) {
 				throw new QueryException("iterate() not supported for callable statements");
 			}
-			final ResultSet rs = getResultSet(st, queryParameters.hasAutoDiscoverScalarTypes(), false, queryParameters.getRowSelection(), session);
+			final ResultSet rs = executeQueryStatement( queryParameters, false, Collections.<AfterLoadAction>emptyList(), session );
+			final PreparedStatement st = (PreparedStatement) rs.getStatement();
 			final Iterator result = new IteratorImpl(
 					rs,
 			        st,

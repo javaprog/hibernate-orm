@@ -24,7 +24,10 @@
  */
 package org.hibernate.pretty;
 import java.io.Serializable;
+
+import org.hibernate.collection.spi.PersistentCollection;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.type.Type;
@@ -53,7 +56,7 @@ public final class MessageHelper {
 	 * @return An info string, in the form [FooBar#1].
 	 */
 	public static String infoString(String entityName, Serializable id) {
-		StringBuffer s = new StringBuffer();
+		StringBuilder s = new StringBuilder();
 		s.append( '[' );
 		if( entityName == null ) {
 			s.append( "<null entity name>" );
@@ -86,7 +89,7 @@ public final class MessageHelper {
 			EntityPersister persister, 
 			Object id, 
 			SessionFactoryImplementor factory) {
-		StringBuffer s = new StringBuffer();
+		StringBuilder s = new StringBuilder();
 		s.append( '[' );
 		Type idType;
 		if( persister == null ) {
@@ -130,7 +133,7 @@ public final class MessageHelper {
 			Object id, 
 			Type identifierType,
 			SessionFactoryImplementor factory) {
-		StringBuffer s = new StringBuffer();
+		StringBuilder s = new StringBuilder();
 		s.append( '[' );
 		if( persister == null ) {
 			s.append( "<null EntityPersister>" );
@@ -163,7 +166,7 @@ public final class MessageHelper {
 			EntityPersister persister, 
 			Serializable[] ids, 
 			SessionFactoryImplementor factory) {
-		StringBuffer s = new StringBuffer();
+		StringBuilder s = new StringBuilder();
 		s.append( '[' );
 		if( persister == null ) {
 			s.append( "<null EntityPersister>" );
@@ -192,7 +195,7 @@ public final class MessageHelper {
 	 * @return An info string, in the form [FooBar]
 	 */
 	public static String infoString(EntityPersister persister) {
-		StringBuffer s = new StringBuffer();
+		StringBuilder s = new StringBuilder();
 		s.append( '[' );
 		if ( persister == null ) {
 			s.append( "<null EntityPersister>" );
@@ -214,7 +217,7 @@ public final class MessageHelper {
 	 * @return An info string, in the form [Foo.bars#1]
 	 */
 	public static String infoString(String entityName, String propertyName, Object key) {
-		StringBuffer s = new StringBuffer()
+		StringBuilder s = new StringBuilder()
 				.append( '[' )
 				.append( entityName )
 				.append( '.' )
@@ -233,7 +236,52 @@ public final class MessageHelper {
 
 
 	// collections ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	
+	/**
+	 * Generate an info message string relating to a particular managed
+	 * collection.  Attempts to intelligently handle property-refs issues
+	 * where the collection key is not the same as the owner key.
+	 *
+	 * @param persister The persister for the collection
+	 * @param collection The collection itself
+	 * @param collectionKey The collection key
+	 * @param session The session
+	 * @return An info string, in the form [Foo.bars#1]
+	 */
+	public static String collectionInfoString( 
+			CollectionPersister persister,
+			PersistentCollection collection,
+			Serializable collectionKey,
+			SessionImplementor session ) {
+		
+		StringBuilder s = new StringBuilder();
+		s.append( '[' );
+		if ( persister == null ) {
+			s.append( "<unreferenced>" );
+		}
+		else {
+			s.append( persister.getRole() );
+			s.append( '#' );
+			
+			Type ownerIdentifierType = persister.getOwnerEntityPersister()
+					.getIdentifierType();
+			Serializable ownerKey;
+			// TODO: Is it redundant to attempt to use the collectionKey,
+			// or is always using the owner id sufficient?
+			if ( collectionKey.getClass().isAssignableFrom( 
+					ownerIdentifierType.getReturnedClass() ) ) {
+				ownerKey = collectionKey;
+			} else {
+				ownerKey = session.getPersistenceContext()
+						.getEntry( collection.getOwner() ).getId();
+			}
+			s.append( ownerIdentifierType.toLoggableString( 
+					ownerKey, session.getFactory() ) );
+		}
+		s.append( ']' );
 
+		return s.toString();
+	}
 
 	/**
 	 * Generate an info message string relating to a series of managed
@@ -248,7 +296,7 @@ public final class MessageHelper {
 			CollectionPersister persister, 
 			Serializable[] ids, 
 			SessionFactoryImplementor factory) {
-		StringBuffer s = new StringBuffer();
+		StringBuilder s = new StringBuilder();
 		s.append( '[' );
 		if ( persister == null ) {
 			s.append( "<unreferenced>" );
@@ -257,11 +305,7 @@ public final class MessageHelper {
 			s.append( persister.getRole() );
 			s.append( "#<" );
 			for ( int i = 0; i < ids.length; i++ ) {
-				// Need to use the identifier type of the collection owner
-				// since the incoming is value is actually the owner's id.
-				// Using the collection's key type causes problems with
-				// property-ref keys...
-				s.append( persister.getOwnerEntityPersister().getIdentifierType().toLoggableString( ids[i], factory ) );
+				addIdToCollectionInfoString( persister, ids[i], factory, s );
 				if ( i < ids.length-1 ) {
 					s.append( ", " );
 				}
@@ -285,7 +329,7 @@ public final class MessageHelper {
 			CollectionPersister persister, 
 			Serializable id, 
 			SessionFactoryImplementor factory) {
-		StringBuffer s = new StringBuffer();
+		StringBuilder s = new StringBuilder();
 		s.append( '[' );
 		if ( persister == null ) {
 			s.append( "<unreferenced>" );
@@ -298,16 +342,36 @@ public final class MessageHelper {
 				s.append( "<null>" );
 			}
 			else {
-				// Need to use the identifier type of the collection owner
-				// since the incoming is value is actually the owner's id.
-				// Using the collection's key type causes problems with
-				// property-ref keys...
-				s.append( persister.getOwnerEntityPersister().getIdentifierType().toLoggableString( id, factory ) );
+				addIdToCollectionInfoString( persister, id, factory, s );
 			}
 		}
 		s.append( ']' );
 
 		return s.toString();
+	}
+	
+	private static void addIdToCollectionInfoString(
+			CollectionPersister persister,
+			Serializable id,
+			SessionFactoryImplementor factory,
+			StringBuilder s ) {
+		// Need to use the identifier type of the collection owner
+		// since the incoming is value is actually the owner's id.
+		// Using the collection's key type causes problems with
+		// property-ref keys.
+		// Also need to check that the expected identifier type matches
+		// the given ID.  Due to property-ref keys, the collection key
+		// may not be the owner key.
+		Type ownerIdentifierType = persister.getOwnerEntityPersister()
+				.getIdentifierType();
+		if ( id.getClass().isAssignableFrom( 
+				ownerIdentifierType.getReturnedClass() ) ) {
+			s.append( ownerIdentifierType.toLoggableString( id, factory ) );
+		} else {
+			// TODO: This is a crappy backup if a property-ref is used.
+			// If the reference is an object w/o toString(), this isn't going to work.
+			s.append( id.toString() );
+		}
 	}
 
 	/**
@@ -319,7 +383,7 @@ public final class MessageHelper {
 	 * @return An info string, in the form [Foo.bars#1]
 	 */
 	public static String collectionInfoString(String role, Serializable id) {
-		StringBuffer s = new StringBuffer();
+		StringBuilder s = new StringBuilder();
 		s.append( '[' );
 		if( role == null ) {
 			s.append( "<unreferenced>" );

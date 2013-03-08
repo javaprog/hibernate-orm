@@ -35,18 +35,19 @@ import java.util.Set;
 import org.jboss.logging.Logger;
 
 import org.hibernate.HibernateException;
+import org.hibernate.QueryException;
+import org.hibernate.ScrollableResults;
 import org.hibernate.engine.spi.QueryParameters;
 import org.hibernate.engine.spi.RowSelection;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.event.spi.EventSource;
 import org.hibernate.hql.internal.QuerySplitter;
+import org.hibernate.hql.spi.FilterTranslator;
 import org.hibernate.hql.spi.ParameterTranslations;
 import org.hibernate.hql.spi.QueryTranslator;
+import org.hibernate.hql.spi.QueryTranslatorFactory;
 import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.QueryException;
-import org.hibernate.ScrollableResults;
-import org.hibernate.event.spi.EventSource;
-import org.hibernate.hql.spi.FilterTranslator;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.internal.util.collections.EmptyIterator;
 import org.hibernate.internal.util.collections.IdentitySet;
@@ -75,36 +76,38 @@ public class HQLQueryPlan implements Serializable {
 	private final Set enabledFilterNames;
 	private final boolean shallow;
 
-
 	public HQLQueryPlan(String hql, boolean shallow, Map enabledFilters, SessionFactoryImplementor factory) {
 		this( hql, null, shallow, enabledFilters, factory );
 	}
 
-	protected HQLQueryPlan(String hql, String collectionRole, boolean shallow, Map enabledFilters, SessionFactoryImplementor factory) {
+	protected HQLQueryPlan(String hql, String collectionRole, boolean shallow, Map enabledFilters,  SessionFactoryImplementor factory){
 		this.sourceQuery = hql;
 		this.shallow = shallow;
-
 		Set copy = new HashSet();
 		copy.addAll( enabledFilters.keySet() );
 		this.enabledFilterNames = java.util.Collections.unmodifiableSet( copy );
 
-		Set combinedQuerySpaces = new HashSet();
-		String[] concreteQueryStrings = QuerySplitter.concreteQueries( hql, factory );
+		final String[] concreteQueryStrings = QuerySplitter.concreteQueries( hql, factory );
 		final int length = concreteQueryStrings.length;
-		translators = new QueryTranslator[length];
-		List sqlStringList = new ArrayList();
+		this.translators = new QueryTranslator[length];
+
+		List<String> sqlStringList = new ArrayList<String>();
+		Set combinedQuerySpaces = new HashSet();
+
+		final boolean hasCollectionRole = (collectionRole == null);
+		final Map querySubstitutions = factory.getSettings().getQuerySubstitutions();
+		final QueryTranslatorFactory queryTranslatorFactory = factory.getSettings().getQueryTranslatorFactory();
+
 		for ( int i=0; i<length; i++ ) {
-			if ( collectionRole == null ) {
-				translators[i] = factory.getSettings()
-						.getQueryTranslatorFactory()
+			if ( hasCollectionRole ) {
+				translators[i] = queryTranslatorFactory
 						.createQueryTranslator( hql, concreteQueryStrings[i], enabledFilters, factory );
-				translators[i].compile( factory.getSettings().getQuerySubstitutions(), shallow );
+				translators[i].compile( querySubstitutions, shallow );
 			}
 			else {
-				translators[i] = factory.getSettings()
-						.getQueryTranslatorFactory()
+				translators[i] = queryTranslatorFactory
 						.createFilterTranslator( hql, concreteQueryStrings[i], enabledFilters, factory );
-				( ( FilterTranslator ) translators[i] ).compile( collectionRole, factory.getSettings().getQuerySubstitutions(), shallow );
+				( ( FilterTranslator ) translators[i] ).compile( collectionRole, querySubstitutions, shallow );
 			}
 			combinedQuerySpaces.addAll( translators[i].getQuerySpaces() );
 			sqlStringList.addAll( translators[i].collectSqlStrings() );
@@ -123,13 +126,8 @@ public class HQLQueryPlan implements Serializable {
 				returnMetadata = null;
 			}
 			else {
-				if ( length > 1 ) {
-					final int returns = translators[0].getReturnTypes().length;
-					returnMetadata = new ReturnMetadata( translators[0].getReturnAliases(), new Type[returns] );
-				}
-				else {
-					returnMetadata = new ReturnMetadata( translators[0].getReturnAliases(), translators[0].getReturnTypes() );
-				}
+				final Type[] types = ( length > 1 ) ? new Type[translators[0].getReturnTypes().length] : translators[0].getReturnTypes();
+				returnMetadata = new ReturnMetadata( translators[0].getReturnAliases(), types );
 			}
 		}
 	}
@@ -170,8 +168,8 @@ public class HQLQueryPlan implements Serializable {
 	public List performList(
 			QueryParameters queryParameters,
 	        SessionImplementor session) throws HibernateException {
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("Find: " + getSourceQuery());
+		if ( LOG.isTraceEnabled() ) {
+			LOG.tracev( "Find: {0}", getSourceQuery() );
 			queryParameters.traceParameters( session.getFactory() );
 		}
 		boolean hasLimit = queryParameters.getRowSelection() != null &&
@@ -179,7 +177,7 @@ public class HQLQueryPlan implements Serializable {
 		boolean needsLimit = hasLimit && translators.length > 1;
 		QueryParameters queryParametersToUse;
 		if ( needsLimit ) {
-            LOG.needsLimit();
+			LOG.needsLimit();
 			RowSelection selection = new RowSelection();
 			selection.setFetchSize( queryParameters.getRowSelection().getFetchSize() );
 			selection.setTimeout( queryParameters.getRowSelection().getTimeout() );
@@ -192,20 +190,19 @@ public class HQLQueryPlan implements Serializable {
 		List combinedResults = new ArrayList();
 		IdentitySet distinction = new IdentitySet();
 		int includedCount = -1;
-		translator_loop: for ( int i = 0; i < translators.length; i++ ) {
-			List tmp = translators[i].list( session, queryParametersToUse );
+		translator_loop:
+		for ( QueryTranslator translator : translators ) {
+			List tmp = translator.list( session, queryParametersToUse );
 			if ( needsLimit ) {
 				// NOTE : firstRow is zero-based
-				int first = queryParameters.getRowSelection().getFirstRow() == null
-				            ? 0
-			                : queryParameters.getRowSelection().getFirstRow().intValue();
-				int max = queryParameters.getRowSelection().getMaxRows() == null
-				            ? -1
-			                : queryParameters.getRowSelection().getMaxRows().intValue();
-				final int size = tmp.size();
-				for ( int x = 0; x < size; x++ ) {
-					final Object result = tmp.get( x );
-					if ( ! distinction.add( result ) ) {
+				final int first = queryParameters.getRowSelection().getFirstRow() == null
+						? 0
+						: queryParameters.getRowSelection().getFirstRow();
+				final int max = queryParameters.getRowSelection().getMaxRows() == null
+						? -1
+						: queryParameters.getRowSelection().getMaxRows();
+				for ( final Object result : tmp ) {
+					if ( !distinction.add( result ) ) {
 						continue;
 					}
 					includedCount++;
@@ -229,8 +226,8 @@ public class HQLQueryPlan implements Serializable {
 	public Iterator performIterate(
 			QueryParameters queryParameters,
 	        EventSource session) throws HibernateException {
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("Iterate: " + getSourceQuery());
+		if ( LOG.isTraceEnabled() ) {
+			LOG.tracev( "Iterate: {0}", getSourceQuery() );
 			queryParameters.traceParameters( session.getFactory() );
 		}
 		if ( translators.length == 0 ) {
@@ -239,14 +236,16 @@ public class HQLQueryPlan implements Serializable {
 
 		Iterator[] results = null;
 		boolean many = translators.length > 1;
-		if (many) {
+		if ( many ) {
 			results = new Iterator[translators.length];
 		}
 
 		Iterator result = null;
 		for ( int i = 0; i < translators.length; i++ ) {
 			result = translators[i].iterate( queryParameters, session );
-			if (many) results[i] = result;
+			if ( many ) {
+				results[i] = result;
+			}
 		}
 
 		return many ? new JoinedIterator(results) : result;
@@ -255,8 +254,8 @@ public class HQLQueryPlan implements Serializable {
 	public ScrollableResults performScroll(
 			QueryParameters queryParameters,
 	        SessionImplementor session) throws HibernateException {
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("Iterate: " + getSourceQuery());
+		if ( LOG.isTraceEnabled() ) {
+			LOG.tracev( "Iterate: {0}", getSourceQuery() );
 			queryParameters.traceParameters( session.getFactory() );
 		}
 		if ( translators.length != 1 ) {
@@ -271,14 +270,16 @@ public class HQLQueryPlan implements Serializable {
 
 	public int performExecuteUpdate(QueryParameters queryParameters, SessionImplementor session)
 			throws HibernateException {
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("Execute update: " + getSourceQuery());
+		if ( LOG.isTraceEnabled() ) {
+			LOG.tracev( "Execute update: {0}", getSourceQuery() );
 			queryParameters.traceParameters( session.getFactory() );
 		}
-        if (translators.length != 1) LOG.splitQueries(getSourceQuery(), translators.length);
+		if ( translators.length != 1 ) {
+			LOG.splitQueries( getSourceQuery(), translators.length );
+		}
 		int result = 0;
-		for ( int i = 0; i < translators.length; i++ ) {
-			result += translators[i].executeUpdate( queryParameters, session );
+		for ( QueryTranslator translator : translators ) {
+			result += translator.executeUpdate( queryParameters, session );
 		}
 		return result;
 	}
@@ -287,7 +288,9 @@ public class HQLQueryPlan implements Serializable {
 		long start = System.currentTimeMillis();
 		ParamLocationRecognizer recognizer = ParamLocationRecognizer.parseLocations( hql );
 		long end = System.currentTimeMillis();
-        LOG.trace("HQL param location recognition took " + (end - start) + " mills (" + hql + ")");
+		if ( LOG.isTraceEnabled() ) {
+			LOG.tracev( "HQL param location recognition took {0} mills ({1})", ( end - start ), hql );
+		}
 
 		int ordinalParamCount = parameterTranslations.getOrdinalParameterCount();
 		int[] locations = ArrayHelper.toIntArray( recognizer.getOrdinalParameterLocationList() );
@@ -307,7 +310,7 @@ public class HQLQueryPlan implements Serializable {
 		}
 
 		Iterator itr = recognizer.getNamedParameterDescriptionMap().entrySet().iterator();
-		Map namedParamDescriptorMap = new HashMap();
+		Map<String, NamedParameterDescriptor> namedParamDescriptorMap = new HashMap<String, NamedParameterDescriptor>();
 		while( itr.hasNext() ) {
 			final Map.Entry entry = ( Map.Entry ) itr.next();
 			final String name = ( String ) entry.getKey();
@@ -326,7 +329,6 @@ public class HQLQueryPlan implements Serializable {
 
 		return new ParameterMetadata( ordinalParamDescriptors, namedParamDescriptorMap );
 	}
-
 	public QueryTranslator[] getTranslators() {
 		QueryTranslator[] copy = new QueryTranslator[translators.length];
 		System.arraycopy(translators, 0, copy, 0, copy.length);

@@ -23,6 +23,14 @@
  */
 package org.hibernate.cfg.annotations;
 
+import static org.hibernate.cfg.BinderHelper.toAliasEntityMap;
+import static org.hibernate.cfg.BinderHelper.toAliasTableMap;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+
 import javax.persistence.Access;
 import javax.persistence.Entity;
 import javax.persistence.JoinColumn;
@@ -30,27 +38,25 @@ import javax.persistence.JoinTable;
 import javax.persistence.PrimaryKeyJoinColumn;
 import javax.persistence.SecondaryTable;
 import javax.persistence.SecondaryTables;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
-import org.jboss.logging.Logger;
 
 import org.hibernate.AnnotationException;
 import org.hibernate.AssertionFailure;
 import org.hibernate.EntityMode;
-import org.hibernate.engine.internal.Versioning;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.MappingException;
 import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
+import org.hibernate.annotations.DynamicInsert;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.FetchMode;
+import org.hibernate.annotations.Filter;
 import org.hibernate.annotations.Immutable;
 import org.hibernate.annotations.Loader;
+import org.hibernate.annotations.NaturalIdCache;
 import org.hibernate.annotations.OptimisticLockType;
+import org.hibernate.annotations.OptimisticLocking;
 import org.hibernate.annotations.Persister;
+import org.hibernate.annotations.Polymorphism;
 import org.hibernate.annotations.PolymorphismType;
 import org.hibernate.annotations.Proxy;
 import org.hibernate.annotations.RowId;
@@ -58,6 +64,7 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLDeleteAll;
 import org.hibernate.annotations.SQLInsert;
 import org.hibernate.annotations.SQLUpdate;
+import org.hibernate.annotations.SelectBeforeUpdate;
 import org.hibernate.annotations.Subselect;
 import org.hibernate.annotations.Synchronize;
 import org.hibernate.annotations.Tables;
@@ -77,8 +84,10 @@ import org.hibernate.cfg.ObjectNameNormalizer;
 import org.hibernate.cfg.ObjectNameSource;
 import org.hibernate.cfg.PropertyHolder;
 import org.hibernate.cfg.UniqueConstraintHolder;
+import org.hibernate.engine.internal.Versioning;
 import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 import org.hibernate.engine.spi.FilterDefinition;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.mapping.DependantValue;
@@ -89,6 +98,8 @@ import org.hibernate.mapping.SimpleValue;
 import org.hibernate.mapping.Table;
 import org.hibernate.mapping.TableOwner;
 import org.hibernate.mapping.Value;
+import org.jboss.logging.Logger;
+
 
 /**
  * Stateful holder and processor for binding Entity information
@@ -97,7 +108,8 @@ import org.hibernate.mapping.Value;
  */
 public class EntityBinder {
     private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, EntityBinder.class.getName());
-
+    private static final String NATURAL_ID_CACHE_SUFFIX = "##NaturalId";
+	
 	private String name;
 	private XClass annotatedClass;
 	private PersistentClass persistentClass;
@@ -119,7 +131,8 @@ public class EntityBinder {
 	private java.util.Map<String, Object> secondaryTableJoins = new HashMap<String, Object>();
 	private String cacheConcurrentStrategy;
 	private String cacheRegion;
-	private java.util.Map<String, String> filters = new HashMap<String, String>();
+	private String naturalIdCacheRegion;
+	private List<Filter> filters = new ArrayList<Filter>();
 	private InheritanceState inheritanceState;
 	private boolean ignoreIdAnnotations;
 	private boolean cacheLazyProperty;
@@ -150,23 +163,47 @@ public class EntityBinder {
 		bindHibernateAnnotation( hibAnn );
 	}
 
+	@SuppressWarnings("SimplifiableConditionalExpression")
 	private void bindHibernateAnnotation(org.hibernate.annotations.Entity hibAnn) {
+		{
+			final DynamicInsert dynamicInsertAnn = annotatedClass.getAnnotation( DynamicInsert.class );
+			this.dynamicInsert = dynamicInsertAnn == null
+					? ( hibAnn == null ? false : hibAnn.dynamicInsert() )
+					: dynamicInsertAnn.value();
+		}
+
+		{
+			final DynamicUpdate dynamicUpdateAnn = annotatedClass.getAnnotation( DynamicUpdate.class );
+			this.dynamicUpdate = dynamicUpdateAnn == null
+					? ( hibAnn == null ? false : hibAnn.dynamicUpdate() )
+					: dynamicUpdateAnn.value();
+		}
+
+		{
+			final SelectBeforeUpdate selectBeforeUpdateAnn = annotatedClass.getAnnotation( SelectBeforeUpdate.class );
+			this.selectBeforeUpdate = selectBeforeUpdateAnn == null
+					? ( hibAnn == null ? false : hibAnn.selectBeforeUpdate() )
+					: selectBeforeUpdateAnn.value();
+		}
+
+		{
+			final OptimisticLocking optimisticLockingAnn = annotatedClass.getAnnotation( OptimisticLocking.class );
+			this.optimisticLockType = optimisticLockingAnn == null
+					? ( hibAnn == null ? OptimisticLockType.VERSION : hibAnn.optimisticLock() )
+					: optimisticLockingAnn.type();
+		}
+
+		{
+			final Polymorphism polymorphismAnn = annotatedClass.getAnnotation( Polymorphism.class );
+			this.polymorphismType = polymorphismAnn == null
+					? ( hibAnn == null ? PolymorphismType.IMPLICIT : hibAnn.polymorphism() )
+					: polymorphismAnn.type();
+		}
+
 		if ( hibAnn != null ) {
-			dynamicInsert = hibAnn.dynamicInsert();
-			dynamicUpdate = hibAnn.dynamicUpdate();
-			optimisticLockType = hibAnn.optimisticLock();
-			selectBeforeUpdate = hibAnn.selectBeforeUpdate();
-			polymorphismType = hibAnn.polymorphism();
+			// used later in bind for logging
 			explicitHibernateEntityAnnotation = true;
 			//persister handled in bind
-		}
-		else {
-			//default values when the annotation is not there
-			dynamicInsert = false;
-			dynamicUpdate = false;
-			optimisticLockType = OptimisticLockType.VERSION;
-			polymorphismType = PolymorphismType.IMPLICIT;
-			selectBeforeUpdate = false;
 		}
 	}
 
@@ -178,6 +215,11 @@ public class EntityBinder {
 		else {
 			name = ejb3Ann.name();
 		}
+	}
+
+	public boolean isRootEntity() {
+		// This is the best option I can think of here since PersistentClass is most likely not yet fully populated
+		return persistentClass instanceof RootClass;
 	}
 
 	public void setDiscriminatorValue(String discriminatorValue) {
@@ -230,9 +272,11 @@ public class EntityBinder {
 				rootClass.setCacheRegionName( cacheRegion );
 				rootClass.setLazyPropertiesCacheable( cacheLazyProperty );
 			}
-			if(forceDiscriminator != null) {
-				rootClass.setForceDiscriminator( forceDiscriminator );
-			}
+			rootClass.setNaturalIdCacheRegionName( naturalIdCacheRegion );
+			boolean forceDiscriminatorInSelects = forceDiscriminator == null
+					? mappings.forceDiscriminatorInSelectsByDefault()
+					: forceDiscriminator;
+			rootClass.setForceDiscriminator( forceDiscriminatorInSelects );
 			if( insertableDiscriminator != null) {
 				rootClass.setDiscriminatorInsertable( insertableDiscriminator );
 			}
@@ -332,23 +376,22 @@ public class EntityBinder {
 			persistentClass.addTuplizer( mode, tuplizer.impl().getName() );
 		}
 
-		if ( !inheritanceState.hasParents() ) {
-			for ( Map.Entry<String, String> filter : filters.entrySet() ) {
-				String filterName = filter.getKey();
-				String cond = filter.getValue();
-				if ( BinderHelper.isEmptyAnnotationValue( cond ) ) {
-					FilterDefinition definition = mappings.getFilterDefinition( filterName );
-					cond = definition == null ? null : definition.getDefaultFilterCondition();
-					if ( StringHelper.isEmpty( cond ) ) {
-						throw new AnnotationException(
-								"no filter condition found for filter " + filterName + " in " + this.name
-						);
-					}
+		for ( Filter filter : filters ) {
+			String filterName = filter.name();
+			String cond = filter.condition();
+			if ( BinderHelper.isEmptyAnnotationValue( cond ) ) {
+				FilterDefinition definition = mappings.getFilterDefinition( filterName );
+				cond = definition == null ? null : definition.getDefaultFilterCondition();
+				if ( StringHelper.isEmpty( cond ) ) {
+					throw new AnnotationException(
+							"no filter condition found for filter " + filterName + " in " + this.name
+					);
 				}
-				persistentClass.addFilter( filterName, cond );
 			}
-        } else if (filters.size() > 0) LOG.filterAnnotationOnSubclass(persistentClass.getEntityName());
-        LOG.debugf("Import with entity name %s", name);
+			persistentClass.addFilter(filterName, cond, filter.deduceAliasInjectionPoints(), 
+					toAliasTableMap(filter.aliases()), toAliasEntityMap(filter.aliases()));
+		}
+		LOG.debugf( "Import with entity name %s", name );
 		try {
 			mappings.addImport( persistentClass.getEntityName(), name );
 			String entityName = persistentClass.getEntityName();
@@ -360,7 +403,7 @@ public class EntityBinder {
 			throw new AnnotationException( "Use of the same entity name twice: " + name, me );
 		}
 	}
-
+	
 	public void bindDiscriminatorValue() {
 		if ( StringHelper.isEmpty( discriminatorValue ) ) {
 			Value discriminator = persistentClass.getDiscriminator();
@@ -518,7 +561,7 @@ public class EntityBinder {
 		}
 
 		if ( persistentClass instanceof TableOwner ) {
-            LOG.debugf( "Bind entity %s on table %s", persistentClass.getEntityName(), table.getName() );
+			LOG.debugf( "Bind entity %s on table %s", persistentClass.getEntityName(), table.getName() );
 			( (TableOwner) persistentClass ).setTable( table );
 		}
 		else {
@@ -743,7 +786,11 @@ public class EntityBinder {
 				null
 		);
 
-		//no check constraints available on joins
+		if ( secondaryTable != null ) {
+			TableBinder.addIndexes( table, secondaryTable.indexes(), mappings );
+		}
+
+			//no check constraints available on joins
 		join.setTable( table );
 
 		//somehow keep joins() for later.
@@ -822,14 +869,33 @@ public class EntityBinder {
 			cacheLazyProperty = true;
 		}
 	}
+	
+	public void setNaturalIdCache(XClass clazzToProcess, NaturalIdCache naturalIdCacheAnn) {
+		if ( naturalIdCacheAnn != null ) {
+			if ( BinderHelper.isEmptyAnnotationValue( naturalIdCacheAnn.region() ) ) {
+				if (cacheRegion != null) {
+					naturalIdCacheRegion = cacheRegion + NATURAL_ID_CACHE_SUFFIX;
+				}
+				else {
+					naturalIdCacheRegion = clazzToProcess.getName() + NATURAL_ID_CACHE_SUFFIX;
+				}
+			}
+			else {
+				naturalIdCacheRegion = naturalIdCacheAnn.region();
+			}
+		}
+		else {
+			naturalIdCacheRegion = null;
+		}
+	}
 
 	public static String getCacheConcurrencyStrategy(CacheConcurrencyStrategy strategy) {
 		org.hibernate.cache.spi.access.AccessType accessType = strategy.toAccessType();
 		return accessType == null ? null : accessType.getExternalName();
 	}
 
-	public void addFilter(String name, String condition) {
-		filters.put( name, condition );
+	public void addFilter(Filter filter) {
+		filters.add(filter);
 	}
 
 	public void setInheritanceState(InheritanceState inheritanceState) {
@@ -843,7 +909,10 @@ public class EntityBinder {
 	public void setIgnoreIdAnnotations(boolean ignoreIdAnnotations) {
 		this.ignoreIdAnnotations = ignoreIdAnnotations;
 	}
-
+	public void processComplementaryTableDefinitions(javax.persistence.Table table) {
+		if ( table == null ) return;
+		TableBinder.addIndexes( persistentClass.getTable(), table.indexes(), mappings );
+	}
 	public void processComplementaryTableDefinitions(org.hibernate.annotations.Table table) {
 		//comment and index are processed here
 		if ( table == null ) return;

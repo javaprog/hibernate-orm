@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import antlr.ASTFactory;
 import antlr.collections.AST;
 import antlr.collections.impl.ASTArray;
@@ -219,7 +220,7 @@ public final class ASTUtil {
 	 * @return The list representation of the tree.
 	 */
 	public static String getDebugString(AST n) {
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		buf.append( "[ " );
 		buf.append( ( n == null ) ? "{null}" : n.toStringTree() );
 		buf.append( " ]" );
@@ -266,12 +267,12 @@ public final class ASTUtil {
 	}
 
 	public static String getPathText(AST n) {
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		getPathText( buf, n );
 		return buf.toString();
 	}
 
-	private static void getPathText(StringBuffer buf, AST n) {
+	private static void getPathText(StringBuilder buf, AST n) {
 		AST firstChild = n.getFirstChild();
 		// If the node has a first child, recurse into the first child.
 		if ( firstChild != null ) {
@@ -383,8 +384,7 @@ public final class ASTUtil {
 	public static Map generateTokenNameCache(Class tokenTypeInterface) {
 		final Field[] fields = tokenTypeInterface.getFields();
 		Map cache = new HashMap( (int)( fields.length * .75 ) + 1 );
-		for ( int i = 0; i < fields.length; i++ ) {
-			final Field field = fields[i];
+		for ( final Field field : fields ) {
 			if ( Modifier.isStatic( field.getModifiers() ) ) {
 				try {
 					cache.put( field.get( null ), field.getName() );
@@ -428,10 +428,10 @@ public final class ASTUtil {
 		String tokenTypeName = Integer.toString( tokenType );
 		if ( tokenTypeInterface != null ) {
 			Field[] fields = tokenTypeInterface.getFields();
-			for ( int i = 0; i < fields.length; i++ ) {
-				final Integer fieldValue = extractIntegerValue( fields[i] );
-				if ( fieldValue != null && fieldValue.intValue() == tokenType ) {
-					tokenTypeName = fields[i].getName();
+			for ( Field field : fields ) {
+				final Integer fieldValue = extractIntegerValue( field );
+				if ( fieldValue != null && fieldValue == tokenType ) {
+					tokenTypeName = field.getName();
 					break;
 				}
 			}
@@ -447,11 +447,11 @@ public final class ASTUtil {
 				rtn = ( Integer ) value;
 			}
 			else if ( value instanceof Short ) {
-				rtn = new Integer( ( ( Short ) value ).intValue() );
+				rtn =  ( ( Short ) value ).intValue();
 			}
 			else if ( value instanceof Long ) {
-				if ( ( ( Long ) value ).longValue() <= Integer.MAX_VALUE ) {
-					rtn = new Integer( ( ( Long ) value ).intValue() );
+				if ( ( Long ) value  <= Integer.MAX_VALUE ) {
+					rtn = ( ( Long ) value ).intValue();
 				}
 			}
 		}

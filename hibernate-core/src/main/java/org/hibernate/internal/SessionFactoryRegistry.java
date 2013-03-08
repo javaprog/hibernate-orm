@@ -23,6 +23,8 @@
  */
 package org.hibernate.internal;
 
+import java.util.Hashtable;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.naming.Context;
 import javax.naming.Name;
 import javax.naming.Reference;
@@ -30,15 +32,13 @@ import javax.naming.event.NamespaceChangeListener;
 import javax.naming.event.NamingEvent;
 import javax.naming.event.NamingExceptionEvent;
 import javax.naming.spi.ObjectFactory;
-import java.util.Hashtable;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.jboss.logging.Logger;
 
 import org.hibernate.SessionFactory;
-import org.hibernate.service.jndi.JndiException;
-import org.hibernate.service.jndi.JndiNameException;
-import org.hibernate.service.jndi.spi.JndiService;
+import org.hibernate.engine.jndi.JndiException;
+import org.hibernate.engine.jndi.JndiNameException;
+import org.hibernate.engine.jndi.spi.JndiService;
 
 /**
  * A registry of all {@link SessionFactory} instances for the same classloader as this class.
@@ -62,18 +62,28 @@ public class SessionFactoryRegistry {
 		LOG.debugf( "Initializing SessionFactoryRegistry : %s", this );
 	}
 
-	public void addSessionFactory(String uuid, String name, SessionFactory instance, JndiService jndiService) {
+	public void addSessionFactory(
+			String uuid,
+			String name,
+			boolean isNameAlsoJndiName,
+			SessionFactory instance,
+			JndiService jndiService) {
+		if ( uuid == null ) {
+			throw new IllegalArgumentException( "SessionFactory UUID cannot be null" );
+		}
+
         LOG.debugf( "Registering SessionFactory: %s (%s)", uuid, name == null ? "<unnamed>" : name );
 		sessionFactoryMap.put( uuid, instance );
+		if ( name != null ) {
+			nameUuidXref.put( name, uuid );
+		}
 
-		if ( name == null ) {
-			LOG.debug( "Not binding factory to JNDI, no JNDI name configured" );
+		if ( name == null || ! isNameAlsoJndiName ) {
+			LOG.debug( "Not binding SessionFactory to JNDI, no JNDI name configured" );
 			return;
 		}
 
-		nameUuidXref.put( name, uuid );
-
-		LOG.debugf( "SessionFactory name : %s, attempting to bind to JNDI", name );
+		LOG.debugf( "Attempting to bind SessionFactory [%s] to JNDI", name );
 
 		try {
 			jndiService.bind( name, instance );
@@ -93,21 +103,27 @@ public class SessionFactoryRegistry {
 		}
 	}
 
-	public void removeSessionFactory(String uuid, String name, JndiService jndiService) {
+	public void removeSessionFactory(
+			String uuid,
+			String name,
+			boolean isNameAlsoJndiName,
+			JndiService jndiService) {
 		if ( name != null ) {
-			try {
-				LOG.tracef( "Unbinding SessionFactory from JNDI : %s", name );
-				jndiService.unbind( name );
-				LOG.factoryUnboundFromJndiName( name );
-			}
-			catch ( JndiNameException e ) {
-				LOG.invalidJndiName( name, e );
-			}
-			catch ( JndiException e ) {
-				LOG.unableToUnbindFactoryFromJndi( e );
-			}
-
 			nameUuidXref.remove( name );
+
+			if ( isNameAlsoJndiName ) {
+				try {
+					LOG.tracef( "Unbinding SessionFactory from JNDI : %s", name );
+					jndiService.unbind( name );
+					LOG.factoryUnboundFromJndiName( name );
+				}
+				catch ( JndiNameException e ) {
+					LOG.invalidJndiName( name, e );
+				}
+				catch ( JndiException e ) {
+					LOG.unableToUnbindFactoryFromJndi( e );
+				}
+			}
 		}
 
 		sessionFactoryMap.remove( uuid );
@@ -120,11 +136,11 @@ public class SessionFactoryRegistry {
 	}
 
 	public SessionFactory getSessionFactory(String uuid) {
-        LOG.debugf( "Lookup: uid=%s", uuid );
+		LOG.debugf( "Lookup: uid=%s", uuid );
 		final SessionFactory sessionFactory = sessionFactoryMap.get( uuid );
-		if ( sessionFactory == null ) {
+		if ( sessionFactory == null && LOG.isDebugEnabled() ) {
 			LOG.debugf( "Not found: %s", uuid );
-            LOG.debugf( sessionFactoryMap.toString() );
+			LOG.debugf( sessionFactoryMap.toString() );
 		}
 		return sessionFactory;
 	}

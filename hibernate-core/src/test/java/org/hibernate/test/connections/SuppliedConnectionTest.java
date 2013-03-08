@@ -31,20 +31,22 @@ import org.hibernate.ConnectionReleaseMode;
 import org.hibernate.Session;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
-import org.hibernate.service.jdbc.connections.internal.UserSuppliedConnectionProviderImpl;
-import org.hibernate.service.jdbc.connections.spi.ConnectionProvider;
+import org.hibernate.dialect.H2Dialect;
+import org.hibernate.engine.jdbc.connections.internal.UserSuppliedConnectionProviderImpl;
+import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
 import org.hibernate.service.spi.Stoppable;
-import org.hibernate.tool.hbm2ddl.SchemaExport;
-
 import org.hibernate.testing.AfterClassOnce;
 import org.hibernate.testing.BeforeClassOnce;
+import org.hibernate.testing.RequiresDialect;
 import org.hibernate.testing.env.ConnectionProviderBuilder;
+import org.hibernate.tool.hbm2ddl.SchemaExport;
 
 /**
  * Implementation of SuppliedConnectionTest.
  *
  * @author Steve Ebersole
  */
+@RequiresDialect(H2Dialect.class)
 public class SuppliedConnectionTest extends ConnectionManagementTestCase {
 	private ConnectionProvider cp = ConnectionProviderBuilder.buildConnectionProvider();
 	private Connection connectionUnderTest;

@@ -23,15 +23,15 @@
  */
 package org.hibernate.envers.test.integration.proxy;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.onetomany.ListRefEdEntity;
 import org.hibernate.envers.test.entities.onetomany.ListRefIngEntity;
 import org.hibernate.proxy.HibernateProxy;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
 
 /**
  * Test case for HHH-5750: Proxied objects lose the temporary session used to
@@ -40,13 +40,13 @@ import javax.persistence.EntityManager;
  * @author Erik-Berndt Scheper
  * 
  */
-public class AuditedCollectionProxyTest extends AbstractEntityTest {
+public class AuditedCollectionProxyTest extends BaseEnversJPAFunctionalTestCase {
 
     Integer id_ListRefEdEntity1;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(ListRefEdEntity.class);
-        cfg.addAnnotatedClass(ListRefIngEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { ListRefEdEntity.class, ListRefIngEntity.class };
     }
 
     @Test

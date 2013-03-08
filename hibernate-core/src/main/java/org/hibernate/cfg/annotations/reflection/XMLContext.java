@@ -32,12 +32,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.persistence.AccessType;
+
 import org.dom4j.Document;
 import org.dom4j.Element;
+import org.jboss.logging.Logger;
+
 import org.hibernate.AnnotationException;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
-import org.jboss.logging.Logger;
 
 /**
  * @author Emmanuel Bernard
@@ -86,7 +88,7 @@ public class XMLContext implements Serializable {
 				}
 			}
 			else {
-                LOG.duplicateMetadata();
+				LOG.duplicateMetadata();
 			}
 		}
 
@@ -153,7 +155,7 @@ public class XMLContext implements Serializable {
 			setAccess( access, localDefault );
 			defaultsOverriding.put( className, localDefault );
 
-            LOG.debugf("Adding XML overriding information for %s", className);
+			LOG.debugf( "Adding XML overriding information for %s", className );
 			addEntityListenerClasses( element, packageName, addedClasses );
 		}
 	}
@@ -169,16 +171,16 @@ public class XMLContext implements Serializable {
 				if ( classOverriding.containsKey( listenerClassName ) ) {
 					//maybe switch it to warn?
 					if ( "entity-listener".equals( classOverriding.get( listenerClassName ).getName() ) ) {
-                        LOG.duplicateListener(listenerClassName);
+						LOG.duplicateListener( listenerClassName );
 						continue;
 					}
-                    throw new IllegalStateException("Duplicate XML entry for " + listenerClassName);
+					throw new IllegalStateException("Duplicate XML entry for " + listenerClassName);
 				}
 				localAddedClasses.add( listenerClassName );
 				classOverriding.put( listenerClassName, listener );
 			}
 		}
-        LOG.debugf("Adding XML overriding information for listeners: %s", localAddedClasses);
+		LOG.debugf( "Adding XML overriding information for listeners: %s", localAddedClasses );
 		addedClasses.addAll( localAddedClasses );
 		return localAddedClasses;
 	}

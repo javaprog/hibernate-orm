@@ -23,6 +23,10 @@
  */
 package org.hibernate.envers.revisioninfo;
 
+import java.io.Serializable;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Date;
+
 import org.hibernate.MappingException;
 import org.hibernate.Session;
 import org.hibernate.envers.EntityTrackingRevisionListener;
@@ -31,10 +35,8 @@ import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.entities.PropertyData;
 import org.hibernate.envers.synchronization.SessionCacheCleaner;
 import org.hibernate.envers.tools.reflection.ReflectionTools;
+import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.property.Setter;
-
-import java.io.Serializable;
-import java.util.Date;
 
 /**
  * @author Adam Warski (adam at warski dot org)
@@ -61,10 +63,12 @@ public class DefaultRevisionInfoGenerator implements RevisionInfoGenerator {
         if (!listenerClass.equals(RevisionListener.class)) {
             // This is not the default value.
             try {
-                listener = listenerClass.newInstance();
+                listener = (RevisionListener) ReflectHelper.getDefaultConstructor(listenerClass).newInstance();
             } catch (InstantiationException e) {
                 throw new MappingException(e);
             } catch (IllegalAccessException e) {
+                throw new MappingException(e);
+            } catch (InvocationTargetException e) {
                 throw new MappingException(e);
             }
         } else {
@@ -83,7 +87,7 @@ public class DefaultRevisionInfoGenerator implements RevisionInfoGenerator {
     public Object generate() {
 		Object revisionInfo;
         try {
-            revisionInfo = revisionInfoClass.newInstance();
+            revisionInfo = ReflectHelper.getDefaultConstructor(revisionInfoClass).newInstance();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

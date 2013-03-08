@@ -23,23 +23,24 @@
  */
 package org.hibernate.cfg;
 
+import javax.persistence.AttributeConverter;
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Properties;
+
 import org.hibernate.AnnotationException;
 import org.hibernate.DuplicateMappingException;
 import org.hibernate.MappingException;
 import org.hibernate.annotations.AnyMetaDef;
 import org.hibernate.annotations.common.reflection.ReflectionManager;
 import org.hibernate.annotations.common.reflection.XClass;
+import org.hibernate.engine.ResultSetMappingDefinition;
 import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.engine.spi.NamedQueryDefinition;
 import org.hibernate.engine.spi.NamedSQLQueryDefinition;
-import org.hibernate.engine.ResultSetMappingDefinition;
-import org.hibernate.id.factory.internal.DefaultIdentifierGeneratorFactory;
 import org.hibernate.id.factory.spi.MutableIdentifierGeneratorFactory;
 import org.hibernate.mapping.AuxiliaryDatabaseObject;
 import org.hibernate.mapping.Collection;
@@ -510,6 +511,23 @@ public interface Mappings {
 	public void addSecondPass(SecondPass sp, boolean onTopOfTheQueue);
 
 	/**
+	 * Locate the AttributeConverterDefinition corresponding to the given AttributeConverter Class.
+	 *
+	 * @param attributeConverterClass The AttributeConverter Class for which to get the definition
+	 *
+	 * @return The corresponding AttributeConverter definition; will return {@code null} if no corresponding
+	 * definition found.
+	 */
+	public AttributeConverterDefinition locateAttributeConverter(Class attributeConverterClass);
+
+	/**
+	 * All all AttributeConverter definitions
+	 *
+	 * @return The collection of all AttributeConverter definitions.
+	 */
+	public java.util.Collection<AttributeConverterDefinition> getAttributeConverters();
+
+	/**
 	 * Represents a property-ref mapping.
 	 * <p/>
 	 * TODO : currently needs to be exposed because Configuration needs access to it for second-pass processing
@@ -703,6 +721,8 @@ public interface Mappings {
 
 	public void addUniqueConstraintHolders(Table table, List<UniqueConstraintHolder> uniqueConstraintHolders);
 
+	public void addJpaIndexHolders(Table table, List<JPAIndexHolder> jpaIndexHolders);
+
 	public void addMappedBy(String entityName, String propertyName, String inversePropertyName);
 
 	public String getFromMappedBy(String entityName, String propertyName);
@@ -748,10 +768,20 @@ public interface Mappings {
 	public boolean useNewGeneratorMappings();
 
 	/**
+	 * Should we use nationalized variants of character data by default?  This is controlled by the
+	 * {@link AvailableSettings#USE_NATIONALIZED_CHARACTER_DATA} setting.
+	 *
+	 * @return {@code true} if nationalized character data should be used by default; {@code false} otherwise.
+	 */
+	public boolean useNationalizedCharacterData();
+
+	/**
 	 * Return the property annotated with @ToOne and @Id if any.
 	 * Null otherwise
 	 */
 	public PropertyData getPropertyAnnotatedWithIdAndToOne(XClass entityType, String propertyName);
 
 	void addToOneAndIdProperty(XClass entity, PropertyData property);
+
+	public boolean forceDiscriminatorInSelectsByDefault();
 }

@@ -23,34 +23,35 @@
  */
 package org.hibernate.envers.test.integration.onetomany.detached;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.onetomany.detached.ListJoinColumnBidirectionalRefEdEntity;
 import org.hibernate.envers.test.entities.onetomany.detached.ListJoinColumnBidirectionalRefIngEntity;
-import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-
-import static org.hibernate.envers.test.tools.TestTools.*;
-import static org.junit.Assert.*;
+import static org.hibernate.envers.test.tools.TestTools.checkList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test for a "fake" bidirectional mapping where one side uses @OneToMany+@JoinColumn (and thus owns the relatin),
  * and the other uses a @ManyToOne(insertable=false, updatable=false).
  * @author Adam Warski (adam at warski dot org)
  */
-public class JoinColumnBidirectionalList extends AbstractEntityTest {
+public class JoinColumnBidirectionalList extends BaseEnversJPAFunctionalTestCase {
     private Integer ed1_id;
     private Integer ed2_id;
 
     private Integer ing1_id;
     private Integer ing2_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(ListJoinColumnBidirectionalRefIngEntity.class);
-        cfg.addAnnotatedClass(ListJoinColumnBidirectionalRefEdEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { ListJoinColumnBidirectionalRefIngEntity.class, ListJoinColumnBidirectionalRefEdEntity.class };
     }
 
     @Test

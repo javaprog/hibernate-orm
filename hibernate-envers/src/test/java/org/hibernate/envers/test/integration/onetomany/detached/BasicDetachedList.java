@@ -23,30 +23,30 @@
  */
 package org.hibernate.envers.test.integration.onetomany.detached;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.ArrayList;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
 import org.hibernate.envers.test.entities.onetomany.detached.ListRefCollEntity;
 import org.hibernate.envers.test.tools.TestTools;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.ArrayList;
-import java.util.Arrays;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class BasicDetachedList extends AbstractEntityTest {
+public class BasicDetachedList extends BaseEnversJPAFunctionalTestCase {
     private Integer str1_id;
     private Integer str2_id;
 
     private Integer coll1_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(StrTestEntity.class);
-        cfg.addAnnotatedClass(ListRefCollEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { StrTestEntity.class, ListRefCollEntity.class };
     }
 
     @Test

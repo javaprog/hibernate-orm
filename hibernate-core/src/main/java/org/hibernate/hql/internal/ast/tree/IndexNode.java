@@ -28,21 +28,22 @@ import java.sql.SQLException;
 import java.util.Iterator;
 import java.util.List;
 
-import org.hibernate.engine.spi.SessionImplementor;
-import org.hibernate.internal.CoreMessageLogger;
+import antlr.RecognitionException;
+import antlr.SemanticException;
+import antlr.collections.AST;
+import org.jboss.logging.Logger;
+
 import org.hibernate.QueryException;
 import org.hibernate.engine.internal.JoinSequence;
 import org.hibernate.engine.spi.QueryParameters;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.hql.internal.ast.SqlGenerator;
 import org.hibernate.hql.internal.ast.util.SessionFactoryHelper;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.param.ParameterSpecification;
 import org.hibernate.persister.collection.QueryableCollection;
 import org.hibernate.type.CollectionType;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
-import antlr.RecognitionException;
-import antlr.SemanticException;
-import antlr.collections.AST;
 
 /**
  * Represents the [] operator and provides it's semantics.
@@ -51,7 +52,7 @@ import antlr.collections.AST;
  */
 public class IndexNode extends FromReferenceNode {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, IndexNode.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, IndexNode.class.getName() );
 
 	public void setScalarColumnText(int i) throws SemanticException {
 		throw new UnsupportedOperationException( "An IndexNode cannot generate column text!" );
@@ -68,7 +69,7 @@ public class IndexNode extends FromReferenceNode {
 
 			FromReferenceNode collectionNode = ( FromReferenceNode ) getFirstChild();
 			String path = collectionNode.getPath() + "[]." + propertyName;
-            LOG.debugf("Creating join for many-to-many elements for %s", path);
+			LOG.debugf( "Creating join for many-to-many elements for %s", path );
 			FromElementFactory factory = new FromElementFactory( fromElement.getFromClause(), fromElement, path );
 			// This will add the new from element to the origin.
 			FromElement elementJoin = factory.createElementJoin( queryableCollection );
@@ -109,8 +110,11 @@ public class IndexNode extends FromReferenceNode {
 		if ( elem == null ) {
 			FromElementFactory factory = new FromElementFactory( fromClause, fromElement, path );
 			elem = factory.createCollectionElementsJoin( queryableCollection, elementTable );
-            LOG.debugf("No FROM element found for the elements of collection join path %s, created %s", path, elem);
-        } else LOG.debugf("FROM element found for collection join path %s", path);
+			LOG.debugf( "No FROM element found for the elements of collection join path %s, created %s", path, elem );
+		}
+		else {
+			LOG.debugf( "FROM element found for collection join path %s", path );
+		}
 
 		// The 'from element' that represents the elements of the collection.
 		setFromElement( fromElement );
@@ -201,7 +205,7 @@ public class IndexNode extends FromReferenceNode {
 		}
 
 		private String collectDisplayInfo() {
-			StringBuffer buffer = new StringBuffer();
+			StringBuilder buffer = new StringBuilder();
 			Iterator itr = paramSpecs.iterator();
 			while ( itr.hasNext() ) {
 				buffer.append( ( ( ParameterSpecification ) itr.next() ).renderDisplayInfo() );

@@ -36,12 +36,15 @@ import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
 import org.hibernate.MappingException;
 import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
+import org.hibernate.cache.spi.access.NaturalIdRegionAccessStrategy;
 import org.hibernate.cfg.Settings;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 import org.hibernate.engine.spi.Mapping;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.id.IdentityGenerator;
+import org.hibernate.internal.FilterAliasGenerator;
+import org.hibernate.internal.StaticFilterAliasGenerator;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.internal.util.collections.JoinedIterator;
 import org.hibernate.internal.util.collections.SingletonIterator;
@@ -70,6 +73,7 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 	private final String[] subclassClosure;
 	private final String[] spaces;
 	private final String[] subclassSpaces;
+	private final Object discriminatorValue;
 	private final String discriminatorSQLValue;
 	private final Map subclassByDiscriminatorValue = new HashMap();
 
@@ -81,10 +85,11 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 	public UnionSubclassEntityPersister(
 			final PersistentClass persistentClass, 
 			final EntityRegionAccessStrategy cacheAccessStrategy,
+			final NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
 			final SessionFactoryImplementor factory,
 			final Mapping mapping) throws HibernateException {
 
-		super( persistentClass, cacheAccessStrategy, factory );
+		super( persistentClass, cacheAccessStrategy, naturalIdRegionAccessStrategy, factory );
 		
 		if ( getIdentifierGenerator() instanceof IdentityGenerator ) {
 			throw new MappingException(
@@ -144,6 +149,7 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 		deleteCallable = new boolean[] { callable };
 		deleteResultCheckStyles = new ExecuteUpdateResultCheckStyle[] { checkStyle };
 
+		discriminatorValue = persistentClass.getSubclassId();
 		discriminatorSQLValue = String.valueOf( persistentClass.getSubclassId() );
 
 		// PROPERTIES
@@ -154,7 +160,7 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 
 		// SUBCLASSES
 		subclassByDiscriminatorValue.put( 
-				new Integer( persistentClass.getSubclassId() ), 
+				persistentClass.getSubclassId(),
 				persistentClass.getEntityName() 
 		);
 		if ( persistentClass.isPolymorphic() ) {
@@ -163,7 +169,7 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 			while ( iter.hasNext() ) {
 				Subclass sc = (Subclass) iter.next();
 				subclassClosure[k++] = sc.getEntityName();
-				subclassByDiscriminatorValue.put( new Integer( sc.getSubclassId() ), sc.getEntityName() );
+				subclassByDiscriminatorValue.put( sc.getSubclassId(), sc.getEntityName() );
 			}
 		}
 		
@@ -239,15 +245,17 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 	public UnionSubclassEntityPersister(
 			final EntityBinding entityBinding,
 			final EntityRegionAccessStrategy cacheAccessStrategy,
+			final NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
 			final SessionFactoryImplementor factory,
 			final Mapping mapping) throws HibernateException {
-		super(entityBinding, cacheAccessStrategy, factory );
+		super(entityBinding, cacheAccessStrategy, naturalIdRegionAccessStrategy, factory );
 		// TODO: implement!!! initializing final fields to null to make compiler happy.
 		subquery = null;
 		tableName = null;
 		subclassClosure = null;
 		spaces = null;
 		subclassSpaces = null;
+		discriminatorValue = null;
 		discriminatorSQLValue = null;
 		constraintOrderedTableNames = null;
 		constraintOrderedKeyColumnNames = null;
@@ -263,6 +271,10 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 
 	public Type getDiscriminatorType() {
 		return StandardBasicTypes.INTEGER;
+	}
+
+	public Object getDiscriminatorValue() {
+		return discriminatorValue;
 	}
 
 	public String getDiscriminatorSQLValue() {
@@ -496,5 +508,10 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 
 	public String[][] getContraintOrderedTableKeyColumnClosure() {
 		return constraintOrderedKeyColumnNames;
+	}
+
+	@Override
+	public FilterAliasGenerator getFilterAliasGenerator(String rootAlias) {
+		return new StaticFilterAliasGenerator(rootAlias);
 	}
 }

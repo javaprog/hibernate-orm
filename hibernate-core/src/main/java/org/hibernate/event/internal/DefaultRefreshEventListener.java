@@ -24,24 +24,24 @@
 package org.hibernate.event.internal;
 
 import java.io.Serializable;
+import java.util.IdentityHashMap;
 import java.util.Map;
 
 import org.jboss.logging.Logger;
 
 import org.hibernate.HibernateException;
-import org.hibernate.engine.internal.Cascade;
-import org.hibernate.engine.spi.CascadingAction;
-import org.hibernate.engine.spi.EntityKey;
-import org.hibernate.engine.spi.SessionFactoryImplementor;
-import org.hibernate.event.spi.RefreshEvent;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.PersistentObjectException;
 import org.hibernate.UnresolvableObjectException;
 import org.hibernate.cache.spi.CacheKey;
+import org.hibernate.engine.internal.Cascade;
+import org.hibernate.engine.spi.CascadingActions;
 import org.hibernate.engine.spi.EntityEntry;
+import org.hibernate.engine.spi.EntityKey;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.event.spi.EventSource;
+import org.hibernate.event.spi.RefreshEvent;
 import org.hibernate.event.spi.RefreshEventListener;
-import org.hibernate.internal.util.collections.IdentityMap;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.pretty.MessageHelper;
 import org.hibernate.type.CollectionType;
@@ -60,7 +60,7 @@ public class DefaultRefreshEventListener implements RefreshEventListener {
                                                                        DefaultRefreshEventListener.class.getName());
 
 	public void onRefresh(RefreshEvent event) throws HibernateException {
-		onRefresh( event, IdentityMap.instantiate(10) );
+		onRefresh( event, new IdentityHashMap(10) );
 	}
 
 	/**
@@ -83,7 +83,7 @@ public class DefaultRefreshEventListener implements RefreshEventListener {
 		final Object object = source.getPersistenceContext().unproxyAndReassociate( event.getObject() );
 
 		if ( refreshedAlready.containsKey(object) ) {
-            LOG.trace("Already refreshed");
+			LOG.trace( "Already refreshed" );
 			return;
 		}
 
@@ -94,8 +94,9 @@ public class DefaultRefreshEventListener implements RefreshEventListener {
 		if ( e == null ) {
 			persister = source.getEntityPersister(event.getEntityName(), object); //refresh() does not pass an entityName
 			id = persister.getIdentifier( object, event.getSession() );
-            if (LOG.isTraceEnabled()) LOG.trace("Refreshing transient "
-                                                + MessageHelper.infoString(persister, id, source.getFactory()));
+			if ( LOG.isTraceEnabled() ) {
+				LOG.tracev( "Refreshing transient {0}", MessageHelper.infoString( persister, id, source.getFactory() ) );
+			}
 			final EntityKey key = source.generateEntityKey( id, persister );
 			if ( source.getPersistenceContext().getEntry(key) != null ) {
 				throw new PersistentObjectException(
@@ -105,8 +106,9 @@ public class DefaultRefreshEventListener implements RefreshEventListener {
 			}
 		}
 		else {
-            if (LOG.isTraceEnabled()) LOG.trace("Refreshing "
-                                                + MessageHelper.infoString(e.getPersister(), e.getId(), source.getFactory()));
+			if ( LOG.isTraceEnabled() ) {
+				LOG.tracev( "Refreshing ", MessageHelper.infoString( e.getPersister(), e.getId(), source.getFactory() ) );
+			}
 			if ( !e.isExistsInDatabase() ) {
 				throw new HibernateException( "this instance does not yet exist as a row in the database" );
 			}
@@ -117,7 +119,7 @@ public class DefaultRefreshEventListener implements RefreshEventListener {
 
 		// cascade the refresh prior to refreshing this entity
 		refreshedAlready.put(object, object);
-		new Cascade( CascadingAction.REFRESH, Cascade.BEFORE_REFRESH, source)
+		new Cascade( CascadingActions.REFRESH, Cascade.BEFORE_REFRESH, source)
 				.cascade( persister, object, refreshedAlready );
 
 		if ( e != null ) {
@@ -163,14 +165,14 @@ public class DefaultRefreshEventListener implements RefreshEventListener {
 
 	private void evictCachedCollections(Type[] types, Serializable id, SessionFactoryImplementor factory)
 	throws HibernateException {
-		for ( int i = 0; i < types.length; i++ ) {
-			if ( types[i].isCollectionType() ) {
-				factory.getCache().evictCollection( ( (CollectionType) types[i] ).getRole(), id );
-			}
-			else if ( types[i].isComponentType() ) {
-				CompositeType actype = (CompositeType) types[i];
-				evictCachedCollections( actype.getSubtypes(), id, factory );
-			}
-		}
+        for ( Type type : types ) {
+            if ( type.isCollectionType() ) {
+                factory.getCache().evictCollection( ( (CollectionType) type ).getRole(), id );
+            }
+            else if ( type.isComponentType() ) {
+                CompositeType actype = (CompositeType) type;
+                evictCachedCollections( actype.getSubtypes(), id, factory );
+            }
+        }
 	}
 }

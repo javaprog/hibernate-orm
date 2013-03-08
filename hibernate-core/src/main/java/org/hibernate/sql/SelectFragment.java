@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+
 import org.hibernate.internal.util.StringHelper;
 
 /**
@@ -132,7 +133,7 @@ public class SelectFragment {
 	}
 
 	public String toFragmentString() {
-		StringBuffer buf = new StringBuffer( columns.size() * 10 );
+		StringBuilder buf = new StringBuilder( columns.size() * 10 );
 		Iterator iter = columns.iterator();
 		Iterator columnAliasIter = columnAliases.iterator();
 		//HashMap columnsUnique = new HashMap();

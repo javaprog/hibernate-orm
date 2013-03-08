@@ -28,13 +28,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.LinkedHashSet;
 
+import org.jboss.logging.Logger;
+
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.collections.ArrayHelper;
 
-import org.jboss.logging.Logger;
-
 /**
- * Helper to extract type innformation from {@link DatabaseMetaData JDBC metadata}
+ * Helper to extract type information from {@link DatabaseMetaData JDBC metadata}
  *
  * @author Steve Ebersole
  */
@@ -78,19 +78,19 @@ public class TypeInfoExtracter {
 				}
 			}
 			catch ( SQLException e ) {
-                LOG.unableToAccessTypeInfoResultSet(e.toString());
+				LOG.unableToAccessTypeInfoResultSet( e.toString() );
 			}
 			finally {
 				try {
 					resultSet.close();
 				}
 				catch ( SQLException e ) {
-                    LOG.unableToReleaseTypeInfoResultSet();
+					LOG.unableToReleaseTypeInfoResultSet();
 				}
 			}
 		}
 		catch ( SQLException e ) {
-            LOG.unableToRetrieveTypeInfoResultSet(e.toString());
+			LOG.unableToRetrieveTypeInfoResultSet( e.toString() );
 		}
 
 		return typeInfoSet;

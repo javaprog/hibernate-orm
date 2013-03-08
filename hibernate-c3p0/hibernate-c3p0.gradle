@@ -1,7 +1,18 @@
-apply plugin: 'java'
-
 dependencies {
-    compile( project( ':hibernate-core' ) )
-    compile( [group: 'c3p0', name: 'c3p0', version: '0.9.1'] )
-    testCompile( project(':hibernate-testing') )
+    provided( libraries.validation )
+    compile project( ':hibernate-core' )
+    compile( libraries.c3p0 )
+
+    testCompile( libraries.validator ) {
+        // for test runtime
+        transitive = true
+    }
+    testCompile project( ':hibernate-testing' )
+}
+
+jar {
+    manifest {
+        instruction 'Bundle-Description', 'Hibernate ORM C3P0'
+        instruction 'Bundle-SymbolicName', 'org.hibernate.c3p0'
+    }
 }

@@ -26,6 +26,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+
 import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.spi.Mapping;
 
@@ -37,7 +38,7 @@ import org.hibernate.engine.spi.Mapping;
 public abstract class Constraint implements RelationalModel, Serializable {
 
 	private String name;
-	private final List columns = new ArrayList();
+	private final List<Column> columns = new ArrayList<Column>();
 	private Table table;
 
 	public String getName() {
@@ -46,10 +47,6 @@ public abstract class Constraint implements RelationalModel, Serializable {
 
 	public void setName(String name) {
 		this.name = name;
-	}
-
-	public Iterator getColumnIterator() {
-		return columns.iterator();
 	}
 
 	public void addColumn(Column column) {
@@ -76,10 +73,14 @@ public abstract class Constraint implements RelationalModel, Serializable {
 	}
 
 	public Column getColumn(int i) {
-		return (Column) columns.get( i );
+		return  columns.get( i );
+	}
+	//todo duplicated method, remove one
+	public Iterator<Column> getColumnIterator() {
+		return columns.iterator();
 	}
 
-	public Iterator columnIterator() {
+	public Iterator<Column> columnIterator() {
 		return columns.iterator();
 	}
 
@@ -97,7 +98,7 @@ public abstract class Constraint implements RelationalModel, Serializable {
 
 	public String sqlDropString(Dialect dialect, String defaultCatalog, String defaultSchema) {
 		if ( isGenerated( dialect ) ) {
-			return new StringBuffer()
+			return new StringBuilder()
 					.append( "alter table " )
 					.append( getTable().getQualifiedName( dialect, defaultCatalog, defaultSchema ) )
 					.append( " drop constraint " )
@@ -112,7 +113,7 @@ public abstract class Constraint implements RelationalModel, Serializable {
 	public String sqlCreateString(Dialect dialect, Mapping p, String defaultCatalog, String defaultSchema) {
 		if ( isGenerated( dialect ) ) {
 			String constraintString = sqlConstraintString( dialect, getName(), defaultCatalog, defaultSchema );
-			StringBuffer buf = new StringBuffer( "alter table " )
+			StringBuilder buf = new StringBuilder( "alter table " )
 					.append( getTable().getQualifiedName( dialect, defaultCatalog, defaultSchema ) )
 					.append( constraintString );
 			return buf.toString();

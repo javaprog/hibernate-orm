@@ -24,12 +24,12 @@
 package org.hibernate.dialect.resolver;
 import java.sql.SQLException;
 
+import org.jboss.logging.Logger;
+
+import org.hibernate.JDBCException;
 import org.hibernate.exception.internal.SQLStateConverter;
 import org.hibernate.exception.spi.ViolatedConstraintNameExtracter;
 import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.JDBCException;
-
-import org.jboss.logging.Logger;
 
 /**
  * A helper to centralize conversion of {@link java.sql.SQLException}s to {@link org.hibernate.JDBCException}s.
@@ -38,10 +38,9 @@ import org.jboss.logging.Logger;
  */
 public class BasicSQLExceptionConverter {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                       BasicSQLExceptionConverter.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, BasicSQLExceptionConverter.class.getName() );
 	public static final BasicSQLExceptionConverter INSTANCE = new BasicSQLExceptionConverter();
-    public static final String MSG = LOG.unableToQueryDatabaseMetadata();
+	public static final String MSG = LOG.unableToQueryDatabaseMetadata();
 
 	private static final SQLStateConverter CONVERTER = new SQLStateConverter( new ConstraintNameExtracter() );
 

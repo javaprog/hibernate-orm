@@ -24,10 +24,12 @@
 package org.hibernate.id;
 import java.io.Serializable;
 import java.util.Properties;
+
 import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.id.enhanced.AccessCallback;
 import org.hibernate.id.enhanced.OptimizerFactory;
+import org.hibernate.id.enhanced.SequenceStyleGenerator;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.type.Type;
 
@@ -46,7 +48,10 @@ import org.hibernate.type.Type;
  *
  * @see SequenceHiLoGenerator
  * @author Gavin King
+ * 
+ * @deprecated use {@link SequenceStyleGenerator} instead.
  */
+@Deprecated 
 public class TableHiLoGenerator extends TableGenerator {
 	/**
 	 * The max_lo parameter

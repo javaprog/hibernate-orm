@@ -30,15 +30,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.HibernateException;
-import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.query.spi.sql.NativeSQLQueryReturn;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.loader.custom.CustomQuery;
 import org.hibernate.persister.collection.SQLLoadableCollection;
 import org.hibernate.persister.entity.SQLLoadable;
-
-import org.jboss.logging.Logger;
 
 /**
  * Implements Hibernate's built-in support for native SQL queries.
@@ -51,7 +52,7 @@ import org.jboss.logging.Logger;
  */
 public class SQLCustomQuery implements CustomQuery {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, SQLCustomQuery.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, SQLCustomQuery.class.getName() );
 
 	private final String sql;
 	private final Set querySpaces = new HashSet();
@@ -81,7 +82,7 @@ public class SQLCustomQuery implements CustomQuery {
 			final Collection additionalQuerySpaces,
 			final SessionFactoryImplementor factory) throws HibernateException {
 
-        LOG.trace("Starting processing of sql query [" + sqlQuery + "]");
+		LOG.tracev( "Starting processing of sql query [{0}]", sqlQuery );
 		SQLQueryReturnProcessor processor = new SQLQueryReturnProcessor(queryReturns, factory);
 		SQLQueryReturnProcessor.ResultAliasContext aliasContext = processor.process();
 

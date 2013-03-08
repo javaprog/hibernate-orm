@@ -26,9 +26,13 @@ package org.hibernate.cache.spi.entry;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 
 /**
+ * Unstructured CacheEntry format (used to store entities and collections).
+ *
  * @author Gavin King
+ * @author Steve Ebersole
  */
 public class UnstructuredCacheEntry implements CacheEntryStructure {
+	public static final UnstructuredCacheEntry INSTANCE = new UnstructuredCacheEntry();
 
 	public Object structure(Object item) {
 		return item;

@@ -1,10 +1,10 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2008, Red Hat Middleware LLC or third-party contributors as
+ * Copyright (c) 2008-2011, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
- * distributed under license by Red Hat Middleware LLC.
+ * distributed under license by Red Hat Inc.
  *
  * This copyrighted material is made available to anyone wishing to use, modify,
  * copy, or redistribute it subject to the terms and conditions of the GNU
@@ -22,12 +22,15 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.envers.reader;
-import static org.hibernate.envers.tools.Tools.newHashMap;
-import static org.hibernate.envers.tools.Triple.make;
 import java.util.Map;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.envers.internal.EnversMessageLogger;
 import org.hibernate.envers.tools.Triple;
-import org.jboss.logging.Logger;
+
+import static org.hibernate.envers.tools.Tools.newHashMap;
+import static org.hibernate.envers.tools.Triple.make;
 
 /**
  * First level cache for versioned entities, versions reader-scoped. Each entity is uniquely identified by a
@@ -70,10 +73,10 @@ public class FirstLevelCache {
 
     /**
      * Adds the entityName into the cache. The key is a triple make with primaryKey, revision and entity
-     * @param id, primaryKey
-     * @param revision, revision number
-     * @param entity, object retrieved by envers
-     * @param entityName, value of the cache
+     * @param id primaryKey
+     * @param revision revision number
+     * @param entity object retrieved by envers
+     * @param entityName value of the cache
      */
     public void putOnEntityNameCache(Object id, Number revision, Object entity, String entityName) {
         LOG.debugf("Caching entityName on First Level Cache:  - primaryKey:%s - revision:%s - entity:%s -> entityName:%s",
@@ -86,9 +89,12 @@ public class FirstLevelCache {
 
     /**
      * Gets the entityName from the cache. The key is a triple make with primaryKey, revision and entity
-     * @param id, primaryKey
-     * @param revision, revision number
-     * @param entity, object retrieved by envers
+	 *
+     * @param id primaryKey
+     * @param revision revision number
+     * @param entity object retrieved by envers
+	 *
+	 * @return The appropriate entity name
      */
     public String getFromEntityNameCache(Object id, Number revision, Object entity) {
         LOG.debugf("Trying to resolve entityName from First Level Cache: - primaryKey:%s - revision:%s - entity:%s",

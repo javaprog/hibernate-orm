@@ -23,12 +23,12 @@
  */
 package org.hibernate.cache.internal;
 
-import javax.persistence.EntityNotFoundException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
+import javax.persistence.EntityNotFoundException;
 
 import org.jboss.logging.Logger;
 
@@ -56,7 +56,13 @@ import org.hibernate.type.TypeHelper;
  */
 public class StandardQueryCache implements QueryCache {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, StandardQueryCache.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger(
+			CoreMessageLogger.class,
+			StandardQueryCache.class.getName()
+	);
+
+	private static final boolean DEBUGGING = LOG.isDebugEnabled();
+	private static final boolean TRACING = LOG.isTraceEnabled();
 
 	private QueryResultsRegion cacheRegion;
 	private UpdateTimestampsCache updateTimestampsCache;
@@ -77,102 +83,110 @@ public class StandardQueryCache implements QueryCache {
 		if ( prefix != null ) {
 			regionName = prefix + '.' + regionName;
 		}
-        LOG.startingQueryCache(regionName);
+		LOG.startingQueryCache( regionName );
 
 		this.cacheRegion = settings.getRegionFactory().buildQueryResultsRegion( regionName, props );
 		this.updateTimestampsCache = updateTimestampsCache;
 	}
 
-	@SuppressWarnings({ "UnnecessaryBoxing", "unchecked" })
+	@SuppressWarnings({ "unchecked" })
 	public boolean put(
-			QueryKey key,
-			Type[] returnTypes,
-			List result,
-			boolean isNaturalKeyLookup,
-			SessionImplementor session) throws HibernateException {
-        if (isNaturalKeyLookup && result.size() == 0) return false;
-        Long ts = new Long(session.getFactory().getSettings().getRegionFactory().nextTimestamp());
+			final QueryKey key,
+			final Type[] returnTypes,
+			final List result,
+			final boolean isNaturalKeyLookup,
+			final SessionImplementor session) throws HibernateException {
+		if ( isNaturalKeyLookup && result.isEmpty() ) {
+			return false;
+		}
+		long ts = cacheRegion.nextTimestamp();
 
-        LOG.debugf("Caching query results in region: %s; timestamp=%s", cacheRegion.getName(), ts);
+		if ( DEBUGGING ) LOG.debugf( "Caching query results in region: %s; timestamp=%s", cacheRegion.getName(), ts );
 
-		List cacheable = new ArrayList(result.size() + 1);
-        logCachedResultDetails(key, null, returnTypes, cacheable);
-        cacheable.add(ts);
-        for (Object aResult : result) {
-            if (returnTypes.length == 1) cacheable.add(returnTypes[0].disassemble(aResult, session, null));
-            else cacheable.add(TypeHelper.disassemble((Object[])aResult, returnTypes, null, session, null));
-            logCachedResultRowDetails(returnTypes, aResult);
-        }
+		List cacheable = new ArrayList( result.size() + 1 );
+		logCachedResultDetails( key, null, returnTypes, cacheable );
+		cacheable.add( ts );
+		final boolean singleResult = returnTypes.length == 1;
+		for ( Object aResult : result ) {
+			Serializable cacheItem = singleResult ? returnTypes[0].disassemble(
+					aResult,
+					session,
+					null
+			) : TypeHelper.disassemble( (Object[]) aResult, returnTypes, null, session, null );
+			cacheable.add( cacheItem );
+			logCachedResultRowDetails( returnTypes, aResult );
+		}
 
-		cacheRegion.put(key, cacheable);
-        return true;
+		cacheRegion.put( key, cacheable );
+		return true;
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	public List get(
-			QueryKey key,
-			Type[] returnTypes,
-			boolean isNaturalKeyLookup,
-			Set spaces,
-			SessionImplementor session) throws HibernateException {
-        LOG.debugf("Checking cached query results in region: %s", cacheRegion.getName());
+			final QueryKey key,
+			final Type[] returnTypes,
+			final boolean isNaturalKeyLookup,
+			final Set spaces,
+			final SessionImplementor session) throws HibernateException {
+		if ( DEBUGGING ) LOG.debugf( "Checking cached query results in region: %s", cacheRegion.getName() );
 
-		List cacheable = ( List ) cacheRegion.get( key );
-        logCachedResultDetails(key, spaces, returnTypes, cacheable);
+		List cacheable = (List) cacheRegion.get( key );
+		logCachedResultDetails( key, spaces, returnTypes, cacheable );
 
 		if ( cacheable == null ) {
-            LOG.debugf("Query results were not found in cache");
+			if ( DEBUGGING ) LOG.debug( "Query results were not found in cache" );
 			return null;
 		}
 
-		Long timestamp = ( Long ) cacheable.get( 0 );
+		Long timestamp = (Long) cacheable.get( 0 );
 		if ( !isNaturalKeyLookup && !isUpToDate( spaces, timestamp ) ) {
-            LOG.debugf("Cached query results were not up-to-date");
+			if ( DEBUGGING ) LOG.debug( "Cached query results were not up-to-date" );
 			return null;
 		}
 
-        LOG.debugf("Returning cached query results");
+		if ( DEBUGGING ) LOG.debug( "Returning cached query results" );
+		final boolean singleResult = returnTypes.length == 1;
 		for ( int i = 1; i < cacheable.size(); i++ ) {
-			if ( returnTypes.length == 1 ) {
-				returnTypes[0].beforeAssemble( ( Serializable ) cacheable.get( i ), session );
+			if ( singleResult ) {
+				returnTypes[0].beforeAssemble( (Serializable) cacheable.get( i ), session );
 			}
 			else {
-				TypeHelper.beforeAssemble( ( Serializable[] ) cacheable.get( i ), returnTypes, session );
+				TypeHelper.beforeAssemble( (Serializable[]) cacheable.get( i ), returnTypes, session );
 			}
 		}
 		List result = new ArrayList( cacheable.size() - 1 );
 		for ( int i = 1; i < cacheable.size(); i++ ) {
 			try {
-				if ( returnTypes.length == 1 ) {
-					result.add( returnTypes[0].assemble( ( Serializable ) cacheable.get( i ), session, null ) );
+				if ( singleResult ) {
+					result.add( returnTypes[0].assemble( (Serializable) cacheable.get( i ), session, null ) );
 				}
 				else {
 					result.add(
-							TypeHelper.assemble( ( Serializable[] ) cacheable.get( i ), returnTypes, session, null )
+							TypeHelper.assemble( (Serializable[]) cacheable.get( i ), returnTypes, session, null )
 					);
 				}
-                logCachedResultRowDetails(returnTypes, result.get(i - 1));
+				logCachedResultRowDetails( returnTypes, result.get( i - 1 ) );
 			}
 			catch ( RuntimeException ex ) {
 				if ( isNaturalKeyLookup &&
 						( UnresolvableObjectException.class.isInstance( ex ) ||
-						EntityNotFoundException.class.isInstance( ex ) ) ) {
+								EntityNotFoundException.class.isInstance( ex ) ) ) {
 					//TODO: not really completely correct, since
 					//      the uoe could occur while resolving
 					//      associations, leaving the PC in an
 					//      inconsistent state
-                    LOG.debugf("Unable to reassemble cached result set");
+					if ( DEBUGGING ) LOG.debug( "Unable to reassemble cached result set" );
 					cacheRegion.evict( key );
 					return null;
 				}
-                throw ex;
+				throw ex;
 			}
 		}
 		return result;
 	}
 
-	protected boolean isUpToDate(Set spaces, Long timestamp) {
-        LOG.debugf("Checking query spaces are up-to-date: %s", spaces);
+	protected boolean isUpToDate(final Set spaces, final Long timestamp) {
+		if ( DEBUGGING ) LOG.debugf( "Checking query spaces are up-to-date: %s", spaces );
 		return updateTimestampsCache.isUpToDate( spaces, timestamp );
 	}
 
@@ -181,7 +195,7 @@ public class StandardQueryCache implements QueryCache {
 			cacheRegion.destroy();
 		}
 		catch ( Exception e ) {
-            LOG.unableToDestroyQueryCache(cacheRegion.getName(), e.getMessage());
+			LOG.unableToDestroyQueryCache( cacheRegion.getName(), e.getMessage() );
 		}
 	}
 
@@ -190,56 +204,84 @@ public class StandardQueryCache implements QueryCache {
 	}
 
 	@Override
-    public String toString() {
+	public String toString() {
 		return "StandardQueryCache(" + cacheRegion.getName() + ')';
 	}
 
 	private static void logCachedResultDetails(QueryKey key, Set querySpaces, Type[] returnTypes, List result) {
-        if (!LOG.isTraceEnabled()) return;
-        LOG.trace("key.hashCode=" + key.hashCode());
-        LOG.trace("querySpaces=" + querySpaces);
-        if (returnTypes == null || returnTypes.length == 0) LOG.trace("Unexpected returnTypes is "
-                                                                      + (returnTypes == null ? "null" : "empty") + "! result"
-                                                                      + (result == null ? " is null" : ".size()=" + result.size()));
+		if ( !TRACING ) {
+			return;
+		}
+		LOG.trace( "key.hashCode=" + key.hashCode() );
+		LOG.trace( "querySpaces=" + querySpaces );
+		if ( returnTypes == null || returnTypes.length == 0 ) {
+			LOG.trace(
+					"Unexpected returnTypes is "
+							+ ( returnTypes == null ? "null" : "empty" ) + "! result"
+							+ ( result == null ? " is null" : ".size()=" + result.size() )
+			);
+		}
 		else {
-			StringBuffer returnTypeInfo = new StringBuffer();
-			for ( int i=0; i<returnTypes.length; i++ ) {
+			StringBuilder returnTypeInfo = new StringBuilder();
+			for ( int i = 0; i < returnTypes.length; i++ ) {
 				returnTypeInfo.append( "typename=" )
-						.append( returnTypes[ i ].getName() )
-						.append(" class=" )
-						.append( returnTypes[ i ].getReturnedClass().getName() ).append(' ');
+						.append( returnTypes[i].getName() )
+						.append( " class=" )
+						.append( returnTypes[i].getReturnedClass().getName() ).append( ' ' );
 			}
-            LOG.trace("unexpected returnTypes is " + returnTypeInfo.toString() + "! result");
+			LOG.trace( "unexpected returnTypes is " + returnTypeInfo.toString() + "! result" );
 		}
 	}
 
 	private static void logCachedResultRowDetails(Type[] returnTypes, Object result) {
-        if (!LOG.isTraceEnabled()) return;
+		if ( !TRACING ) {
+			return;
+		}
 		logCachedResultRowDetails(
 				returnTypes,
-				( result instanceof Object[] ? ( Object[] ) result : new Object[] { result } )
+				( result instanceof Object[] ? (Object[]) result : new Object[] { result } )
 		);
 	}
 
 	private static void logCachedResultRowDetails(Type[] returnTypes, Object[] tuple) {
-        if (!LOG.isTraceEnabled()) return;
+		if ( !TRACING ) {
+			return;
+		}
 		if ( tuple == null ) {
-            LOG.trace(" tuple is null; returnTypes is " + returnTypes == null ? "null" : "Type[" + returnTypes.length + "]");
-            if (returnTypes != null && returnTypes.length > 1) LOG.trace("Unexpected result tuple! tuple is null; should be Object["
-                                                                         + returnTypes.length + "]!");
+			LOG.trace( " tuple is null; returnTypes is " + returnTypes == null ? "null" : "Type[" + returnTypes.length + "]" );
+			if ( returnTypes != null && returnTypes.length > 1 ) {
+				LOG.trace(
+						"Unexpected result tuple! tuple is null; should be Object["
+								+ returnTypes.length + "]!"
+				);
+			}
 		}
 		else {
-            if (returnTypes == null || returnTypes.length == 0) LOG.trace("Unexpected result tuple! tuple is null; returnTypes is "
-                                                                          + (returnTypes == null ? "null" : "empty"));
-            LOG.trace(" tuple is Object[" + tuple.length + "]; returnTypes is Type[" + returnTypes.length + "]");
-            if (tuple.length != returnTypes.length) LOG.trace("Unexpected tuple length! transformer= expected="
-                                                              + returnTypes.length + " got=" + tuple.length);
-            else for (int j = 0; j < tuple.length; j++) {
-                if (tuple[j] != null && !returnTypes[j].getReturnedClass().isInstance(tuple[j])) LOG.trace("Unexpected tuple value type! transformer= expected="
-                                                                                                           + returnTypes[j].getReturnedClass().getName()
-                                                                                                           + " got="
-                                                                                                           + tuple[j].getClass().getName());
-            }
+			if ( returnTypes == null || returnTypes.length == 0 ) {
+				LOG.trace(
+						"Unexpected result tuple! tuple is null; returnTypes is "
+								+ ( returnTypes == null ? "null" : "empty" )
+				);
+			}
+			LOG.trace( " tuple is Object[" + tuple.length + "]; returnTypes is Type[" + returnTypes.length + "]" );
+			if ( tuple.length != returnTypes.length ) {
+				LOG.trace(
+						"Unexpected tuple length! transformer= expected="
+								+ returnTypes.length + " got=" + tuple.length
+				);
+			}
+			else {
+				for ( int j = 0; j < tuple.length; j++ ) {
+					if ( tuple[j] != null && !returnTypes[j].getReturnedClass().isInstance( tuple[j] ) ) {
+						LOG.trace(
+								"Unexpected tuple value type! transformer= expected="
+										+ returnTypes[j].getReturnedClass().getName()
+										+ " got="
+										+ tuple[j].getClass().getName()
+						);
+					}
+				}
+			}
 		}
 	}
 }

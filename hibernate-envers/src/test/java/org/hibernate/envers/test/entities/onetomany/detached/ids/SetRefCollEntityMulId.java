@@ -27,6 +27,8 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.IdClass;
 import javax.persistence.OneToMany;
+import javax.persistence.Table;
+
 import org.hibernate.envers.Audited;
 import org.hibernate.envers.test.entities.ids.MulId;
 import org.hibernate.envers.test.entities.ids.MulIdTestEntity;
@@ -36,6 +38,7 @@ import org.hibernate.envers.test.entities.ids.MulIdTestEntity;
  * @author Adam Warski (adam at warski dot org)
  */
 @Entity
+@Table(name = "SetRefCollMulId")
 @IdClass(MulId.class)
 public class SetRefCollEntityMulId {
     @Id

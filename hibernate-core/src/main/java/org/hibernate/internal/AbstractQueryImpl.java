@@ -49,6 +49,7 @@ import org.hibernate.PropertyNotFoundException;
 import org.hibernate.Query;
 import org.hibernate.QueryException;
 import org.hibernate.Session;
+import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.query.spi.ParameterMetadata;
 import org.hibernate.engine.spi.QueryParameters;
 import org.hibernate.engine.spi.RowSelection;
@@ -65,6 +66,7 @@ import org.hibernate.transform.ResultTransformer;
 import org.hibernate.type.SerializableType;
 import org.hibernate.type.StandardBasicTypes;
 import org.hibernate.type.Type;
+import org.jboss.logging.Logger;
 
 /**
  * Abstract implementation of the Query interface.
@@ -73,6 +75,10 @@ import org.hibernate.type.Type;
  * @author Max Andersen
  */
 public abstract class AbstractQueryImpl implements Query {
+	private static final CoreMessageLogger log = Logger.getMessageLogger(
+			CoreMessageLogger.class,
+			AbstractQueryImpl.class.getName()
+	);
 
 	private static final Object UNSET_PARAMETER = new MarkerObject("<unset parameter>");
 	private static final Object UNSET_TYPE = new MarkerObject("<unset type>");
@@ -120,54 +126,90 @@ public abstract class AbstractQueryImpl implements Query {
 		return parameterMetadata;
 	}
 
+	@Override
 	public String toString() {
 		return StringHelper.unqualify( getClass().getName() ) + '(' + queryString + ')';
 	}
 
+	@Override
 	public final String getQueryString() {
 		return queryString;
 	}
 
-	//TODO: maybe call it getRowSelection() ?
-	public RowSelection getSelection() {
-		return selection;
-	}
-	
-	public Query setFlushMode(FlushMode flushMode) {
-		this.flushMode = flushMode;
-		return this;
-	}
-	
-	public Query setCacheMode(CacheMode cacheMode) {
-		this.cacheMode = cacheMode;
-		return this;
+	@Override
+	public boolean isCacheable() {
+		return cacheable;
 	}
 
-	public CacheMode getCacheMode() {
-		return cacheMode;
-	}
-
+	@Override
 	public Query setCacheable(boolean cacheable) {
 		this.cacheable = cacheable;
 		return this;
 	}
 
+	@Override
+	public String getCacheRegion() {
+		return cacheRegion;
+	}
+
+	@Override
 	public Query setCacheRegion(String cacheRegion) {
-		if (cacheRegion != null)
+		if (cacheRegion != null) {
 			this.cacheRegion = cacheRegion.trim();
+		}
 		return this;
 	}
 
+	@Override
+	public FlushMode getFlushMode() {
+		return flushMode;
+	}
+
+	@Override
+	public Query setFlushMode(FlushMode flushMode) {
+		this.flushMode = flushMode;
+		return this;
+	}
+
+	@Override
+	public CacheMode getCacheMode() {
+		return cacheMode;
+	}
+
+	@Override
+	public Query setCacheMode(CacheMode cacheMode) {
+		this.cacheMode = cacheMode;
+		return this;
+	}
+
+	@Override
+	public String getComment() {
+		return comment;
+	}
+
+	@Override
 	public Query setComment(String comment) {
 		this.comment = comment;
 		return this;
 	}
 
+	@Override
+	public Integer getFirstResult() {
+		return selection.getFirstRow();
+	}
+
+	@Override
 	public Query setFirstResult(int firstResult) {
 		selection.setFirstRow( firstResult);
 		return this;
 	}
 
+	@Override
+	public Integer getMaxResults() {
+		return selection.getMaxRows();
+	}
+
+	@Override
 	public Query setMaxResults(int maxResults) {
 		if ( maxResults < 0 ) {
 			// treat negatives specically as meaning no limit...
@@ -179,10 +221,23 @@ public abstract class AbstractQueryImpl implements Query {
 		return this;
 	}
 
+	@Override
+	public Integer getTimeout() {
+		return selection.getTimeout();
+	}
+
+	@Override
 	public Query setTimeout(int timeout) {
 		selection.setTimeout( timeout);
 		return this;
 	}
+
+	@Override
+	public Integer getFetchSize() {
+		return selection.getFetchSize();
+	}
+
+	@Override
 	public Query setFetchSize(int fetchSize) {
 		selection.setFetchSize( fetchSize);
 		return this;
@@ -511,39 +566,39 @@ public abstract class AbstractQueryImpl implements Query {
 	}
 
 	public Query setBoolean(int position, boolean val) {
-		Boolean valueToUse = val ? Boolean.TRUE : Boolean.FALSE;
+		Boolean valueToUse = val;
 		Type typeToUse = determineType( position, valueToUse, StandardBasicTypes.BOOLEAN );
 		setParameter( position, valueToUse, typeToUse );
 		return this;
 	}
 
 	public Query setByte(int position, byte val) {
-		setParameter(position, new Byte(val), StandardBasicTypes.BYTE);
+		setParameter(position, val, StandardBasicTypes.BYTE);
 		return this;
 	}
 
 	public Query setShort(int position, short val) {
-		setParameter(position, new Short(val), StandardBasicTypes.SHORT);
+		setParameter(position, val, StandardBasicTypes.SHORT);
 		return this;
 	}
 
 	public Query setInteger(int position, int val) {
-		setParameter(position, new Integer(val), StandardBasicTypes.INTEGER);
+		setParameter(position, val, StandardBasicTypes.INTEGER);
 		return this;
 	}
 
 	public Query setLong(int position, long val) {
-		setParameter(position, new Long(val), StandardBasicTypes.LONG);
+		setParameter(position, val, StandardBasicTypes.LONG);
 		return this;
 	}
 
 	public Query setFloat(int position, float val) {
-		setParameter(position, new Float(val), StandardBasicTypes.FLOAT);
+		setParameter(position, val, StandardBasicTypes.FLOAT);
 		return this;
 	}
 
 	public Query setDouble(int position, double val) {
-		setParameter(position, new Double(val), StandardBasicTypes.DOUBLE);
+		setParameter(position, val, StandardBasicTypes.DOUBLE);
 		return this;
 	}
 
@@ -615,19 +670,19 @@ public abstract class AbstractQueryImpl implements Query {
 	}
 
 	public Query setBoolean(String name, boolean val) {
-		Boolean valueToUse = val ? Boolean.TRUE : Boolean.FALSE;
+		Boolean valueToUse = val;
 		Type typeToUse = determineType( name, valueToUse, StandardBasicTypes.BOOLEAN );
 		setParameter( name, valueToUse, typeToUse );
 		return this;
 	}
 
 	public Query setByte(String name, byte val) {
-		setParameter(name, new Byte(val), StandardBasicTypes.BYTE);
+		setParameter(name, val, StandardBasicTypes.BYTE);
 		return this;
 	}
 
 	public Query setCharacter(String name, char val) {
-		setParameter(name, new Character(val), StandardBasicTypes.CHARACTER);
+		setParameter(name, val, StandardBasicTypes.CHARACTER);
 		return this;
 	}
 
@@ -637,7 +692,7 @@ public abstract class AbstractQueryImpl implements Query {
 	}
 
 	public Query setDouble(String name, double val) {
-		setParameter(name, new Double(val), StandardBasicTypes.DOUBLE);
+		setParameter(name, val, StandardBasicTypes.DOUBLE);
 		return this;
 	}
 
@@ -647,12 +702,12 @@ public abstract class AbstractQueryImpl implements Query {
 	}
 
 	public Query setFloat(String name, float val) {
-		setParameter(name, new Float(val), StandardBasicTypes.FLOAT);
+		setParameter(name, val, StandardBasicTypes.FLOAT);
 		return this;
 	}
 
 	public Query setInteger(String name, int val) {
-		setParameter(name, new Integer(val), StandardBasicTypes.INTEGER);
+		setParameter(name, val, StandardBasicTypes.INTEGER);
 		return this;
 	}
 
@@ -672,7 +727,7 @@ public abstract class AbstractQueryImpl implements Query {
 	}
 
 	public Query setLong(String name, long val) {
-		setParameter(name, new Long(val), StandardBasicTypes.LONG);
+		setParameter(name, val, StandardBasicTypes.LONG);
 		return this;
 	}
 
@@ -682,7 +737,7 @@ public abstract class AbstractQueryImpl implements Query {
 	}
 
 	public Query setShort(String name, short val) {
-		setParameter(name, new Short(val), StandardBasicTypes.SHORT);
+		setParameter(name, val, StandardBasicTypes.SHORT);
 		return this;
 	}
 
@@ -749,12 +804,21 @@ public abstract class AbstractQueryImpl implements Query {
 	 */
 	private String expandParameterList(String query, String name, TypedValue typedList, Map namedParamsCopy) {
 		Collection vals = (Collection) typedList.getValue();
+		
+		// HHH-1123
+		// Some DBs limit number of IN expressions.  For now, warn...
+		final Dialect dialect = session.getFactory().getDialect();
+		final int inExprLimit = dialect.getInExpressionCountLimit();
+		if ( inExprLimit > 0 && vals.size() > inExprLimit ) {
+			log.tooManyInExpressions( dialect.getClass().getName(), inExprLimit, name, vals.size() );
+		}
+
 		Type type = typedList.getType();
 
 		boolean isJpaPositionalParam = parameterMetadata.getNamedParameterDescriptor( name ).isJpaStyle();
 		String paramPrefix = isJpaPositionalParam ? "?" : ParserHelper.HQL_VARIABLE_PREFIX;
 		String placeholder =
-				new StringBuffer( paramPrefix.length() + name.length() )
+				new StringBuilder( paramPrefix.length() + name.length() )
 						.append( paramPrefix ).append(  name )
 						.toString();
 
@@ -783,7 +847,7 @@ public abstract class AbstractQueryImpl implements Query {
 			return query;
 		}
 
-		StringBuffer list = new StringBuffer( 16 );
+		StringBuilder list = new StringBuilder( 16 );
 		Iterator iter = vals.iterator();
 		int i = 0;
 		while ( iter.hasNext() ) {
@@ -920,7 +984,7 @@ public abstract class AbstractQueryImpl implements Query {
 				valueArray(),
 				namedParams,
 				getLockOptions(),
-				getSelection(),
+				getRowSelection(),
 				true,
 				isReadOnly(),
 				cacheable,

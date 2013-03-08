@@ -36,7 +36,9 @@ import javax.persistence.NamedQuery;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.SqlResultSetMapping;
 import javax.persistence.TableGenerator;
+
 import org.dom4j.Element;
+
 import org.hibernate.annotations.common.reflection.AnnotationReader;
 import org.hibernate.annotations.common.reflection.MetadataProvider;
 import org.hibernate.annotations.common.reflection.java.JavaMetadataProvider;
@@ -60,12 +62,12 @@ public class JPAMetadataProvider implements MetadataProvider, Serializable {
 		delegate = new JavaMetadataProvider();
 		cache = new HashMap<AnnotatedElement, AnnotationReader>(100);
 	}
-
+	@Override
 	public AnnotationReader getAnnotationReader(AnnotatedElement annotatedElement) {
 		AnnotationReader reader = cache.get( annotatedElement );
 		if (reader == null) {
 			if ( xmlContext.hasContext() ) {
-				reader = new JPAOverridenAnnotationReader( annotatedElement, xmlContext );
+				reader = new JPAOverriddenAnnotationReader( annotatedElement, xmlContext );
 			}
 			else {
 				reader = delegate.getAnnotationReader( annotatedElement );
@@ -74,12 +76,14 @@ public class JPAMetadataProvider implements MetadataProvider, Serializable {
 		}
 		return reader;
 	}
-
+	@Override
 	public Map<Object, Object> getDefaults() {
 		if ( defaults == null ) {
 			defaults = new HashMap<Object, Object>();
 			XMLContext.Default xmlDefaults = xmlContext.getDefault( null );
 
+			defaults.put( "schema", xmlDefaults.getSchema() );
+			defaults.put( "catalog", xmlDefaults.getCatalog() );
 			defaults.put( "delimited-identifier", xmlDefaults.getDelimitedIdentifier() );
 			List<Class> entityListeners = new ArrayList<Class>();
 			for ( String className : xmlContext.getDefaultEntityListeners() ) {
@@ -100,7 +104,7 @@ public class JPAMetadataProvider implements MetadataProvider, Serializable {
 					defaults.put( SequenceGenerator.class, sequenceGenerators );
 				}
 				for ( Element subelement : elements ) {
-					sequenceGenerators.add( JPAOverridenAnnotationReader.buildSequenceGeneratorAnnotation( subelement ) );
+					sequenceGenerators.add( JPAOverriddenAnnotationReader.buildSequenceGeneratorAnnotation( subelement ) );
 				}
 
 				elements = element.elements( "table-generator" );
@@ -111,7 +115,7 @@ public class JPAMetadataProvider implements MetadataProvider, Serializable {
 				}
 				for ( Element subelement : elements ) {
 					tableGenerators.add(
-							JPAOverridenAnnotationReader.buildTableGeneratorAnnotation(
+							JPAOverriddenAnnotationReader.buildTableGeneratorAnnotation(
 									subelement, xmlDefaults
 							)
 					);
@@ -122,7 +126,7 @@ public class JPAMetadataProvider implements MetadataProvider, Serializable {
 					namedQueries = new ArrayList<NamedQuery>();
 					defaults.put( NamedQuery.class, namedQueries );
 				}
-				List<NamedQuery> currentNamedQueries = JPAOverridenAnnotationReader.buildNamedQueries(
+				List<NamedQuery> currentNamedQueries = JPAOverriddenAnnotationReader.buildNamedQueries(
 						element, false, xmlDefaults
 				);
 				namedQueries.addAll( currentNamedQueries );
@@ -132,7 +136,7 @@ public class JPAMetadataProvider implements MetadataProvider, Serializable {
 					namedNativeQueries = new ArrayList<NamedNativeQuery>();
 					defaults.put( NamedNativeQuery.class, namedNativeQueries );
 				}
-				List<NamedNativeQuery> currentNamedNativeQueries = JPAOverridenAnnotationReader.buildNamedQueries(
+				List<NamedNativeQuery> currentNamedNativeQueries = JPAOverriddenAnnotationReader.buildNamedQueries(
 						element, true, xmlDefaults
 				);
 				namedNativeQueries.addAll( currentNamedNativeQueries );
@@ -144,7 +148,7 @@ public class JPAMetadataProvider implements MetadataProvider, Serializable {
 					sqlResultSetMappings = new ArrayList<SqlResultSetMapping>();
 					defaults.put( SqlResultSetMapping.class, sqlResultSetMappings );
 				}
-				List<SqlResultSetMapping> currentSqlResultSetMappings = JPAOverridenAnnotationReader.buildSqlResultsetMappings(
+				List<SqlResultSetMapping> currentSqlResultSetMappings = JPAOverriddenAnnotationReader.buildSqlResultsetMappings(
 						element, xmlDefaults
 				);
 				sqlResultSetMappings.addAll( currentSqlResultSetMappings );

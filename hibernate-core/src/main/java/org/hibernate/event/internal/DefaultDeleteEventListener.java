@@ -30,22 +30,22 @@ import org.jboss.logging.Logger;
 
 import org.hibernate.CacheMode;
 import org.hibernate.HibernateException;
-import org.hibernate.engine.internal.ForeignKeys;
-import org.hibernate.engine.internal.Nullability;
-import org.hibernate.engine.spi.EntityEntry;
-import org.hibernate.event.spi.DeleteEvent;
-import org.hibernate.event.spi.DeleteEventListener;
-import org.hibernate.event.spi.EventSource;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.LockMode;
 import org.hibernate.TransientObjectException;
 import org.hibernate.action.internal.EntityDeleteAction;
 import org.hibernate.classic.Lifecycle;
 import org.hibernate.engine.internal.Cascade;
-import org.hibernate.engine.spi.CascadingAction;
+import org.hibernate.engine.internal.ForeignKeys;
+import org.hibernate.engine.internal.Nullability;
+import org.hibernate.engine.spi.CascadingActions;
+import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.EntityKey;
 import org.hibernate.engine.spi.PersistenceContext;
 import org.hibernate.engine.spi.Status;
+import org.hibernate.event.spi.DeleteEvent;
+import org.hibernate.event.spi.DeleteEventListener;
+import org.hibernate.event.spi.EventSource;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.collections.IdentitySet;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.pretty.MessageHelper;
@@ -95,7 +95,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener {
 		final Object version;
 
 		if ( entityEntry == null ) {
-            LOG.trace("Entity was not persistent in delete processing");
+			LOG.trace( "Entity was not persistent in delete processing" );
 
 			persister = source.getEntityPersister( event.getEntityName(), entity );
 
@@ -104,7 +104,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener {
 				// EARLY EXIT!!!
 				return;
 			}
-            performDetachedEntityDeletionCheck(event);
+			performDetachedEntityDeletionCheck( event );
 
 			id = persister.getIdentifier( entity, source );
 
@@ -136,10 +136,10 @@ public class DefaultDeleteEventListener implements DeleteEventListener {
 			);
 		}
 		else {
-            LOG.trace("Deleting a persistent instance");
+			LOG.trace( "Deleting a persistent instance" );
 
 			if ( entityEntry.getStatus() == Status.DELETED || entityEntry.getStatus() == Status.GONE ) {
-                LOG.trace("Object was already deleted");
+				LOG.trace( "Object was already deleted" );
 				return;
 			}
 			persister = entityEntry.getPersister();
@@ -199,9 +199,9 @@ public class DefaultDeleteEventListener implements DeleteEventListener {
 			boolean cascadeDeleteEnabled,
 			EntityPersister persister,
 			Set transientEntities) {
-        LOG.handlingTransientEntity();
+		LOG.handlingTransientEntity();
 		if ( transientEntities.contains( entity ) ) {
-            LOG.trace("Already handled transient entity; skipping");
+			LOG.trace( "Already handled transient entity; skipping" );
 			return;
 		}
 		transientEntities.add( entity );
@@ -229,8 +229,9 @@ public class DefaultDeleteEventListener implements DeleteEventListener {
 			final EntityPersister persister,
 			final Set transientEntities) {
 
-        if (LOG.isTraceEnabled()) LOG.trace("Deleting "
-                                            + MessageHelper.infoString(persister, entityEntry.getId(), session.getFactory()));
+		if ( LOG.isTraceEnabled() ) {
+			LOG.tracev( "Deleting {0}", MessageHelper.infoString( persister, entityEntry.getId(), session.getFactory() ) );
+		}
 
 		final PersistenceContext persistenceContext = session.getPersistenceContext();
 		final Type[] propTypes = persister.getPropertyTypes();
@@ -299,9 +300,9 @@ public class DefaultDeleteEventListener implements DeleteEventListener {
 
 	protected boolean invokeDeleteLifecycle(EventSource session, Object entity, EntityPersister persister) {
 		if ( persister.implementsLifecycle() ) {
-            LOG.debugf("Calling onDelete()");
+			LOG.debug( "Calling onDelete()" );
 			if ( ( ( Lifecycle ) entity ).onDelete( session ) ) {
-                LOG.debugf("Deletion vetoed by onDelete()");
+				LOG.debug( "Deletion vetoed by onDelete()" );
 				return true;
 			}
 		}
@@ -320,7 +321,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener {
 		session.getPersistenceContext().incrementCascadeLevel();
 		try {
 			// cascade-delete to collections BEFORE the collection owner is deleted
-			new Cascade( CascadingAction.DELETE, Cascade.AFTER_INSERT_BEFORE_DELETE, session )
+			new Cascade( CascadingActions.DELETE, Cascade.AFTER_INSERT_BEFORE_DELETE, session )
 					.cascade( persister, entity, transientEntities );
 		}
 		finally {
@@ -340,7 +341,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener {
 		session.getPersistenceContext().incrementCascadeLevel();
 		try {
 			// cascade-delete to many-to-one AFTER the parent was deleted
-			new Cascade( CascadingAction.DELETE, Cascade.BEFORE_INSERT_AFTER_DELETE, session )
+			new Cascade( CascadingActions.DELETE, Cascade.BEFORE_INSERT_AFTER_DELETE, session )
 					.cascade( persister, entity, transientEntities );
 		}
 		finally {

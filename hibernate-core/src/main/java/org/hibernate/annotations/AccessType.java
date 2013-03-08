@@ -22,12 +22,13 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.annotations;
+import java.lang.annotation.Retention;
+import java.lang.annotation.Target;
+
 import static java.lang.annotation.ElementType.FIELD;
 import static java.lang.annotation.ElementType.METHOD;
 import static java.lang.annotation.ElementType.TYPE;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
-import java.lang.annotation.Retention;
-import java.lang.annotation.Target;
 
 /**
  * Property Access type
@@ -35,9 +36,13 @@ import java.lang.annotation.Target;
  * Prefer the standard {@link javax.persistence.Access} annotation
  *
  * @author Emmanuel Bernard
+ *
+ * @deprecated Use {@link AttributeAccessor} instead; renamed to avoid confusion with the JPA
+ * {@link javax.persistence.AccessType} enum.
  */
 @Target({ TYPE, METHOD, FIELD })
 @Retention(RUNTIME)
+@Deprecated
 public @interface AccessType {
 	String value();
 }

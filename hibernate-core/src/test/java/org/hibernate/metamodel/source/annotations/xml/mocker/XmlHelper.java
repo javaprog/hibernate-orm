@@ -33,13 +33,13 @@ import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 
-import org.hibernate.internal.CoreMessageLogger;
 import org.jboss.logging.Logger;
 import org.xml.sax.SAXException;
 
-import org.hibernate.internal.jaxb.Origin;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.jaxb.JaxbRoot;
-import org.hibernate.service.classloading.spi.ClassLoaderService;
+import org.hibernate.internal.jaxb.Origin;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 
 /**
  * @author Hardy Ferentschik

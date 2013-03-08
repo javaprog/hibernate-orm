@@ -26,12 +26,15 @@ import javax.persistence.Embedded;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+import javax.persistence.Table;
+
 import org.hibernate.envers.Audited;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
 @Entity
+@Table(name = "ManyToOneCompEnt")
 public class ManyToOneComponentTestEntity {
     @Id
     @GeneratedValue

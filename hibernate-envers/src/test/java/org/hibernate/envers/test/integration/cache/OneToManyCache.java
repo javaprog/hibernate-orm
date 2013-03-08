@@ -23,29 +23,29 @@
  */
 package org.hibernate.envers.test.integration.cache;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.onetomany.SetRefEdEntity;
 import org.hibernate.envers.test.entities.onetomany.SetRefIngEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
 @SuppressWarnings({"ObjectEquality"})
-public class OneToManyCache extends AbstractEntityTest {
+public class OneToManyCache extends BaseEnversJPAFunctionalTestCase {
     private Integer ed1_id;
     private Integer ed2_id;
 
     private Integer ing1_id;
     private Integer ing2_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(SetRefEdEntity.class);
-        cfg.addAnnotatedClass(SetRefIngEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { SetRefEdEntity.class, SetRefIngEntity.class };
     }
 
     @Test

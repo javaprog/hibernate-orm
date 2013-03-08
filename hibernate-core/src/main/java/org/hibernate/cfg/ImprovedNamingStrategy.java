@@ -24,6 +24,7 @@
 package org.hibernate.cfg;
 
 import java.io.Serializable;
+
 import org.hibernate.AssertionFailure;
 import org.hibernate.internal.util.StringHelper;
 
@@ -68,7 +69,7 @@ public class ImprovedNamingStrategy implements NamingStrategy, Serializable {
 	}
 
 	protected static String addUnderscores(String name) {
-		StringBuffer buf = new StringBuffer( name.replace('.', '_') );
+		StringBuilder buf = new StringBuilder( name.replace('.', '_') );
 		for (int i=1; i<buf.length()-1; i++) {
 			if (
 				Character.isLowerCase( buf.charAt(i-1) ) &&

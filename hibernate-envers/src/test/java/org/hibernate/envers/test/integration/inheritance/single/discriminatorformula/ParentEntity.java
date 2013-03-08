@@ -1,12 +1,12 @@
 package org.hibernate.envers.test.integration.inheritance.single.discriminatorformula;
 
-import org.hibernate.annotations.DiscriminatorFormula;
-import org.hibernate.envers.Audited;
-
 import javax.persistence.DiscriminatorValue;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+
+import org.hibernate.annotations.DiscriminatorFormula;
+import org.hibernate.envers.Audited;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
@@ -47,7 +47,7 @@ public class ParentEntity {
         ParentEntity that = (ParentEntity) o;
 
         if (id != null ? !id.equals(that.id) : that.id != null) return false;
-        if (typeId != null ? !typeId.equals(that.id) : that.typeId != null) return false;
+        if (typeId != null ? !typeId.equals(that.typeId) : that.typeId != null) return false;
         if (data != null ? !data.equals(that.data) : that.data != null) return false;
 
         return true;

@@ -1,6 +1,7 @@
 package org.hibernate.envers.configuration.metadata;
 import java.util.HashSet;
 import java.util.Set;
+
 import org.hibernate.MappingException;
 
 /**
@@ -33,8 +34,10 @@ public class AuditEntityNameRegister {
     /**
      * Creates a unique (not yet registered) audit entity name by appending consecutive numbers to the base
      * name. If the base name is not yet used, it is returned unmodified.
+	 *
      * @param baseAuditEntityName The base entity name.
-     * @return 
+	 *
+     * @return A unique audit entity name
      */
     public String createUnique(final String baseAuditEntityName) {
         String auditEntityName = baseAuditEntityName;

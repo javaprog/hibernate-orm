@@ -22,10 +22,12 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.envers.query.impl;
+
 import java.util.ArrayList;
 import java.util.List;
 import javax.persistence.NoResultException;
 import javax.persistence.NonUniqueResultException;
+
 import org.hibernate.CacheMode;
 import org.hibernate.FlushMode;
 import org.hibernate.LockMode;
@@ -36,6 +38,7 @@ import org.hibernate.envers.entities.EntityInstantiator;
 import org.hibernate.envers.exception.AuditException;
 import org.hibernate.envers.query.AuditQuery;
 import org.hibernate.envers.query.criteria.AuditCriterion;
+import org.hibernate.envers.query.criteria.CriteriaTools;
 import org.hibernate.envers.query.order.AuditOrder;
 import org.hibernate.envers.query.projection.AuditProjection;
 import org.hibernate.envers.reader.AuditReaderImplementor;
@@ -43,9 +46,11 @@ import org.hibernate.envers.tools.Pair;
 import org.hibernate.envers.tools.Triple;
 import org.hibernate.envers.tools.query.QueryBuilder;
 
+import static org.hibernate.envers.entities.mapper.relation.query.QueryConstants.REFERENCED_ENTITY_ALIAS;
+
 /**
  * @author Adam Warski (adam at warski dot org)
- * @author Hern�n Chanfreau
+ * @author HernпїЅn Chanfreau
  */
 public abstract class AbstractAuditQuery implements AuditQuery {
     protected EntityInstantiator entityInstantiator;
@@ -60,7 +65,7 @@ public abstract class AbstractAuditQuery implements AuditQuery {
     protected boolean hasOrder;
 
     protected final AuditConfiguration verCfg;
-    private final AuditReaderImplementor versionsReader;
+    protected final AuditReaderImplementor versionsReader;
 
     protected AbstractAuditQuery(AuditConfiguration verCfg, AuditReaderImplementor versionsReader,
                                     Class<?> cls) {
@@ -80,7 +85,7 @@ public abstract class AbstractAuditQuery implements AuditQuery {
 		versionsEntityName = verCfg.getAuditEntCfg().getAuditEntityName(
 				entityName);
 
-		qb = new QueryBuilder(versionsEntityName, "e");
+		qb = new QueryBuilder(versionsEntityName, REFERENCED_ENTITY_ALIAS);
 	}
     
     protected Query buildQuery() {
@@ -125,15 +130,16 @@ public abstract class AbstractAuditQuery implements AuditQuery {
     public AuditQuery addProjection(AuditProjection projection) {
         Triple<String, String, Boolean> projectionData = projection.getData(verCfg);
         hasProjection = true;
-        qb.addProjection(projectionData.getFirst(), projectionData.getSecond(), projectionData.getThird());
+		String propertyName = CriteriaTools.determinePropertyName( verCfg, versionsReader, entityName, projectionData.getSecond() );
+        qb.addProjection(projectionData.getFirst(), propertyName, projectionData.getThird());
         return this;
     }
 
     public AuditQuery addOrder(AuditOrder order) {
         hasOrder = true;
-
         Pair<String, Boolean> orderData = order.getData(verCfg);
-        qb.addOrder(orderData.getFirst(), orderData.getSecond());
+		String propertyName = CriteriaTools.determinePropertyName( verCfg, versionsReader, entityName, orderData.getFirst() );
+        qb.addOrder(propertyName, orderData.getSecond());
         return this;
     }
 
@@ -219,7 +225,7 @@ public abstract class AbstractAuditQuery implements AuditQuery {
         if (cacheMode != null) query.setCacheMode(cacheMode);
         if (timeout != null) query.setTimeout(timeout);
         if (lockOptions != null && lockOptions.getLockMode() != LockMode.NONE) {
-			  query.setLockMode("e", lockOptions.getLockMode());
+			  query.setLockMode(REFERENCED_ENTITY_ALIAS, lockOptions.getLockMode());
 		  }
     }
 }

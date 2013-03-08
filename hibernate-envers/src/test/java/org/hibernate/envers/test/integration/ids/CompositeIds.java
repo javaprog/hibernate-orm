@@ -23,19 +23,25 @@
  */
 package org.hibernate.envers.test.integration.ids;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.entities.ids.*;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.entities.ids.CustomEnum;
+import org.hibernate.envers.test.entities.ids.EmbId;
+import org.hibernate.envers.test.entities.ids.EmbIdTestEntity;
+import org.hibernate.envers.test.entities.ids.EmbIdWithCustomType;
+import org.hibernate.envers.test.entities.ids.EmbIdWithCustomTypeTestEntity;
+import org.hibernate.envers.test.entities.ids.MulId;
+import org.hibernate.envers.test.entities.ids.MulIdTestEntity;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class CompositeIds extends AbstractEntityTest {
+public class CompositeIds extends BaseEnversJPAFunctionalTestCase {
     private EmbId id1;
     private EmbId id2;
     private MulId id3;
@@ -43,10 +49,9 @@ public class CompositeIds extends AbstractEntityTest {
     private EmbIdWithCustomType id5;
     private EmbIdWithCustomType id6;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(EmbIdTestEntity.class);
-        cfg.addAnnotatedClass(MulIdTestEntity.class);
-        cfg.addAnnotatedClass(EmbIdWithCustomTypeTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { EmbIdTestEntity.class, MulIdTestEntity.class, EmbIdWithCustomTypeTestEntity.class };
     }
 
     @Test

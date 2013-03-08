@@ -23,31 +23,30 @@
  */
 package org.hibernate.envers.test.integration.reventity;
 
-import org.hibernate.ejb.Ejb3Configuration;
+import java.util.Arrays;
+import java.util.Date;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
 import org.hibernate.envers.AuditReader;
 import org.hibernate.envers.exception.RevisionDoesNotExistException;
-import org.hibernate.envers.test.AbstractEntityTest;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
 import org.hibernate.envers.test.entities.reventity.CustomPropertyAccessRevEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.Date;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class CustomPropertyAccess extends AbstractEntityTest {
+public class CustomPropertyAccess extends BaseEnversJPAFunctionalTestCase {
     private Integer id;
     private long timestamp1;
     private long timestamp2;
     private long timestamp3;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(StrTestEntity.class);
-        cfg.addAnnotatedClass(CustomPropertyAccessRevEntity.class);
+    protected Class<?>[] getAnnotatedClasses() {
+        return new Class[] { StrTestEntity.class, CustomPropertyAccessRevEntity.class };
     }
 
     @Test

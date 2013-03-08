@@ -23,18 +23,19 @@
  */
 package org.hibernate.envers.test.integration.flush;
 
+import java.util.Arrays;
+import java.util.List;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
 import org.hibernate.FlushMode;
 import org.hibernate.envers.RevisionType;
 import org.hibernate.envers.query.AuditEntity;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
-import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.List;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 /**
  * @author Adam Warski (adam at warski dot org)
@@ -55,6 +56,7 @@ public class ManualFlush extends AbstractFlushTest {
 
         StrTestEntity fe = new StrTestEntity("x");
         em.persist(fe);
+        em.flush();
 
         em.getTransaction().commit();
 
@@ -85,7 +87,7 @@ public class ManualFlush extends AbstractFlushTest {
 
     @Test
     public void testRevisionsCounts() {
-        assert Arrays.asList(1, 2).equals(getAuditReader().getRevisions(StrTestEntity.class, id));
+        assertEquals(Arrays.asList(1, 2), getAuditReader().getRevisions(StrTestEntity.class, id));
     }
 
     @Test
@@ -93,13 +95,13 @@ public class ManualFlush extends AbstractFlushTest {
         StrTestEntity ver1 = new StrTestEntity("x", id);
         StrTestEntity ver2 = new StrTestEntity("z", id);
 
-        assert getAuditReader().find(StrTestEntity.class, id, 1).equals(ver1);
-        assert getAuditReader().find(StrTestEntity.class, id, 2).equals(ver2);
+        assertEquals(ver1, getAuditReader().find(StrTestEntity.class, id, 1));
+        assertEquals(ver2, getAuditReader().find(StrTestEntity.class, id, 2));
     }
 
     @Test
     public void testCurrent() {
-        assert getEntityManager().find(StrTestEntity.class, id).equals(new StrTestEntity("z", id));
+        assertEquals(new StrTestEntity("z", id), getEntityManager().find(StrTestEntity.class, id));
     }
 
     @Test

@@ -63,7 +63,6 @@ public class Index extends AbstractConstraint implements Constraint {
 			Iterable<Column> columns,
 			boolean unique
 	) {
-		//TODO handle supportsNotNullUnique=false, but such a case does not exist in the wild so far
 		StringBuilder buf = new StringBuilder( "create" )
 				.append( unique ?
 						" unique" :
@@ -89,6 +88,18 @@ public class Index extends AbstractConstraint implements Constraint {
 		return buf.toString();
 	}
 
+	public static String buildSqlDropIndexString(
+			Dialect dialect,
+			TableSpecification table,
+			String name
+	) {
+		return "drop index " +
+				StringHelper.qualify(
+						table.getQualifiedName( dialect ),
+						name
+				);
+	}
+
 	public String sqlConstraintStringInAlterTable(Dialect dialect) {
 		StringBuilder buf = new StringBuilder( " index (" );
 		boolean first = true;
@@ -106,7 +117,7 @@ public class Index extends AbstractConstraint implements Constraint {
 
 	public String[] sqlDropStrings(Dialect dialect) {
 		return new String[] {
-				new StringBuffer( "drop index " )
+				new StringBuilder( "drop index " )
 				.append(
 						StringHelper.qualify(
 								getTable().getQualifiedName( dialect ),

@@ -23,19 +23,17 @@
  */
 package org.hibernate.envers.test.integration.components;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.jboss.logging.Logger;
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.components.DefaultValueComponent1;
 import org.hibernate.envers.test.entities.components.DefaultValueComponent2;
 import org.hibernate.envers.test.entities.components.DefaultValueComponentTestEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.math.BigInteger;
-import java.util.Arrays;
-
-import org.jboss.logging.Logger;
 
 /**
  * Test class for components with default values.
@@ -46,7 +44,7 @@ import org.jboss.logging.Logger;
  *
  * @author Erik-Berndt Scheper
  */
-public class DefaultValueComponents extends AbstractEntityTest {
+public class DefaultValueComponents extends BaseEnversJPAFunctionalTestCase {
 	private static final Logger log = Logger.getLogger( DefaultValueComponents.class );
 
 	private Integer id0;
@@ -58,8 +56,8 @@ public class DefaultValueComponents extends AbstractEntityTest {
 	private Integer id6;
 
 	@Override
-    public void configure(Ejb3Configuration cfg) {
-		cfg.addAnnotatedClass(DefaultValueComponentTestEntity.class);
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { DefaultValueComponentTestEntity.class };
 	}
 
 	@Test
@@ -353,19 +351,19 @@ public class DefaultValueComponents extends AbstractEntityTest {
 		Long entCount = (Long) em.createQuery(
 				"select count(s) from DefaultValueComponentTestEntity s where s.id = "
 						+ expectedId.toString()).getSingleResult();
-		BigInteger auditCount = (BigInteger) em.createNativeQuery(
-				"select count(ID) from DefaultValueComponentTestEntity_AUD s where s.id = "
+		Number auditCount = (Number) em.createNativeQuery(
+				"select count(ID) from DefaultValueComponent_AUD s where s.id = "
 						+ expectedId.toString()).getSingleResult();
 		String comp2Str1Rev1 = (String) em
 				.createNativeQuery(
-						"select COMP2_STR1 from DefaultValueComponentTestEntity_AUD s where rev=1 and s.id = "
+						"select COMP2_STR1 from DefaultValueComponent_AUD s where rev=1 and s.id = "
 								+ expectedId.toString()).getSingleResult();
 		String comp2Str1Rev2 = (String) em
 				.createNativeQuery(
-						"select COMP2_STR1 from DefaultValueComponentTestEntity_AUD s where rev=2 and s.id = "
+						"select COMP2_STR1 from DefaultValueComponent_AUD s where rev=2 and s.id = "
 								+ expectedId.toString()).getSingleResult();
 		assert Long.valueOf(1L).equals(entCount);
-		assert BigInteger.valueOf(2L).equals(auditCount);
+		assert Integer.valueOf(2).equals(auditCount.intValue());
 
 		if (expectedComp2Str1Rev1 == null) {
 			assert comp2Str1Rev1 == null;

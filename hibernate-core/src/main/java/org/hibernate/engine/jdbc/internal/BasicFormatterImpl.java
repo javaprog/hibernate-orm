@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Set;
 import java.util.StringTokenizer;
+
 import org.hibernate.internal.util.StringHelper;
 
 /**
@@ -105,7 +106,7 @@ public class BasicFormatterImpl implements Formatter {
 
 		int indent = 1;
 
-		StringBuffer result = new StringBuffer();
+		StringBuilder result = new StringBuilder();
 		StringTokenizer tokens;
 		String lastToken;
 		String token;
@@ -335,7 +336,7 @@ public class BasicFormatterImpl implements Formatter {
 			parensSinceSelect--;
 			if ( parensSinceSelect < 0 ) {
 				indent--;
-				parensSinceSelect = parenCounts.removeLast().intValue();
+				parensSinceSelect = parenCounts.removeLast();
 				afterByOrSetOrFromOrSelect = afterByOrFromOrSelects.removeLast().booleanValue();
 			}
 			if ( inFunction > 0 ) {

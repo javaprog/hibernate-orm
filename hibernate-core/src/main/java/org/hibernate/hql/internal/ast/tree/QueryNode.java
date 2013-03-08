@@ -23,15 +23,16 @@
  *
  */
 package org.hibernate.hql.internal.ast.tree;
-import org.hibernate.internal.CoreMessageLogger;
+import antlr.SemanticException;
+import antlr.collections.AST;
+import org.jboss.logging.Logger;
+
 import org.hibernate.hql.internal.antlr.HqlSqlTokenTypes;
 import org.hibernate.hql.internal.antlr.SqlTokenTypes;
 import org.hibernate.hql.internal.ast.util.ASTUtil;
 import org.hibernate.hql.internal.ast.util.ColumnHelper;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
-import antlr.SemanticException;
-import antlr.collections.AST;
 
 /**
  * Defines a top-level AST node representing an HQL select statement.
@@ -97,7 +98,7 @@ public class QueryNode extends AbstractRestrictableStatement implements SelectEx
 
 			// if there is no order by, make one
 			if ( orderByClause == null ) {
-                LOG.debugf("getOrderByClause() : Creating a new ORDER BY clause");
+				LOG.debug( "getOrderByClause() : Creating a new ORDER BY clause" );
 				orderByClause = ( OrderByClause ) ASTUtil.create( getWalker().getASTFactory(), SqlTokenTypes.ORDER, "ORDER" );
 
 				// Find the WHERE; if there is no WHERE, find the FROM...

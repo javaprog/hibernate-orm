@@ -23,6 +23,8 @@
  */
 package org.hibernate.id;
 
+import static org.junit.Assert.assertEquals;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -38,20 +40,17 @@ import org.hibernate.cfg.ObjectNameNormalizer;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.SessionImpl;
 import org.hibernate.jdbc.Work;
 import org.hibernate.mapping.SimpleAuxiliaryDatabaseObject;
 import org.hibernate.service.ServiceRegistry;
+import org.hibernate.testing.ServiceRegistryBuilder;
+import org.hibernate.testing.junit4.BaseUnitTestCase;
 import org.hibernate.type.StandardBasicTypes;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import org.hibernate.testing.ServiceRegistryBuilder;
-import org.hibernate.testing.junit4.BaseUnitTestCase;
-
-import static org.junit.Assert.assertEquals;
 
 /**
  * I went back to 3.3 source and grabbed the code/logic as it existed back then and crafted this
@@ -67,6 +66,7 @@ public class SequenceHiLoGeneratorNoIncrementTest extends BaseUnitTestCase {
 	private ServiceRegistry serviceRegistry;
 	private SessionFactoryImplementor sessionFactory;
 	private SequenceHiLoGenerator generator;
+    private SessionImplementor session;
 
 	@Before
 	public void setUp() throws Exception {
@@ -108,6 +108,9 @@ public class SequenceHiLoGeneratorNoIncrementTest extends BaseUnitTestCase {
 
 	@After
 	public void tearDown() throws Exception {
+        if(session != null && !session.isClosed()) {
+            ((Session)session).close();
+        }
 		if ( sessionFactory != null ) {
 			sessionFactory.close();
 		}
@@ -118,12 +121,12 @@ public class SequenceHiLoGeneratorNoIncrementTest extends BaseUnitTestCase {
 
 	@Test
 	public void testHiLoAlgorithm() {
-		SessionImpl session = (SessionImpl) sessionFactory.openSession();
-		session.beginTransaction();
+		session = (SessionImpl) sessionFactory.openSession();
+		((Session)session).beginTransaction();
 
 		// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		// initially sequence should be uninitialized
-		assertEquals( 0L, extractSequenceValue( session ) );
+		assertEquals( 0L, extractSequenceValue( (session) ) );
 
 		// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		// historically the hilo generators skipped the initial block of values;
@@ -131,44 +134,45 @@ public class SequenceHiLoGeneratorNoIncrementTest extends BaseUnitTestCase {
 		Long generatedValue = (Long) generator.generate( session, null );
 		assertEquals( 1L, generatedValue.longValue() );
 		// which should also perform the first read on the sequence which should set it to its "start with" value (1)
-		assertEquals( 1L, extractSequenceValue( session ) );
+		assertEquals( 1L, extractSequenceValue( (session) ) );
 
 		// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		generatedValue = (Long) generator.generate( session, null );
 		assertEquals( 2L, generatedValue.longValue() );
-		assertEquals( 2L, extractSequenceValue( session ) );
+		assertEquals( 2L, extractSequenceValue( (session) ) );
 
 		// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		generatedValue = (Long) generator.generate( session, null );
 		assertEquals( 3L, generatedValue.longValue() );
-		assertEquals( 3L, extractSequenceValue( session ) );
+		assertEquals( 3L, extractSequenceValue( (session) ) );
 
 		// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		generatedValue = (Long) generator.generate( session, null );
 		assertEquals( 4L, generatedValue.longValue() );
-		assertEquals( 4L, extractSequenceValue( session ) );
+		assertEquals( 4L, extractSequenceValue( (session) ) );
 
 		// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 		generatedValue = (Long) generator.generate( session, null );
 		assertEquals( 5L, generatedValue.longValue() );
-		assertEquals( 5L, extractSequenceValue( session ) );
+		assertEquals( 5L, extractSequenceValue( (session) ) );
 
-		session.getTransaction().commit();
-		session.close();
+		((Session)session).getTransaction().commit();
+		((Session)session).close();
 	}
 
-	private long extractSequenceValue(Session session) {
+	private long extractSequenceValue(final SessionImplementor session) {
 		class WorkImpl implements Work {
 			private long value;
 			public void execute(Connection connection) throws SQLException {
-				PreparedStatement query = connection.prepareStatement( "select currval('" + TEST_SEQUENCE + "');" );
-				ResultSet resultSet = query.executeQuery();
+				
+				PreparedStatement query = session.getTransactionCoordinator().getJdbcCoordinator().getStatementPreparer().prepareStatement( "select currval('" + TEST_SEQUENCE + "');" );
+				ResultSet resultSet = session.getTransactionCoordinator().getJdbcCoordinator().getResultSetReturn().extract( query );
 				resultSet.next();
 				value = resultSet.getLong( 1 );
 			}
 		}
 		WorkImpl work = new WorkImpl();
-		session.doWork( work );
+		( (Session) session ).doWork( work );
 		return work.value;
 	}
 }

@@ -23,26 +23,30 @@
  */
 package org.hibernate.envers.test.integration.collection;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import java.util.List;
+import javax.persistence.EntityManager;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase ;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.collection.EnumSetEntity;
 import org.hibernate.envers.test.entities.collection.EnumSetEntity.E1;
 import org.hibernate.envers.test.entities.collection.EnumSetEntity.E2;
 import org.hibernate.envers.test.tools.TestTools;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
+import org.hibernate.testing.TestForIssue;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class EnumSet extends AbstractEntityTest {
+public class EnumSet extends BaseEnversJPAFunctionalTestCase  {
     private Integer sse1_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(EnumSetEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { EnumSetEntity.class };
     }
 
     @Test
@@ -106,4 +110,16 @@ public class EnumSet extends AbstractEntityTest {
         assert rev2.getEnums2().equals(TestTools.makeSet(E2.A));
         assert rev3.getEnums2().equals(TestTools.makeSet(E2.A));
     }
+
+	@Test
+	@TestForIssue( jiraKey = "HHH-7780" )
+	public void testEnumRepresentation() {
+		EntityManager entityManager = getEntityManager();
+		List<Object[]> enums1 = entityManager.createNativeQuery( "SELECT enums1 FROM EnumSetEntity_enums1_AUD ORDER BY rev ASC" ).getResultList();
+		List<Object[]> enums2 = entityManager.createNativeQuery( "SELECT enums2 FROM EnumSetEntity_enums2_AUD ORDER BY rev ASC" ).getResultList();
+		entityManager.close();
+
+		Assert.assertEquals( Arrays.asList( "X", "Y", "X" ), enums1 );
+		Assert.assertEquals( Arrays.asList( 0 ), enums2 );
+	}
 }

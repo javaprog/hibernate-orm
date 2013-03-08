@@ -33,6 +33,7 @@ import java.lang.annotation.Target;
  * @author Adam Warski (adam at warski dot org)
  * @author Tomasz Bech
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
+ * @author Michal Skowronek (mskowr at o2 dot pl)
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE, ElementType.METHOD, ElementType.FIELD})
@@ -41,7 +42,7 @@ public @interface Audited {
 
 	/**
 	 * @return Specifies if the entity that is the target of the relation should be audited or not. If not, then when
-	 * reading a historic version an audited entity, the realtion will always point to the "current" entity.
+	 * reading a historic version an audited entity, the relation will always point to the "current" entity.
 	 * This is useful for dictionary-like entities, which don't change and don't need to be audited.
 	 */
     RelationTargetAuditMode targetAuditMode() default RelationTargetAuditMode.AUDITED;
@@ -55,6 +56,15 @@ public @interface Audited {
      *
      * If a parent type lists any of its parent types using this attribute, all properties in the specified classes
      * will also be audited.
+     *
+     * @deprecated Use {@code @AuditOverride(forClass=SomeEntity.class)} instead.
      */
     Class[] auditParents() default {};
+
+    /**
+     * @return Should a modification flag be stored for each property in the annotated class or for the annotated
+     * property. The flag stores information if a property has been changed at a given revision.
+     * This can be used for example in queries.
+     */
+	boolean withModifiedFlag() default false;
 }

@@ -26,8 +26,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.hibernate.envers.entities.PropertyData;
 import org.hibernate.envers.exception.AuditException;
+import org.hibernate.internal.util.ReflectHelper;
 
 /**
  * @author Adam Warski (adam at warski dot org)
@@ -74,7 +76,8 @@ public class MultipleIdMapper extends AbstractCompositeIdMapper implements Simpl
 
         Object ret;
         try {
-            ret = Thread.currentThread().getContextClassLoader().loadClass(compositeIdClass).newInstance();
+            final Class clazz = ReflectHelper.classForName(compositeIdClass);
+            ret = ReflectHelper.getDefaultConstructor(clazz).newInstance();
         } catch (Exception e) {
             throw new AuditException(e);
         }

@@ -25,10 +25,12 @@ package org.hibernate.envers.configuration.metadata;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+
 import org.dom4j.Element;
+import org.jboss.logging.Logger;
+
 import org.hibernate.MappingException;
 import org.hibernate.cfg.Configuration;
-import org.hibernate.envers.internal.EnversMessageLogger;
 import org.hibernate.envers.RelationTargetAuditMode;
 import org.hibernate.envers.configuration.AuditEntitiesConfiguration;
 import org.hibernate.envers.configuration.GlobalConfiguration;
@@ -40,12 +42,14 @@ import org.hibernate.envers.entities.mapper.CompositeMapperBuilder;
 import org.hibernate.envers.entities.mapper.ExtendedPropertyMapper;
 import org.hibernate.envers.entities.mapper.MultiPropertyMapper;
 import org.hibernate.envers.entities.mapper.SubclassPropertyMapper;
+import org.hibernate.envers.internal.EnversMessageLogger;
 import org.hibernate.envers.strategy.AuditStrategy;
 import org.hibernate.envers.strategy.ValidityAuditStrategy;
 import org.hibernate.envers.tools.StringTools;
 import org.hibernate.envers.tools.Triple;
 import org.hibernate.mapping.Collection;
 import org.hibernate.mapping.Join;
+import org.hibernate.mapping.OneToOne;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.mapping.Property;
 import org.hibernate.mapping.Table;
@@ -56,7 +60,6 @@ import org.hibernate.type.ManyToOneType;
 import org.hibernate.type.OneToOneType;
 import org.hibernate.type.TimestampType;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
 
 /**
  * @author Adam Warski (adam at warski dot org)
@@ -65,6 +68,7 @@ import org.jboss.logging.Logger;
  * @author Stephanie Pau at Markit Group Plc
  * @author Hern&aacute;n Chanfreau
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
+ * @author Michal Skowronek (mskowr at o2 dot pl)
  */
 public final class AuditMetadataGenerator {
 
@@ -136,13 +140,13 @@ public final class AuditMetadataGenerator {
         any_mapping.add(cloneAndSetupRevisionInfoRelationMapping());
     }
 
-    void addRevisionType(Element any_mapping) {
+    void addRevisionType(Element any_mapping, Element any_mapping_end) {
         Element revTypeProperty = MetadataTools.addProperty(any_mapping, verEntCfg.getRevisionTypePropName(),
                 verEntCfg.getRevisionTypePropType(), true, false);
         revTypeProperty.addAttribute("type", "org.hibernate.envers.entities.RevisionTypeType");
 
         // Adding the end revision, if appropriate
-        addEndRevision(any_mapping);
+        addEndRevision(any_mapping_end);
     }
 
     private void addEndRevision(Element any_mapping ) {
@@ -159,59 +163,91 @@ public final class AuditMetadataGenerator {
             	// add a column for the timestamp of the end revision
             	String revisionInfoTimestampSqlType = TimestampType.INSTANCE.getName();
             	Element timestampProperty = MetadataTools.addProperty(any_mapping, verEntCfg.getRevisionEndTimestampFieldName(), revisionInfoTimestampSqlType, true, true, false);
-            	MetadataTools.addColumn(timestampProperty, verEntCfg.getRevisionEndTimestampFieldName(), 0, 0, 0, null, null, null);
+            	MetadataTools.addColumn(timestampProperty, verEntCfg.getRevisionEndTimestampFieldName(), null, null, null, null, null, null);
             }
         }
     }
 
-    void addValue(Element parent, Value value, CompositeMapperBuilder currentMapper, String entityName,
-                  EntityXmlMappingData xmlMappingData, PropertyAuditingData propertyAuditingData,
-                  boolean insertable, boolean firstPass) {
-        Type type = value.getType();
+	private void addValueInFirstPass(Element parent, Value value, CompositeMapperBuilder currentMapper, String entityName,
+									 EntityXmlMappingData xmlMappingData, PropertyAuditingData propertyAuditingData,
+                                     boolean insertable, boolean processModifiedFlag) {
+		Type type = value.getType();
 
-        // only first pass
-        if (firstPass) {
-            if (basicMetadataGenerator.addBasic(parent, propertyAuditingData, value, currentMapper,
-                    insertable, false)) {
-                // The property was mapped by the basic generator.
-                return;
-            }
-        }
+		if (basicMetadataGenerator.addBasic(parent, propertyAuditingData, value, currentMapper, insertable, false)) {
+			// The property was mapped by the basic generator.
+		} else if (type instanceof ComponentType) {
+			componentMetadataGenerator.addComponent(parent, propertyAuditingData, value, currentMapper,
+					entityName, xmlMappingData, true);
+		} else {
+			if (!processedInSecondPass(type)) {
+				// If we got here in the first pass, it means the basic mapper didn't map it, and none of the
+				// above branches either.
+				throwUnsupportedTypeException(type, entityName, propertyAuditingData.getName());
+			}
+			return;
+		}
+		addModifiedFlagIfNeeded(parent, propertyAuditingData, processModifiedFlag);
+	}
+
+	private boolean processedInSecondPass(Type type) {
+		return type instanceof ComponentType || type instanceof ManyToOneType ||
+				type instanceof OneToOneType || type instanceof CollectionType;
+	}
+
+	private void addValueInSecondPass(Element parent, Value value, CompositeMapperBuilder currentMapper, String entityName,
+									  EntityXmlMappingData xmlMappingData, PropertyAuditingData propertyAuditingData,
+									  boolean insertable, boolean processModifiedFlag) {
+		Type type = value.getType();
 
 		if (type instanceof ComponentType) {
-			// both passes
 			componentMetadataGenerator.addComponent(parent, propertyAuditingData, value, currentMapper,
-					entityName, xmlMappingData, firstPass);
+					entityName, xmlMappingData, false);
+			return;// mod flag field has been already generated in first pass
 		} else if (type instanceof ManyToOneType) {
-            // only second pass
-            if (!firstPass) {
-                toOneRelationMetadataGenerator.addToOne(parent, propertyAuditingData, value, currentMapper,
-                        entityName, insertable);
-            }
-        } else if (type instanceof OneToOneType) {
-            // only second pass
-            if (!firstPass) {
+			toOneRelationMetadataGenerator.addToOne(parent, propertyAuditingData, value, currentMapper,
+					entityName, insertable);
+		} else if (type instanceof OneToOneType) {
+            OneToOne oneToOne = (OneToOne) value;
+            if (oneToOne.getReferencedPropertyName() != null) {
                 toOneRelationMetadataGenerator.addOneToOneNotOwning(propertyAuditingData, value,
                         currentMapper, entityName);
+            } else {
+                // @OneToOne relation marked with @PrimaryKeyJoinColumn
+                toOneRelationMetadataGenerator.addOneToOnePrimaryKeyJoinColumn(propertyAuditingData, value,
+                        currentMapper, entityName, insertable);
             }
-        } else if (type instanceof CollectionType) {
-            // only second pass
-            if (!firstPass) {
-                CollectionMetadataGenerator collectionMetadataGenerator = new CollectionMetadataGenerator(this,
-                        (Collection) value, currentMapper, entityName, xmlMappingData,
-						propertyAuditingData);
-                collectionMetadataGenerator.addCollection();
-            }
-        } else {
-            if (firstPass) {
-                // If we got here in the first pass, it means the basic mapper didn't map it, and none of the
-                // above branches either.
-                throwUnsupportedTypeException(type, entityName, propertyAuditingData.getName());
-            }
-        }
-    }
+		} else if (type instanceof CollectionType) {
+			CollectionMetadataGenerator collectionMetadataGenerator = new CollectionMetadataGenerator(this,
+					(Collection) value, currentMapper, entityName, xmlMappingData,
+					propertyAuditingData);
+			collectionMetadataGenerator.addCollection();
+		} else {
+			return;
+		}
+		addModifiedFlagIfNeeded(parent, propertyAuditingData, processModifiedFlag);
+	}
 
-    private void addProperties(Element parent, Iterator<Property> properties, CompositeMapperBuilder currentMapper,
+	private void addModifiedFlagIfNeeded(Element parent, PropertyAuditingData propertyAuditingData, boolean processModifiedFlag) {
+		if (processModifiedFlag && propertyAuditingData.isUsingModifiedFlag()) {
+			MetadataTools.addModifiedFlagProperty(parent,
+					propertyAuditingData.getName(),
+					globalCfg.getModifiedFlagSuffix());
+		}
+	}
+
+	void addValue(Element parent, Value value, CompositeMapperBuilder currentMapper, String entityName,
+				  EntityXmlMappingData xmlMappingData, PropertyAuditingData propertyAuditingData,
+				  boolean insertable, boolean firstPass, boolean processModifiedFlag) {
+		if (firstPass) {
+			addValueInFirstPass(parent, value, currentMapper, entityName,
+					xmlMappingData, propertyAuditingData, insertable, processModifiedFlag);
+		} else {
+			addValueInSecondPass(parent, value, currentMapper, entityName,
+					xmlMappingData, propertyAuditingData, insertable, processModifiedFlag);
+		}
+	}
+
+	private void addProperties(Element parent, Iterator<Property> properties, CompositeMapperBuilder currentMapper,
                                ClassAuditingData auditingData, String entityName, EntityXmlMappingData xmlMappingData,
                                boolean firstPass) {
         while (properties.hasNext()) {
@@ -220,7 +256,7 @@ public final class AuditMetadataGenerator {
 			PropertyAuditingData propertyAuditingData = auditingData.getPropertyAuditingData(propertyName);
             if (propertyAuditingData != null) {
 				addValue(parent, property.getValue(), currentMapper, entityName, xmlMappingData, propertyAuditingData,
-						property.isInsertable(), firstPass);
+						property.isInsertable(), firstPass, true);
             }
         }
     }
@@ -301,7 +337,7 @@ public final class AuditMetadataGenerator {
 
             Element joinKey = joinElement.addElement("key");
             MetadataTools.addColumns(joinKey, join.getKey().getColumnIterator());
-            MetadataTools.addColumn(joinKey, verEntCfg.getRevisionFieldName(), null, 0, 0, null, null, null);
+            MetadataTools.addColumn(joinKey, verEntCfg.getRevisionFieldName(), null, null, null, null, null, null);
         }
     }
 
@@ -326,7 +362,7 @@ public final class AuditMetadataGenerator {
             PersistentClass pc, EntityXmlMappingData xmlMappingData, AuditTableData auditTableData,
             IdMappingData idMapper) {
         Element class_mapping = MetadataTools.createEntity(xmlMappingData.getMainXmlMapping(), auditTableData,
-                pc.getDiscriminatorValue());
+                pc.getDiscriminatorValue(), pc.isAbstract());
         ExtendedPropertyMapper propertyMapper = new MultiPropertyMapper();
 
         // Checking if there is a discriminator column
@@ -341,7 +377,7 @@ public final class AuditMetadataGenerator {
         class_mapping.add((Element) idMapper.getXmlMapping().clone());
 
         // Adding the "revision type" property
-        addRevisionType(class_mapping);
+        addRevisionType(class_mapping, class_mapping);
 
         return Triple.make(class_mapping, propertyMapper, null);
     }
@@ -351,7 +387,7 @@ public final class AuditMetadataGenerator {
             String inheritanceMappingType) {
         String extendsEntityName = verEntCfg.getAuditEntityName(pc.getSuperclass().getEntityName());
         Element class_mapping = MetadataTools.createSubclassEntity(xmlMappingData.getMainXmlMapping(),
-                inheritanceMappingType, auditTableData, extendsEntityName, pc.getDiscriminatorValue());
+                inheritanceMappingType, auditTableData, extendsEntityName, pc.getDiscriminatorValue(), pc.isAbstract());
 
         // The id and revision type is already mapped in the parent
 
@@ -464,7 +500,7 @@ public final class AuditMetadataGenerator {
         addJoins(pc, propertyMapper, auditingData, pc.getEntityName(), xmlMappingData, true);
 
         // Storing the generated configuration
-        EntityConfiguration entityCfg = new EntityConfiguration(auditEntityName,pc.getClassName(), idMapper,
+        EntityConfiguration entityCfg = new EntityConfiguration(auditEntityName, pc.getClassName(), idMapper,
                 propertyMapper, parentEntityName);
         entitiesConfigurations.put(pc.getEntityName(), entityCfg);
     }

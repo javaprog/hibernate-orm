@@ -23,26 +23,26 @@
  */
 package org.hibernate.envers.test.integration.reventity;
 
-import org.hibernate.ejb.Ejb3Configuration;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
 import org.hibernate.envers.AuditReader;
-import org.hibernate.envers.test.AbstractEntityTest;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
 import org.hibernate.envers.test.entities.reventity.CustomDataRevEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class CustomNoListener extends AbstractEntityTest {
+public class CustomNoListener extends BaseEnversJPAFunctionalTestCase {
     private Integer id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(StrTestEntity.class);
-        cfg.addAnnotatedClass(CustomDataRevEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { StrTestEntity.class, CustomDataRevEntity.class };
     }
 
     @Test

@@ -32,9 +32,10 @@ import java.sql.Types;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.HibernateException;
-import org.hibernate.engine.spi.SessionImplementor;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
 import org.hibernate.MappingException;
@@ -44,16 +45,17 @@ import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.jdbc.internal.FormatStyle;
 import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.engine.jdbc.spi.SqlStatementLogger;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.id.Configurable;
 import org.hibernate.id.IdentifierGeneratorHelper;
 import org.hibernate.id.IntegralDataTypeHolder;
 import org.hibernate.id.PersistentIdentifierGenerator;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.jdbc.AbstractReturningWork;
 import org.hibernate.mapping.Table;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
 
 /**
  * An enhanced version of table-based id generation.
@@ -303,9 +305,11 @@ public class TableGenerator implements PersistentIdentifierGenerator, Configurab
 		// if the increment size is greater than one, we prefer pooled optimization; but we
 		// need to see if the user prefers POOL or POOL_LO...
 		String defaultPooledOptimizerStrategy = ConfigurationHelper.getBoolean( Environment.PREFER_POOLED_VALUES_LO, params, false )
-				? OptimizerFactory.POOL_LO
-				: OptimizerFactory.POOL;
-		final String defaultOptimizerStrategy = incrementSize <= 1 ? OptimizerFactory.NONE : defaultPooledOptimizerStrategy;
+				? OptimizerFactory.StandardOptimizerDescriptor.POOLED_LO.getExternalName()
+				: OptimizerFactory.StandardOptimizerDescriptor.POOLED.getExternalName();
+		final String defaultOptimizerStrategy = incrementSize <= 1
+				? OptimizerFactory.StandardOptimizerDescriptor.NONE.getExternalName()
+				: defaultPooledOptimizerStrategy;
 		final String optimizationStrategy = ConfigurationHelper.getString( OPT_PARAM, params, defaultOptimizerStrategy );
 		optimizer = OptimizerFactory.buildOptimizer(
 				optimizationStrategy,
@@ -545,7 +549,7 @@ public class TableGenerator implements PersistentIdentifierGenerator, Configurab
 	@Override
 	public String[] sqlCreateStrings(Dialect dialect) throws HibernateException {
 		return new String[] {
-				new StringBuffer()
+				new StringBuilder()
 						.append( dialect.getCreateTableString() )
 						.append( ' ' )
 						.append( tableName )
@@ -567,14 +571,6 @@ public class TableGenerator implements PersistentIdentifierGenerator, Configurab
 
 	@Override
 	public String[] sqlDropStrings(Dialect dialect) throws HibernateException {
-		StringBuffer sqlDropString = new StringBuffer().append( "drop table " );
-		if ( dialect.supportsIfExistsBeforeTableName() ) {
-			sqlDropString.append( "if exists " );
-		}
-		sqlDropString.append( tableName ).append( dialect.getCascadeConstraintsString() );
-		if ( dialect.supportsIfExistsAfterTableName() ) {
-			sqlDropString.append( " if exists" );
-		}
-		return new String[] { sqlDropString.toString() };
+		return new String[] { dialect.getDropTableString( tableName ) };
 	}
 }

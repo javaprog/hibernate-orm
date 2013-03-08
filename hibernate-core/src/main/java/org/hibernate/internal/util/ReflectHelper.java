@@ -28,6 +28,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+
 import org.hibernate.AssertionFailure;
 import org.hibernate.MappingException;
 import org.hibernate.PropertyNotFoundException;
@@ -159,9 +160,9 @@ public final class ReflectHelper {
 	 */
 	public static Class classForName(String name, Class caller) throws ClassNotFoundException {
 		try {
-			ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-			if ( contextClassLoader != null ) {
-				return contextClassLoader.loadClass( name );
+			ClassLoader classLoader = ClassLoaderHelper.getContextClassLoader();
+			if ( classLoader != null ) {
+				return classLoader.loadClass( name );
 			}
 		}
 		catch ( Throwable ignore ) {
@@ -181,9 +182,9 @@ public final class ReflectHelper {
 	 */
 	public static Class classForName(String name) throws ClassNotFoundException {
 		try {
-			ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-			if ( contextClassLoader != null ) {
-				return contextClassLoader.loadClass(name);
+			ClassLoader classLoader = ClassLoaderHelper.getContextClassLoader();
+			if ( classLoader != null ) {
+				return classLoader.loadClass(name);
 			}
 		}
 		catch ( Throwable ignore ) {

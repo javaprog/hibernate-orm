@@ -1,25 +1,26 @@
 package org.hibernate.envers.test.integration.naming.quotation;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import java.util.Iterator;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.mapping.Column;
 import org.hibernate.mapping.Table;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.Iterator;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
-public class QuotedFieldsTest extends AbstractEntityTest {
+public class QuotedFieldsTest extends BaseEnversJPAFunctionalTestCase {
     private Long qfeId1 = null;
     private Long qfeId2 = null;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(QuotedFieldsEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { QuotedFieldsEntity.class };
     }
 
     @Test
@@ -80,9 +81,9 @@ public class QuotedFieldsTest extends AbstractEntityTest {
     @Test
     public void testEscapeEntityField() {
         Table table = getCfg().getClassMapping("org.hibernate.envers.test.integration.naming.quotation.QuotedFieldsEntity_AUD").getTable();
-        Column column1 = getColumnByName(table, "id#");
-        Column column2 = getColumnByName(table, "#data1");
-        Column column3 = getColumnByName(table, "#data2");
+        Column column1 = getColumnByName(table, "id");
+        Column column2 = getColumnByName(table, "data1");
+        Column column3 = getColumnByName(table, "data2");
         assert column1 != null;
         assert column2 != null;
         assert column3 != null;

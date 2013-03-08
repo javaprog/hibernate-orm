@@ -1,38 +1,45 @@
 package org.hibernate.envers.test.integration.reventity;
 
+import java.util.Arrays;
+import java.util.Map;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
 import org.hibernate.cfg.Environment;
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import org.hibernate.dialect.H2Dialect;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
 import org.hibernate.mapping.Table;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.Properties;
+import org.hibernate.testing.RequiresDialect;
 
 /**
  * Tests simple auditing process (read and write operations) when <i>REVINFO</i> and audit tables
  * exist in a different database schema.
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
-public class DifferentDBSchemaTest extends AbstractEntityTest {
+@RequiresDialect({H2Dialect.class})
+public class DifferentDBSchemaTest extends BaseEnversJPAFunctionalTestCase {
     private static final String SCHEMA_NAME = "ENVERS_AUDIT";
     private Integer steId = null;
 
     @Override
-    public void addConfigurationProperties(Properties configuration) {
-        super.addConfigurationProperties(configuration);
-
+    protected void addConfigOptions(Map options) {
+        super.addConfigOptions(options);
         // Creates new schema after establishing connection
-        configuration.setProperty(Environment.URL, configuration.getProperty(Environment.URL) + ";INIT=CREATE SCHEMA IF NOT EXISTS " + SCHEMA_NAME);
-        configuration.setProperty("org.hibernate.envers.default_schema", SCHEMA_NAME);
+        options.putAll(Environment.getProperties());
+        options.put("org.hibernate.envers.default_schema", SCHEMA_NAME);
     }
 
     @Override
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(StrTestEntity.class);
+    protected String createSecondSchema() {
+        return SCHEMA_NAME;
+    }
+
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { StrTestEntity.class };
     }
 
     @Test
@@ -55,7 +62,7 @@ public class DifferentDBSchemaTest extends AbstractEntityTest {
 
     @Test
     public void testRevinfoSchemaName() {
-        Table revisionTable = getCfg().getClassMapping("org.hibernate.envers.DefaultRevisionEntity").getTable();
+        Table revisionTable = getCfg().getClassMapping("org.hibernate.envers.enhanced.SequenceIdRevisionEntity").getTable();
         assert SCHEMA_NAME.equals(revisionTable.getSchema());
     }
 

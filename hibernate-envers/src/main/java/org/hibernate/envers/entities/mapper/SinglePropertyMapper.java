@@ -25,13 +25,16 @@ package org.hibernate.envers.entities.mapper;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+
 import org.hibernate.HibernateException;
 import org.hibernate.collection.spi.PersistentCollection;
+import org.hibernate.dialect.Oracle8iDialect;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.envers.configuration.AuditConfiguration;
 import org.hibernate.envers.entities.PropertyData;
 import org.hibernate.envers.exception.AuditException;
 import org.hibernate.envers.reader.AuditReaderImplementor;
+import org.hibernate.envers.tools.StringTools;
 import org.hibernate.envers.tools.Tools;
 import org.hibernate.envers.tools.reflection.ReflectionTools;
 import org.hibernate.property.DirectPropertyAccessor;
@@ -40,6 +43,7 @@ import org.hibernate.property.Setter;
 /**
  * TODO: diff
  * @author Adam Warski (adam at warski dot org)
+ * @author Michal Skowronek (mskowr at o2 dot pl)
  */
 public class SinglePropertyMapper implements PropertyMapper, SimpleMapperBuilder {
     private PropertyData propertyData;
@@ -60,11 +64,26 @@ public class SinglePropertyMapper implements PropertyMapper, SimpleMapperBuilder
 
     public boolean mapToMapFromEntity(SessionImplementor session, Map<String, Object> data, Object newObj, Object oldObj) {
         data.put(propertyData.getName(), newObj);
-
-        return !Tools.objectsEqual(newObj, oldObj);
+        boolean dbLogicallyDifferent = true;
+        if ((session.getFactory().getDialect() instanceof Oracle8iDialect) && (newObj instanceof String || oldObj instanceof String)) {
+            // Don't generate new revision when database replaces empty string with NULL during INSERT or UPDATE statements.
+            dbLogicallyDifferent = !(StringTools.isEmpty(newObj) && StringTools.isEmpty(oldObj));
+        }
+        return dbLogicallyDifferent && !Tools.objectsEqual(newObj, oldObj);
     }
 
-    public void mapToEntityFromMap(AuditConfiguration verCfg, Object obj, Map data, Object primaryKey,
+	@Override
+	public void mapModifiedFlagsToMapFromEntity(SessionImplementor session, Map<String, Object> data, Object newObj, Object oldObj) {
+		if (propertyData.isUsingModifiedFlag()) {
+			data.put(propertyData.getModifiedFlagPropertyName(), !Tools.objectsEqual(newObj, oldObj));
+		}
+	}
+
+	@Override
+	public void mapModifiedFlagsToMapForCollectionChange(String collectionPropertyName, Map<String, Object> data) {
+	}
+
+	public void mapToEntityFromMap(AuditConfiguration verCfg, Object obj, Map data, Object primaryKey,
                                    AuditReaderImplementor versionsReader, Number revision) {
         if (data == null || obj == null) {
             return;
@@ -96,10 +115,10 @@ public class SinglePropertyMapper implements PropertyMapper, SimpleMapperBuilder
 		}
 	}
 
-    public List<PersistentCollectionChangeData> mapCollectionChanges(String referencingPropertyName,
+    public List<PersistentCollectionChangeData> mapCollectionChanges(SessionImplementor sessionImplementor,
+																	 String referencingPropertyName,
                                                                      PersistentCollection newColl,
-                                                                     Serializable oldColl,
-                                                                     Serializable id) {
+                                                                     Serializable oldColl, Serializable id) {
         return null;
     }
 

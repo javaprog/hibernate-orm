@@ -25,11 +25,13 @@ package org.hibernate.engine.transaction.spi;
 
 import javax.transaction.Status;
 import javax.transaction.Synchronization;
-import org.hibernate.HibernateException;
-import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.TransactionException;
-import org.hibernate.service.jta.platform.spi.JtaPlatform;
+
 import org.jboss.logging.Logger;
+
+import org.hibernate.HibernateException;
+import org.hibernate.TransactionException;
+import org.hibernate.internal.CoreMessageLogger;
+import org.hibernate.engine.transaction.jta.platform.spi.JtaPlatform;
 
 /**
  * Abstract support for creating {@link TransactionImplementor transaction} implementations
@@ -96,7 +98,7 @@ public abstract class AbstractTransactionImpl implements TransactionImplementor 
 	/**
 	 * Provide subclasses with convenient access to the configured {@link JtaPlatform}
 	 *
-	 * @return The {@link org.hibernate.service.jta.platform.spi.JtaPlatform}
+	 * @return The {@link org.hibernate.engine.transaction.jta.platform.spi.JtaPlatform}
 	 */
 	protected JtaPlatform jtaPlatform() {
 		return transactionCoordinator().getTransactionContext().getTransactionEnvironment().getJtaPlatform();
@@ -153,7 +155,7 @@ public abstract class AbstractTransactionImpl implements TransactionImplementor 
 			throw new TransactionException( "reuse of Transaction instances not supported" );
 		}
 
-        LOG.debug("begin");
+		LOG.debug( "begin" );
 
 		doBegin();
 
@@ -168,7 +170,7 @@ public abstract class AbstractTransactionImpl implements TransactionImplementor 
 			throw new TransactionException( "Transaction not successfully started" );
 		}
 
-        LOG.debug("committing");
+		LOG.debug( "committing" );
 
 		beforeTransactionCommit();
 
@@ -198,7 +200,7 @@ public abstract class AbstractTransactionImpl implements TransactionImplementor 
 			throw new TransactionException( "Transaction not successfully started" );
 		}
 
-        LOG.debug("rolling back");
+		LOG.debug( "rolling back" );
 
 		beforeTransactionRollBack();
 

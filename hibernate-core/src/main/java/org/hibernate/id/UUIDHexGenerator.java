@@ -25,12 +25,13 @@ package org.hibernate.id;
 import java.io.Serializable;
 import java.util.Properties;
 
+import org.jboss.logging.Logger;
+
+import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.dialect.Dialect;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
 
 /**
  * <b>uuid</b><br>
@@ -70,7 +71,7 @@ public class UUIDHexGenerator extends AbstractUUIDGenerator implements Configura
 	 * {@inheritDoc}
 	 */
 	public Serializable generate(SessionImplementor session, Object obj) {
-		return new StringBuffer( 36 )
+		return new StringBuilder( 36 )
 				.append( format( getIP() ) ).append( sep )
 				.append( format( getJVM() ) ).append( sep )
 				.append( format( getHiTime() ) ).append( sep )
@@ -81,14 +82,14 @@ public class UUIDHexGenerator extends AbstractUUIDGenerator implements Configura
 
 	protected String format(int intValue) {
 		String formatted = Integer.toHexString( intValue );
-		StringBuffer buf = new StringBuffer( "00000000" );
+		StringBuilder buf = new StringBuilder( "00000000" );
 		buf.replace( 8 - formatted.length(), 8, formatted );
 		return buf.toString();
 	}
 
 	protected String format(short shortValue) {
 		String formatted = Integer.toHexString( shortValue );
-		StringBuffer buf = new StringBuffer( "0000" );
+		StringBuilder buf = new StringBuilder( "0000" );
 		buf.replace( 4 - formatted.length(), 4, formatted );
 		return buf.toString();
 	}

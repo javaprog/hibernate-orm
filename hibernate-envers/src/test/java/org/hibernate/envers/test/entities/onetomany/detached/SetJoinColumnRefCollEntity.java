@@ -27,6 +27,9 @@ import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.OneToMany;
+import javax.persistence.Table;
+
+import org.hibernate.envers.AuditJoinTable;
 import org.hibernate.envers.Audited;
 import org.hibernate.envers.test.entities.StrTestEntity;
 
@@ -35,6 +38,7 @@ import org.hibernate.envers.test.entities.StrTestEntity;
  * @author Adam Warski (adam at warski dot org)
  */
 @Entity
+@Table(name = "SetJoinColRefColl")
 public class SetJoinColumnRefCollEntity {
     @Id
     private Integer id;
@@ -45,6 +49,7 @@ public class SetJoinColumnRefCollEntity {
     @Audited
     @OneToMany
     @JoinColumn(name = "SJCR_ID")
+    @AuditJoinTable(name = "SetJoinColRefColl_StrTest_AUD")
     private Set<StrTestEntity> collection;
 
     public SetJoinColumnRefCollEntity() {

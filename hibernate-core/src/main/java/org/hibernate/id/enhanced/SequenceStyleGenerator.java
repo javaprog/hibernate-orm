@@ -22,27 +22,37 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.id.enhanced;
+
 import java.io.Serializable;
 import java.util.Properties;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.HibernateException;
-import org.hibernate.engine.spi.SessionImplementor;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.MappingException;
 import org.hibernate.cfg.Environment;
 import org.hibernate.cfg.ObjectNameNormalizer;
 import org.hibernate.dialect.Dialect;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.id.BulkInsertionCapableIdentifierGenerator;
 import org.hibernate.id.Configurable;
 import org.hibernate.id.PersistentIdentifierGenerator;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.mapping.Table;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
 
 /**
  * Generates identifier values based on an sequence-style database structure.
  * Variations range from actually using a sequence to using a table to mimic
  * a sequence.  These variations are encapsulated by the {@link DatabaseStructure}
  * interface internally.
+ * <p/>
+ * <b>NOTE</b> that by default we utilize a single database sequence for all
+ * generators.  The configuration parameter {@link #CONFIG_PREFER_SEQUENCE_PER_ENTITY}
+ * can be used to create dedicated sequence for each entity based on its name.
+ * Sequence suffix can be controlled with {@link #CONFIG_SEQUENCE_PER_ENTITY_SUFFIX}
+ * option.
  * <p/>
  * General configuration parameters:
  * <table>
@@ -92,11 +102,15 @@ import org.jboss.logging.Logger;
  * </table>
  *
  * @author Steve Ebersole
+ * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
-public class SequenceStyleGenerator implements PersistentIdentifierGenerator, Configurable {
+public class SequenceStyleGenerator
+		implements PersistentIdentifierGenerator, BulkInsertionCapableIdentifierGenerator, Configurable {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                       SequenceStyleGenerator.class.getName());
+    private static final CoreMessageLogger LOG = Logger.getMessageLogger(
+			CoreMessageLogger.class,
+			SequenceStyleGenerator.class.getName()
+	);
 
 	// general purpose parameters ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	public static final String SEQUENCE_PARAM = "sequence_name";
@@ -111,6 +125,10 @@ public class SequenceStyleGenerator implements PersistentIdentifierGenerator, Co
 	public static final String OPT_PARAM = "optimizer";
 
 	public static final String FORCE_TBL_PARAM = "force_table_use";
+
+	public static final String CONFIG_PREFER_SEQUENCE_PER_ENTITY = "prefer_sequence_per_entity";
+	public static final String CONFIG_SEQUENCE_PER_ENTITY_SUFFIX = "sequence_per_entity_suffix";
+	public static final String DEF_SEQUENCE_SUFFIX = "_SEQ";
 
 
 	// table-specific parameters ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -153,9 +171,7 @@ public class SequenceStyleGenerator implements PersistentIdentifierGenerator, Co
 
 	// Configurable implementation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void configure(Type type, Properties params, Dialect dialect) throws MappingException {
 		this.identifierType = type;
 		boolean forceTableUse = ConfigurationHelper.getBoolean( FORCE_TBL_PARAM, params, false );
@@ -169,7 +185,7 @@ public class SequenceStyleGenerator implements PersistentIdentifierGenerator, Co
 		incrementSize = determineAdjustedIncrementSize( optimizationStrategy, incrementSize );
 
 		if ( dialect.supportsSequences() && !forceTableUse ) {
-			if ( OptimizerFactory.POOL.equals( optimizationStrategy ) && !dialect.supportsPooledSequences() ) {
+			if ( !dialect.supportsPooledSequences() && OptimizerFactory.isPooledOptimizer( optimizationStrategy ) ) {
 				forceTableUse = true;
                 LOG.forcingTableUse();
 			}
@@ -204,8 +220,13 @@ public class SequenceStyleGenerator implements PersistentIdentifierGenerator, Co
 	 * @return The sequence name
 	 */
 	protected String determineSequenceName(Properties params, Dialect dialect) {
+		String sequencePerEntitySuffix = ConfigurationHelper.getString( CONFIG_SEQUENCE_PER_ENTITY_SUFFIX, params, DEF_SEQUENCE_SUFFIX );
+		// JPA_ENTITY_NAME value honors <class ... entity-name="..."> (HBM) and @Entity#name (JPA) overrides.
+		String sequenceName = ConfigurationHelper.getBoolean( CONFIG_PREFER_SEQUENCE_PER_ENTITY, params, false )
+				? params.getProperty( JPA_ENTITY_NAME ) + sequencePerEntitySuffix
+				: DEF_SEQUENCE_NAME;
 		ObjectNameNormalizer normalizer = ( ObjectNameNormalizer ) params.get( IDENTIFIER_NORMALIZER );
-		String sequenceName = ConfigurationHelper.getString( SEQUENCE_PARAM, params, DEF_SEQUENCE_NAME );
+		sequenceName = ConfigurationHelper.getString( SEQUENCE_PARAM, params, sequenceName );
 		if ( sequenceName.indexOf( '.' ) < 0 ) {
 			sequenceName = normalizer.normalizeIdentifierQuoting( sequenceName );
 			String schemaName = params.getProperty( SCHEMA );
@@ -277,12 +298,14 @@ public class SequenceStyleGenerator implements PersistentIdentifierGenerator, Co
 	 * @return The optimizer strategy (name)
 	 */
 	protected String determineOptimizationStrategy(Properties params, int incrementSize) {
-		// if the increment size is greater than one, we prefer pooled optimization; but we
+		// if the increment size is greater than one, we prefer pooled optimization; but we first
 		// need to see if the user prefers POOL or POOL_LO...
 		String defaultPooledOptimizerStrategy = ConfigurationHelper.getBoolean( Environment.PREFER_POOLED_VALUES_LO, params, false )
-				? OptimizerFactory.POOL_LO
-				: OptimizerFactory.POOL;
-		String defaultOptimizerStrategy = incrementSize <= 1 ? OptimizerFactory.NONE : defaultPooledOptimizerStrategy;
+				? OptimizerFactory.StandardOptimizerDescriptor.POOLED_LO.getExternalName()
+				: OptimizerFactory.StandardOptimizerDescriptor.POOLED.getExternalName();
+		String defaultOptimizerStrategy = incrementSize <= 1
+				? OptimizerFactory.StandardOptimizerDescriptor.NONE.getExternalName()
+				: defaultPooledOptimizerStrategy;
 		return ConfigurationHelper.getString( OPT_PARAM, params, defaultOptimizerStrategy );
 	}
 
@@ -295,8 +318,13 @@ public class SequenceStyleGenerator implements PersistentIdentifierGenerator, Co
 	 * @return The adjusted increment size.
 	 */
 	protected int determineAdjustedIncrementSize(String optimizationStrategy, int incrementSize) {
-		if ( OptimizerFactory.NONE.equals( optimizationStrategy ) && incrementSize > 1 ) {
-            LOG.honoringOptimizerSetting(OptimizerFactory.NONE, INCREMENT_PARAM, incrementSize);
+		if ( incrementSize > 1
+				&& OptimizerFactory.StandardOptimizerDescriptor.NONE.getExternalName().equals( optimizationStrategy ) ) {
+            LOG.honoringOptimizerSetting(
+					OptimizerFactory.StandardOptimizerDescriptor.NONE.getExternalName(),
+					INCREMENT_PARAM,
+					incrementSize
+			);
 			incrementSize = 1;
 		}
 		return incrementSize;
@@ -336,9 +364,7 @@ public class SequenceStyleGenerator implements PersistentIdentifierGenerator, Co
 
 	// IdentifierGenerator implementation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public Serializable generate(SessionImplementor session, Object object) throws HibernateException {
 		return optimizer.generate( databaseStructure.buildCallback( session ) );
 	}
@@ -346,24 +372,35 @@ public class SequenceStyleGenerator implements PersistentIdentifierGenerator, Co
 
 	// PersistentIdentifierGenerator implementation ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public Object generatorKey() {
 		return databaseStructure.getName();
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public String[] sqlCreateStrings(Dialect dialect) throws HibernateException {
 		return databaseStructure.sqlCreateStrings( dialect );
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public String[] sqlDropStrings(Dialect dialect) throws HibernateException {
 		return databaseStructure.sqlDropStrings( dialect );
+	}
+
+
+	// BulkInsertionCapableIdentifierGenerator implementation ~~~~~~~~~~~~~~~~~
+
+	@Override
+	public boolean supportsBulkInsertionIdentifierGeneration() {
+		// it does, as long as
+		// 		1) there is no (non-noop) optimizer in use
+		//		2) the underlying structure is a sequence
+		return OptimizerFactory.NoopOptimizer.class.isInstance( getOptimizer() )
+				&& getDatabaseStructure().isPhysicalSequence();
+	}
+
+	@Override
+	public String determineBulkInsertionIdentifierGenerationSelectFragment(Dialect dialect) {
+		return dialect.getSelectSequenceNextValString( getDatabaseStructure().getName() );
 	}
 }

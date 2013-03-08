@@ -26,14 +26,15 @@ package org.hibernate.id.enhanced;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.HibernateException;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.id.IdentifierGeneratorHelper;
 import org.hibernate.id.IntegralDataTypeHolder;
-
-import org.jboss.logging.Logger;
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * Describes a sequence.
@@ -65,55 +66,48 @@ public class SequenceStructure implements DatabaseStructure {
 		sql = dialect.getSequenceNextValString( sequenceName );
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public String getName() {
 		return sequenceName;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public int getIncrementSize() {
 		return incrementSize;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public int getTimesAccessed() {
 		return accessCounter;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public int getInitialValue() {
 		return initialValue;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public AccessCallback buildCallback(final SessionImplementor session) {
 		return new AccessCallback() {
+			@Override
 			public IntegralDataTypeHolder getNextValue() {
 				accessCounter++;
 				try {
 					PreparedStatement st = session.getTransactionCoordinator().getJdbcCoordinator().getStatementPreparer().prepareStatement( sql );
 					try {
-						ResultSet rs = st.executeQuery();
+						ResultSet rs = session.getTransactionCoordinator().getJdbcCoordinator().getResultSetReturn().extract( st );
 						try {
 							rs.next();
 							IntegralDataTypeHolder value = IdentifierGeneratorHelper.getIntegralDataTypeHolder( numberType );
 							value.initialize( rs, 1 );
-                            LOG.debugf("Sequence value obtained: %s", value.makeValue());
+							if ( LOG.isDebugEnabled() ) {
+								LOG.debugf( "Sequence value obtained: %s", value.makeValue() );
+							}
 							return value;
 						}
 						finally {
 							try {
-								rs.close();
+								session.getTransactionCoordinator().getJdbcCoordinator().release( rs );
 							}
 							catch( Throwable ignore ) {
 								// intentionally empty
@@ -121,7 +115,7 @@ public class SequenceStructure implements DatabaseStructure {
 						}
 					}
 					finally {
-						st.close();
+						session.getTransactionCoordinator().getJdbcCoordinator().release( st );
 					}
 
 				}
@@ -136,25 +130,24 @@ public class SequenceStructure implements DatabaseStructure {
 		};
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void prepare(Optimizer optimizer) {
 		applyIncrementSizeToSourceValues = optimizer.applyIncrementSizeToSourceValues();
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public String[] sqlCreateStrings(Dialect dialect) throws HibernateException {
 		int sourceIncrementSize = applyIncrementSizeToSourceValues ? incrementSize : 1;
 		return dialect.getCreateSequenceStrings( sequenceName, initialValue, sourceIncrementSize );
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public String[] sqlDropStrings(Dialect dialect) throws HibernateException {
 		return dialect.getDropSequenceStrings( sequenceName );
+	}
+
+	@Override
+	public boolean isPhysicalSequence() {
+		return true;
 	}
 }

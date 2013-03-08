@@ -23,9 +23,10 @@
  */
 package org.hibernate.hql.internal.ast.tree;
 
+import antlr.SemanticException;
+
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.internal.util.StringHelper;
-import antlr.SemanticException;
 
 /**
  * Represents a reference to a result_variable as defined in the JPA 2 spec.
@@ -76,7 +77,7 @@ public class ResultVariableRefNode extends HqlSqlWalkerNode {
 
 	private String getColumnPositionsString(int scalarColumnIndex ) {
 		int startPosition = getWalker().getSelectClause().getColumnNamesStartPosition( scalarColumnIndex );
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		int nColumns = getWalker().getSelectClause().getColumnNames()[ scalarColumnIndex ].length;
 		for ( int i = startPosition; i < startPosition + nColumns; i++ ) {
 			if ( i > startPosition ) {

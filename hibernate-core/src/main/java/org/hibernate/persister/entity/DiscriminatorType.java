@@ -87,12 +87,7 @@ public class DiscriminatorType extends AbstractType {
 			throw new HibernateException( "Unable to resolve discriminator value [" + discriminatorValue + "] to entity name" );
 		}
 		final EntityPersister entityPersister = session.getEntityPersister( entityName, null );
-		if ( EntityMode.POJO == entityPersister.getEntityMode() ) {
-			return entityPersister.getMappedClass();
-		}
-		else {
-			return entityName;
-		}
+        return ( EntityMode.POJO == entityPersister.getEntityMode() ) ? entityPersister.getMappedClass() : entityName;
 	}
 
 	public void nullSafeSet(
@@ -109,9 +104,9 @@ public class DiscriminatorType extends AbstractType {
 			Object value,
 			int index,
 			SessionImplementor session) throws HibernateException, SQLException {
-		throw new UnsupportedOperationException(
-				"At the moment this type is not the one actually used to map the discriminator."
-		);
+		String entityName = session.getFactory().getClassMetadata((Class) value).getEntityName();
+		Loadable entityPersister = (Loadable) session.getFactory().getEntityPersister(entityName);
+		underlyingType.nullSafeSet(st, entityPersister.getDiscriminatorValue(), index, session);
 	}
 
 	public String toLoggableString(Object value, SessionFactoryImplementor factory) throws HibernateException {

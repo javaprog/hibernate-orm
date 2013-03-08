@@ -25,15 +25,16 @@ package org.hibernate.engine.jdbc.batch.internal;
 
 import java.util.Map;
 
-import org.hibernate.internal.CoreMessageLogger;
+import org.jboss.logging.Logger;
+
 import org.hibernate.cfg.Environment;
 import org.hibernate.engine.jdbc.batch.spi.Batch;
 import org.hibernate.engine.jdbc.batch.spi.BatchBuilder;
 import org.hibernate.engine.jdbc.batch.spi.BatchKey;
 import org.hibernate.engine.jdbc.spi.JdbcCoordinator;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.service.spi.Configurable;
-import org.jboss.logging.Logger;
 
 /**
  * A builder for {@link Batch} instances.
@@ -42,7 +43,7 @@ import org.jboss.logging.Logger;
  */
 public class BatchBuilderImpl implements BatchBuilder, Configurable {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, BatchBuilderImpl.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, BatchBuilderImpl.class.getName() );
 
 	private int size;
 
@@ -64,7 +65,7 @@ public class BatchBuilderImpl implements BatchBuilder, Configurable {
 
 	@Override
 	public Batch buildBatch(BatchKey key, JdbcCoordinator jdbcCoordinator) {
-        LOG.tracef("Building batch [size=%s]", size);
+		LOG.tracef( "Building batch [size=%s]", size );
 		return size > 1
 				? new BatchingBatch( key, jdbcCoordinator, size )
 				: new NonBatchingBatch( key, jdbcCoordinator );

@@ -28,14 +28,15 @@ import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 
-import org.hibernate.exception.internal.SQLStateConverter;
-import org.hibernate.exception.spi.ViolatedConstraintNameExtracter;
-import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.JDBCException;
-import org.hibernate.exception.spi.SQLExceptionConverter;
-import org.hibernate.internal.util.StringHelper;
 import org.jboss.logging.Logger;
 import org.jboss.logging.Logger.Level;
+
+import org.hibernate.JDBCException;
+import org.hibernate.exception.internal.SQLStateConverter;
+import org.hibernate.exception.spi.SQLExceptionConverter;
+import org.hibernate.exception.spi.ViolatedConstraintNameExtracter;
+import org.hibernate.internal.CoreMessageLogger;
+import org.hibernate.internal.util.StringHelper;
 
 /**
  * Helper for handling SQLExceptions in various manners.
@@ -135,10 +136,10 @@ public class SqlExceptionHelper {
         if (LOG.isEnabled(Level.ERROR)) {
             if (LOG.isDebugEnabled()) {
                 message = StringHelper.isNotEmpty(message) ? message : DEFAULT_EXCEPTION_MSG;
-                LOG.debug(message, sqlException);
+				LOG.debug( message, sqlException );
             }
             while (sqlException != null) {
-                StringBuffer buf = new StringBuffer(30).append("SQL Error: ").append(sqlException.getErrorCode()).append(", SQLState: ").append(sqlException.getSQLState());
+                StringBuilder buf = new StringBuilder(30).append("SQL Error: ").append(sqlException.getErrorCode()).append(", SQLState: ").append(sqlException.getSQLState());
                 LOG.warn(buf.toString());
                 LOG.error(sqlException.getMessage());
                 sqlException = sqlException.getNextException();
@@ -181,7 +182,7 @@ public class SqlExceptionHelper {
      */
     public static abstract class WarningHandlerLoggingSupport implements WarningHandler {
         public final void handleWarning( SQLWarning warning ) {
-            StringBuffer buf = new StringBuffer(30).append("SQL Warning Code: ").append(warning.getErrorCode()).append(", SQLState: ").append(warning.getSQLState());
+        	StringBuilder buf = new StringBuilder(30).append("SQL Warning Code: ").append(warning.getErrorCode()).append(", SQLState: ").append(warning.getSQLState());
             logWarning(buf.toString(), warning.getMessage());
         }
 

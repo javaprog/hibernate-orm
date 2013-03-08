@@ -23,27 +23,27 @@
  */
 package org.hibernate.envers.test.integration.reference;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.tools.TestTools;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.tools.TestTools;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class BidirectionalReference extends AbstractEntityTest {
+public class BidirectionalReference extends BaseEnversJPAFunctionalTestCase {
     private Long set1_id;
     private Long set2_id;
 
     private Long g1_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(GreetingPO.class);
-        cfg.addAnnotatedClass(GreetingSetPO.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { GreetingPO.class, GreetingSetPO.class };
     }
 
     @Test

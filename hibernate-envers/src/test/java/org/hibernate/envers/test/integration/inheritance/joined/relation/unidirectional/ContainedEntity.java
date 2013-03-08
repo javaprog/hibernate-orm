@@ -24,12 +24,15 @@
 
 package org.hibernate.envers.test.integration.inheritance.joined.relation.unidirectional;
 import javax.persistence.Entity;
+import javax.persistence.Table;
+
 import org.hibernate.envers.Audited;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
 @Entity
+@Table(name = "Contained")
 @Audited
 public class ContainedEntity extends AbstractContainedEntity {	
 }

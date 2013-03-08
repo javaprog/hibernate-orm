@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.persistence.JoinColumn;
 import javax.persistence.PrimaryKeyJoinColumn;
+
 import org.hibernate.AnnotationException;
 import org.hibernate.AssertionFailure;
 import org.hibernate.MappingException;
@@ -210,7 +211,7 @@ public class Ejb3JoinColumn extends Ejb3Column {
 		if ( actualColumns == null || actualColumns.length == 0 ) {
 			return new Ejb3JoinColumn[] {
 					buildJoinColumn(
-							(JoinColumn) null,
+							null,
 							mappedBy,
 							joins,
 							propertyHolder,
@@ -355,8 +356,8 @@ public class Ejb3JoinColumn extends Ejb3Column {
 		else {
 			defaultName = mappings.getObjectNameNormalizer().normalizeIdentifierQuoting( defaultName );
 			return new Ejb3JoinColumn(
-					(String) null, defaultName,
-					false, false, true, true, null, (String) null,
+					null, defaultName,
+					false, false, true, true, null, null,
 					joins, propertyHolder, null, null, true, mappings
 			);
 		}

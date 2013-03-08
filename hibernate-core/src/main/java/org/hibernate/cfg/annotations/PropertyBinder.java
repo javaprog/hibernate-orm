@@ -24,10 +24,12 @@
 package org.hibernate.cfg.annotations;
 
 import java.util.Map;
+
 import javax.persistence.EmbeddedId;
 import javax.persistence.Id;
+import javax.persistence.Lob;
+
 import org.hibernate.AnnotationException;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.GenerationTime;
 import org.hibernate.annotations.Immutable;
@@ -44,15 +46,17 @@ import org.hibernate.cfg.InheritanceState;
 import org.hibernate.cfg.Mappings;
 import org.hibernate.cfg.PropertyHolder;
 import org.hibernate.cfg.PropertyPreloadedData;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
+import org.hibernate.mapping.Collection;
 import org.hibernate.mapping.Component;
 import org.hibernate.mapping.KeyValue;
 import org.hibernate.mapping.Property;
 import org.hibernate.mapping.PropertyGeneration;
 import org.hibernate.mapping.RootClass;
 import org.hibernate.mapping.SimpleValue;
+import org.hibernate.mapping.ToOne;
 import org.hibernate.mapping.Value;
-
 import org.jboss.logging.Logger;
 
 /**
@@ -172,7 +176,7 @@ public class PropertyBinder {
 
 	private Property makePropertyAndValue() {
 		validateBind();
-        LOG.debugf("MetadataSourceProcessor property %s with lazy=%s", name, lazy);
+		LOG.debugf( "MetadataSourceProcessor property %s with lazy=%s", name, lazy );
 		String containerClassName = holder == null ?
 				null :
 				holder.getClassName();
@@ -182,9 +186,10 @@ public class PropertyBinder {
 		simpleValueBinder.setReturnedClassName( returnedClassName );
 		simpleValueBinder.setColumns( columns );
 		simpleValueBinder.setPersistentClassName( containerClassName );
-		simpleValueBinder.setType( property, returnedClass );
+		simpleValueBinder.setType( property, returnedClass, containerClassName );
 		simpleValueBinder.setMappings( mappings );
 		simpleValueBinder.setReferencedEntityName( referencedEntityName );
+		simpleValueBinder.setAccessType( accessType );
 		SimpleValue propertyValue = simpleValueBinder.make();
 		setValue( propertyValue );
 		return makeProperty();
@@ -252,7 +257,7 @@ public class PropertyBinder {
 	//used when the value is provided and the binding is done elsewhere
 	public Property makeProperty() {
 		validateMake();
-        LOG.debugf("Building property %s", name);
+		LOG.debugf( "Building property %s", name );
 		Property prop = new Property();
 		prop.setName( name );
 		prop.setNodeName( name );
@@ -260,6 +265,7 @@ public class PropertyBinder {
 		prop.setLazy( lazy );
 		prop.setCascade( cascade );
 		prop.setPropertyAccessorName( accessType.getType() );
+		
 		Generated ann = property != null ?
 				property.getAnnotation( Generated.class ) :
 				null;
@@ -282,36 +288,63 @@ public class PropertyBinder {
 				prop.setGeneration( PropertyGeneration.parse( generated.toString().toLowerCase() ) );
 			}
 		}
-		NaturalId naturalId = property != null ?
-				property.getAnnotation( NaturalId.class ) :
-				null;
+		
+		NaturalId naturalId = property != null ? property.getAnnotation( NaturalId.class ) : null;
 		if ( naturalId != null ) {
-			if ( !naturalId.mutable() ) {
+			if ( ! entityBinder.isRootEntity() ) {
+				throw new AnnotationException( "@NaturalId only valid on root entity (or its @MappedSuperclasses)" );
+			}
+			if ( ! naturalId.mutable() ) {
 				updatable = false;
 			}
 			prop.setNaturalIdentifier( true );
 		}
+		
+		// HHH-4635 -- needed for dialect-specific property ordering
+		Lob lob = property != null ? property.getAnnotation( Lob.class ) : null;
+		prop.setLob( lob != null );
+		
 		prop.setInsertable( insertable );
 		prop.setUpdateable( updatable );
-		OptimisticLock lockAnn = property != null ?
-				property.getAnnotation( OptimisticLock.class ) :
-				null;
-		if ( lockAnn != null ) {
-			prop.setOptimisticLocked( !lockAnn.excluded() );
-			//TODO this should go to the core as a mapping validation checking
-			if ( lockAnn.excluded() && (
-					property.isAnnotationPresent( javax.persistence.Version.class )
-							|| property.isAnnotationPresent( Id.class )
-							|| property.isAnnotationPresent( EmbeddedId.class ) ) ) {
-				throw new AnnotationException(
-						"@OptimisticLock.exclude=true incompatible with @Id, @EmbeddedId and @Version: "
-								+ StringHelper.qualify( holder.getPath(), name )
-				);
-			}
+
+		// this is already handled for collections in CollectionBinder...
+		if ( Collection.class.isInstance( value ) ) {
+			prop.setOptimisticLocked( ( (Collection) value ).isOptimisticLocked() );
 		}
-        LOG.trace("Cascading " + name + " with " + cascade);
+		else {
+			final OptimisticLock lockAnn = property != null
+					? property.getAnnotation( OptimisticLock.class )
+					: null;
+			if ( lockAnn != null ) {
+				//TODO this should go to the core as a mapping validation checking
+				if ( lockAnn.excluded() && (
+						property.isAnnotationPresent( javax.persistence.Version.class )
+								|| property.isAnnotationPresent( Id.class )
+								|| property.isAnnotationPresent( EmbeddedId.class ) ) ) {
+					throw new AnnotationException(
+							"@OptimisticLock.exclude=true incompatible with @Id, @EmbeddedId and @Version: "
+									+ StringHelper.qualify( holder.getPath(), name )
+					);
+				}
+			}
+			final boolean isOwnedValue = !isToOneValue( value ) || insertable; // && updatable as well???
+			final boolean includeInOptimisticLockChecks = ( lockAnn != null )
+					? ! lockAnn.excluded()
+					: isOwnedValue;
+			prop.setOptimisticLocked( includeInOptimisticLockChecks );
+		}
+
+		LOG.tracev( "Cascading {0} with {1}", name, cascade );
 		this.mappingProperty = prop;
 		return prop;
+	}
+
+	private boolean isCollection(Value value) {
+		return Collection.class.isInstance( value );
+	}
+
+	private boolean isToOneValue(Value value) {
+		return ToOne.class.isInstance( value );
 	}
 
 	public void setProperty(XProperty property) {

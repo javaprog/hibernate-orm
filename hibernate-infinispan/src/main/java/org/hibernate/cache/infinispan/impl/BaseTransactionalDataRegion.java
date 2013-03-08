@@ -1,9 +1,9 @@
 package org.hibernate.cache.infinispan.impl;
-import javax.transaction.TransactionManager;
+
 import org.hibernate.cache.spi.CacheDataDescription;
 import org.hibernate.cache.spi.RegionFactory;
 import org.hibernate.cache.spi.TransactionalDataRegion;
-import org.hibernate.cache.infinispan.util.CacheAdapter;
+import org.infinispan.AdvancedCache;
 
 /**
  * Support for Inifinispan {@link org.hibernate.cache.spi.TransactionalDataRegion} implementors.
@@ -12,21 +12,20 @@ import org.hibernate.cache.infinispan.util.CacheAdapter;
  * @author Galder Zamarreño
  * @since 3.5
  */
-public abstract class BaseTransactionalDataRegion extends BaseRegion implements TransactionalDataRegion {
+public abstract class BaseTransactionalDataRegion
+      extends BaseRegion implements TransactionalDataRegion {
 
    private final CacheDataDescription metadata;
 
-   public BaseTransactionalDataRegion(CacheAdapter cacheAdapter, String name, CacheDataDescription metadata, TransactionManager transactionManager, RegionFactory factory) {
-      super(cacheAdapter, name, transactionManager, factory);
+   public BaseTransactionalDataRegion(AdvancedCache cache, String name,
+         CacheDataDescription metadata, RegionFactory factory) {
+      super(cache, name, factory);
       this.metadata = metadata;
    }
 
+	@Override
    public CacheDataDescription getCacheDataDescription() {
       return metadata;
-   }
-
-   public boolean isTransactionAware() {
-      return transactionManager != null;
    }
 
 }

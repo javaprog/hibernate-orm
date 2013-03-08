@@ -28,7 +28,7 @@ import java.sql.Types;
 import org.junit.Test;
 
 import org.hibernate.EntityMode;
-import org.hibernate.internal.util.Value;
+import org.hibernate.internal.util.ValueHolder;
 import org.hibernate.metamodel.domain.Entity;
 import org.hibernate.metamodel.domain.SingularAttribute;
 import org.hibernate.metamodel.relational.Column;
@@ -36,8 +36,7 @@ import org.hibernate.metamodel.relational.Datatype;
 import org.hibernate.metamodel.relational.Schema;
 import org.hibernate.metamodel.relational.Size;
 import org.hibernate.metamodel.relational.Table;
-import org.hibernate.service.classloading.spi.ClassLoadingException;
-
+import org.hibernate.boot.registry.classloading.spi.ClassLoadingException;
 import org.hibernate.testing.junit4.BaseUnitTestCase;
 
 import static org.junit.Assert.assertSame;
@@ -75,9 +74,9 @@ public class SimpleValueBindingTests extends BaseUnitTestCase {
 		//attributeBinding.setValue( idColumn );
 	}
 
-	Value<Class<?>> makeJavaType(final String name) {
-		return new Value<Class<?>>(
-				new Value.DeferredInitializer<Class<?>>() {
+	ValueHolder<Class<?>> makeJavaType(final String name) {
+		return new ValueHolder<Class<?>>(
+				new ValueHolder.DeferredInitializer<Class<?>>() {
 					@Override
 					public Class<?> initialize() {
 						try {

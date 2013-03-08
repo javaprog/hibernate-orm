@@ -23,25 +23,26 @@
  */
 package org.hibernate.envers.test.integration.onetomany.detached;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.onetomany.detached.inheritance.ChildIndexedListJoinColumnBidirectionalRefIngEntity;
 import org.hibernate.envers.test.entities.onetomany.detached.inheritance.ParentIndexedListJoinColumnBidirectionalRefIngEntity;
 import org.hibernate.envers.test.entities.onetomany.detached.inheritance.ParentOwnedIndexedListJoinColumnBidirectionalRefEdEntity;
-import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test for a "fake" bidirectional mapping where one side uses @OneToMany+@JoinColumn (and thus owns the relation),
  * in the parent entity, and the other uses a @ManyToOne(insertable=false, updatable=false).
  * @author Adam Warski (adam at warski dot org)
  */
-public class InheritanceIndexedJoinColumnBidirectionalList extends AbstractEntityTest {
+public class InheritanceIndexedJoinColumnBidirectionalList extends BaseEnversJPAFunctionalTestCase {
     private Integer ed1_id;
     private Integer ed2_id;
     private Integer ed3_id;
@@ -49,10 +50,13 @@ public class InheritanceIndexedJoinColumnBidirectionalList extends AbstractEntit
     private Integer ing1_id;
     private Integer ing2_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(ParentIndexedListJoinColumnBidirectionalRefIngEntity.class);
-        cfg.addAnnotatedClass(ChildIndexedListJoinColumnBidirectionalRefIngEntity.class);
-        cfg.addAnnotatedClass(ParentOwnedIndexedListJoinColumnBidirectionalRefEdEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] {
+				ParentIndexedListJoinColumnBidirectionalRefIngEntity.class,
+				ChildIndexedListJoinColumnBidirectionalRefIngEntity.class,
+				ParentOwnedIndexedListJoinColumnBidirectionalRefEdEntity.class
+		};
     }
 
     @Test

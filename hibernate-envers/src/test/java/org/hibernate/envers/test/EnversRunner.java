@@ -1,6 +1,11 @@
 package org.hibernate.envers.test;
 
-import org.hibernate.testing.junit4.CustomRunner;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
 import org.junit.runner.Runner;
 import org.junit.runner.manipulation.NoTestsRemainException;
 import org.junit.runners.Parameterized;
@@ -9,11 +14,7 @@ import org.junit.runners.model.FrameworkMethod;
 import org.junit.runners.model.InitializationError;
 import org.junit.runners.model.TestClass;
 
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import org.hibernate.testing.junit4.CustomRunner;
 
 /**
  * Copied & modified from {@link org.junit.runners.Parameterized}.
@@ -42,8 +43,12 @@ public class EnversRunner extends Suite {
         @Override
         protected Object getTestInstance() throws Exception {
             Object testInstance = super.getTestInstance();
-            ((AbstractEnversTest) testInstance).setTestData(computeParams());
-
+            if ( AbstractEnversTest.class.isInstance( testInstance ) ) {
+                ( (AbstractEnversTest) testInstance ).setTestData( computeParams() );
+            }
+            else if ( BaseEnversFunctionalTestCase.class.isInstance( testInstance ) ) {
+                ( (BaseEnversFunctionalTestCase) testInstance ).setTestData( computeParams() );
+            }
             return testInstance;
         }
 
@@ -69,24 +74,21 @@ public class EnversRunner extends Suite {
                     fParameterSetNumber);
 		}
 
-        @Override
-        protected List<FrameworkMethod> doComputation() {
-            List<FrameworkMethod> frameworkMethods = super.doComputation();
+		@Override
+		protected void sortMethods(List<FrameworkMethod> computedTestMethods) {
+			super.sortMethods( computedTestMethods );
+			Collections.sort(computedTestMethods, new Comparator<FrameworkMethod>() {
+				private int getPriority(FrameworkMethod fm) {
+					Priority p = fm.getAnnotation(Priority.class);
+					return p == null ? 0 : p.value();
+				}
 
-            Collections.sort(frameworkMethods, new Comparator<FrameworkMethod>() {
-                private int getPriority(FrameworkMethod fm) {
-                    Priority p = fm.getAnnotation(Priority.class);
-                    return p == null ? 0 : p.value();
-                }
-
-                @Override
-                public int compare(FrameworkMethod fm1, FrameworkMethod fm2) {
-                    return getPriority(fm2) - getPriority(fm1);
-                }
-            });
-
-            return frameworkMethods;
-        }
+				@Override
+				public int compare(FrameworkMethod fm1, FrameworkMethod fm2) {
+					return getPriority(fm2) - getPriority(fm1);
+				}
+			});
+		}
     }
 
 	private final ArrayList<Runner> runners= new ArrayList<Runner>();

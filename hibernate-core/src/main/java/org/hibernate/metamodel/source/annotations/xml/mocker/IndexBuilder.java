@@ -40,7 +40,7 @@ import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.metamodel.source.annotations.xml.filter.IndexedAnnotationFilter;
 import org.hibernate.service.ServiceRegistry;
-import org.hibernate.service.classloading.spi.ClassLoaderService;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 
 /**
  * @author Strong Liu
@@ -288,17 +288,19 @@ public class IndexBuilder {
 
 	//merge source into target
 	private void mergeAnnotationMap(Map<DotName, List<AnnotationInstance>> source, Map<DotName, List<AnnotationInstance>> target) {
-		if ( source != null && !source.isEmpty() ) {
-			for ( DotName annotationName : source.keySet() ) {
-				if ( source.get( annotationName ).isEmpty() ) {
+		if ( source != null ) {
+			for ( Map.Entry<DotName, List<AnnotationInstance>> el : source.entrySet() ) {
+				if ( el.getValue().isEmpty() ) {
 					continue;
 				}
+				DotName annotationName = el.getKey();
+				List<AnnotationInstance> value = el.getValue();
 				List<AnnotationInstance> annotationInstanceList = target.get( annotationName );
 				if ( annotationInstanceList == null ) {
 					annotationInstanceList = new ArrayList<AnnotationInstance>();
 					target.put( annotationName, annotationInstanceList );
 				}
-				annotationInstanceList.addAll( source.get( annotationName ) );
+				annotationInstanceList.addAll( value );
 			}
 		}
 	}

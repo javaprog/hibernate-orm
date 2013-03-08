@@ -27,14 +27,14 @@ import java.io.Serializable;
 
 import org.jboss.logging.Logger;
 
-import org.hibernate.engine.internal.Versioning;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.LockMode;
+import org.hibernate.engine.internal.Versioning;
 import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.EntityKey;
 import org.hibernate.engine.spi.Status;
 import org.hibernate.event.spi.AbstractEvent;
 import org.hibernate.event.spi.EventSource;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.pretty.MessageHelper;
 import org.hibernate.type.TypeHelper;
@@ -47,8 +47,7 @@ import org.hibernate.type.TypeHelper;
  */
 public class AbstractReassociateEventListener implements Serializable {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                       AbstractReassociateEventListener.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, AbstractReassociateEventListener.class.getName() );
 
 	/**
 	 * Associates a given entity (either transient or associated with another session) to
@@ -63,8 +62,9 @@ public class AbstractReassociateEventListener implements Serializable {
 	 */
 	protected final EntityEntry reassociate(AbstractEvent event, Object object, Serializable id, EntityPersister persister) {
 
-        if (LOG.isTraceEnabled()) LOG.trace("Reassociating transient instance: "
-                                            + MessageHelper.infoString(persister, id, event.getSession().getFactory()));
+		if ( LOG.isTraceEnabled() ) {
+			LOG.tracev( "Reassociating transient instance: {0}", MessageHelper.infoString( persister, id, event.getSession().getFactory() ) );
+		}
 
 		final EventSource source = event.getSession();
 		final EntityKey key = source.generateEntityKey( id, persister );

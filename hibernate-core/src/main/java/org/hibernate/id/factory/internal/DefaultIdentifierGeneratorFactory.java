@@ -27,7 +27,6 @@ import java.io.Serializable;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 import org.jboss.logging.Logger;
 
 import org.hibernate.MappingException;
@@ -105,7 +104,7 @@ public class DefaultIdentifierGeneratorFactory implements MutableIdentifierGener
 
 	@Override
 	public void setDialect(Dialect dialect) {
-        LOG.debugf( "Setting dialect [%s]", dialect );
+		LOG.debugf( "Setting dialect [%s]", dialect );
 		this.dialect = dialect;
 	}
 

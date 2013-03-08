@@ -24,7 +24,8 @@
 package org.hibernate.dialect;
 import java.sql.Types;
 
-import org.hibernate.internal.CoreMessageLogger;
+import org.jboss.logging.Logger;
+
 import org.hibernate.LockMode;
 import org.hibernate.dialect.function.NoArgSQLFunction;
 import org.hibernate.dialect.function.SQLFunctionTemplate;
@@ -37,11 +38,11 @@ import org.hibernate.dialect.lock.PessimisticReadUpdateLockingStrategy;
 import org.hibernate.dialect.lock.PessimisticWriteUpdateLockingStrategy;
 import org.hibernate.dialect.lock.SelectLockingStrategy;
 import org.hibernate.dialect.lock.UpdateLockingStrategy;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.entity.Lockable;
 import org.hibernate.sql.CaseFragment;
 import org.hibernate.sql.DecodeCaseFragment;
 import org.hibernate.type.StandardBasicTypes;
-import org.jboss.logging.Logger;
 
 /**
  * This is the Hibernate dialect for the Unisys 2200 Relational Database (RDMS).
@@ -61,11 +62,11 @@ public class RDMSOS2200Dialect extends Dialect {
 
 	public RDMSOS2200Dialect() {
 		super();
-        // Display the dialect version.
-        LOG.rdmsOs2200Dialect();
+		// Display the dialect version.
+		LOG.rdmsOs2200Dialect();
 
         /**
-         * This section registers RDMS Biult-in Functions (BIFs) with Hibernate.
+         * This section registers RDMS Built-in Functions (BIFs) with Hibernate.
          * The first parameter is the 'register' function name with Hibernate.
          * The second parameter is the defined RDMS SQL Function and it's
          * characteristics. If StandardSQLFunction(...) is used, the RDMS BIF
@@ -239,13 +240,6 @@ public class RDMSOS2200Dialect extends Dialect {
 		return ""; // Original Dialect.java returns " for update";
 	}
 
-    /**
-     * RDMS does not support adding Unique constraints via create and alter table.
-     */
-	public boolean supportsUniqueConstraintInCreateAlterTable() {
-	    return true;
-	}
-
 	// Verify the state of this new method in Hibernate 3.0 Dialect.java
     /**
      * RDMS does not support Cascade Deletes.
@@ -320,7 +314,7 @@ public class RDMSOS2200Dialect extends Dialect {
 		if ( offset > 0 ) {
 			throw new UnsupportedOperationException( "query result offset is not supported" );
 		}
-		return new StringBuffer( sql.length() + 40 )
+		return new StringBuilder( sql.length() + 40 )
 				.append( sql )
 				.append( " fetch first " )
 				.append( limit )

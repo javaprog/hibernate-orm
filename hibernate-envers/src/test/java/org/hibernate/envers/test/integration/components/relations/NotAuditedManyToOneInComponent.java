@@ -23,26 +23,26 @@
  */
 package org.hibernate.envers.test.integration.components.relations;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.UnversionedStrTestEntity;
 import org.hibernate.envers.test.entities.components.relations.NotAuditedManyToOneComponent;
 import org.hibernate.envers.test.entities.components.relations.NotAuditedManyToOneComponentTestEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class NotAuditedManyToOneInComponent extends AbstractEntityTest {
+public class NotAuditedManyToOneInComponent extends BaseEnversJPAFunctionalTestCase {
     private Integer mtocte_id1;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(NotAuditedManyToOneComponentTestEntity.class);
-		cfg.addAnnotatedClass(UnversionedStrTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { NotAuditedManyToOneComponentTestEntity.class, UnversionedStrTestEntity.class };
     }
 
     @Test

@@ -1,30 +1,37 @@
 package org.hibernate.envers.test.integration.inheritance.mixed;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.integration.inheritance.mixed.entities.*;
+import java.util.Arrays;
+
 import org.junit.Test;
 
-import java.util.Arrays;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase ;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.integration.inheritance.mixed.entities.AbstractActivity;
+import org.hibernate.envers.test.integration.inheritance.mixed.entities.AbstractCheckActivity;
+import org.hibernate.envers.test.integration.inheritance.mixed.entities.Activity;
+import org.hibernate.envers.test.integration.inheritance.mixed.entities.ActivityId;
+import org.hibernate.envers.test.integration.inheritance.mixed.entities.CheckInActivity;
+import org.hibernate.envers.test.integration.inheritance.mixed.entities.NormalActivity;
 
 import static org.junit.Assert.assertEquals;
 
 /**
  * @author Michal Skowronek (mskowr at o2 pl)
  */
-public class MixedInheritanceStrategiesEntityTest extends AbstractEntityTest {
+public class MixedInheritanceStrategiesEntityTest extends BaseEnversJPAFunctionalTestCase  {
 
 	private ActivityId id2;
 	private ActivityId id1;
 	private ActivityId id3;
 
 	@Override
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(AbstractActivity.class);
-        cfg.addAnnotatedClass(AbstractCheckActivity.class);
-        cfg.addAnnotatedClass(CheckInActivity.class);
-        cfg.addAnnotatedClass(NormalActivity.class);
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] {
+				AbstractActivity.class,
+				AbstractCheckActivity.class,
+				CheckInActivity.class,
+				NormalActivity.class
+		};
     }
 
     @Test

@@ -23,7 +23,9 @@
  */
 package org.hibernate.dialect;
 import java.sql.Types;
+
 import org.hibernate.cfg.Environment;
+import org.hibernate.dialect.function.NoArgSQLFunction;
 import org.hibernate.dialect.function.VarArgsSQLFunction;
 import org.hibernate.type.StandardBasicTypes;
 
@@ -54,6 +56,7 @@ public class InterbaseDialect extends Dialect {
 		registerColumnType( Types.CLOB, "blob sub_type 1" );
 		
 		registerFunction( "concat", new VarArgsSQLFunction( StandardBasicTypes.STRING, "(","||",")" ) );
+		registerFunction("current_date", new NoArgSQLFunction("current_date", StandardBasicTypes.DATE, false) );
 
 		getDefaultProperties().setProperty(Environment.STATEMENT_BATCH_SIZE, NO_BATCH);
 	}
@@ -98,10 +101,7 @@ public class InterbaseDialect extends Dialect {
 	}
 
 	public String getLimitString(String sql, boolean hasOffset) {
-		return new StringBuilder( sql.length()+15 )
-			.append(sql)
-			.append(hasOffset ? " rows ? to ?" : " rows ?")
-			.toString();
+		return hasOffset ? sql + " rows ? to ?" : sql + " rows ?";
 	}
 
 	public boolean bindLimitParametersFirst() {

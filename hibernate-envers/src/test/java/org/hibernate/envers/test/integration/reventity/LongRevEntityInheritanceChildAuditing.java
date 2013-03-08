@@ -24,27 +24,26 @@
 
 package org.hibernate.envers.test.integration.reventity;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Iterator;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.integration.inheritance.joined.ChildEntity;
 import org.hibernate.envers.test.integration.inheritance.joined.ParentEntity;
 import org.hibernate.mapping.Column;
-import org.junit.Test;
 
-import java.util.Iterator;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 /**
  * A join-inheritance test using a custom revision entity where the revision number is a long, mapped in the database
  * as an int.
  * @author Adam Warski (adam at warski dot org)
  */
-public class LongRevEntityInheritanceChildAuditing extends AbstractEntityTest {
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(LongRevNumberRevEntity.class);
-        cfg.addAnnotatedClass(ChildEntity.class);
-        cfg.addAnnotatedClass(ParentEntity.class);
+public class LongRevEntityInheritanceChildAuditing extends BaseEnversJPAFunctionalTestCase {
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { ChildEntity.class, ParentEntity.class, LongRevNumberRevEntity.class };
     }
 
     @Test

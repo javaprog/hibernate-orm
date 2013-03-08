@@ -35,6 +35,7 @@ import org.hibernate.cache.CacheException;
 import org.hibernate.cache.ehcache.internal.nonstop.NonstopAccessStrategyFactory;
 import org.hibernate.cache.ehcache.internal.regions.EhcacheCollectionRegion;
 import org.hibernate.cache.ehcache.internal.regions.EhcacheEntityRegion;
+import org.hibernate.cache.ehcache.internal.regions.EhcacheNaturalIdRegion;
 import org.hibernate.cache.ehcache.internal.regions.EhcacheQueryResultsRegion;
 import org.hibernate.cache.ehcache.internal.regions.EhcacheTimestampsRegion;
 import org.hibernate.cache.ehcache.internal.strategy.EhcacheAccessStrategyFactory;
@@ -44,12 +45,13 @@ import org.hibernate.cache.ehcache.management.impl.ProviderMBeanRegistrationHelp
 import org.hibernate.cache.spi.CacheDataDescription;
 import org.hibernate.cache.spi.CollectionRegion;
 import org.hibernate.cache.spi.EntityRegion;
+import org.hibernate.cache.spi.NaturalIdRegion;
 import org.hibernate.cache.spi.QueryResultsRegion;
 import org.hibernate.cache.spi.RegionFactory;
 import org.hibernate.cache.spi.TimestampsRegion;
 import org.hibernate.cache.spi.access.AccessType;
 import org.hibernate.cfg.Settings;
-import org.hibernate.service.classloading.spi.ClassLoaderService;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 import org.hibernate.service.spi.InjectService;
 
 /**
@@ -128,6 +130,12 @@ abstract class AbstractEhcacheRegionFactory implements RegionFactory {
     public EntityRegion buildEntityRegion(String regionName, Properties properties, CacheDataDescription metadata)
             throws CacheException {
         return new EhcacheEntityRegion( accessStrategyFactory, getCache( regionName ), settings, metadata, properties );
+    }
+    
+    @Override
+    public NaturalIdRegion buildNaturalIdRegion(String regionName, Properties properties, CacheDataDescription metadata)
+            throws CacheException {
+        return new EhcacheNaturalIdRegion( accessStrategyFactory, getCache( regionName ), settings, metadata, properties );
     }
 
     /**

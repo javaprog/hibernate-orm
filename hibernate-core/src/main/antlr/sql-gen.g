@@ -25,10 +25,13 @@ options {
 {
 
    /** the buffer resulting SQL statement is written to */
-	private StringBuffer buf = new StringBuffer();
+	private StringBuilder buf = new StringBuilder();
+
+	private boolean captureExpression = false;
+	private StringBuilder expr = new StringBuilder();
 
 	protected void out(String s) {
-		buf.append(s);
+		getStringBuilder().append( s );
 	}
 
 	/**
@@ -71,8 +74,8 @@ options {
 		// moved this impl into the subclass...
 	}
 
-	protected StringBuffer getStringBuffer() {
-		return buf;
+	protected StringBuilder getStringBuilder() {
+		return captureExpression ? expr : buf;
 	}
 
 	protected void nyi(AST n) {
@@ -91,6 +94,27 @@ options {
 
 	protected void commaBetweenParameters(String comma) {
 		out(comma);
+	}
+
+	protected void captureExpressionStart() {
+		captureExpression = true;
+	}
+
+	protected void captureExpressionFinish() {
+		captureExpression = false;
+	}
+
+	protected String resetCapture() {
+		final String expression = expr.toString();
+		expr = new StringBuilder();
+		return expression;
+	}
+
+	/**
+	 * Implementation note: This is just a stub. SqlGenerator contains the effective implementation.
+	 */
+	protected String renderOrderByElement(String expression, String order, String nulls) {
+		throw new UnsupportedOperationException("Concrete SQL generator should override this method.");
 	}
 }
 
@@ -152,9 +176,14 @@ whereClauseExpr
 	| booleanExpr[ false ]
 	;
 
-orderExprs
+orderExprs { String ordExp = null; String ordDir = null; String ordNul = null; }
 	// TODO: remove goofy space before the comma when we don't have to regression test anymore.
-	: ( expr ) (dir:orderDirection { out(" "); out(dir); })? ( {out(", "); } orderExprs)?
+	// Dialect is provided a hook to render each ORDER BY element, so the expression is being captured instead of
+	// printing to the SQL output directly. See Dialect#renderOrderByElement(String, String, String, NullPrecedence).
+	: { captureExpressionStart(); } ( expr ) { captureExpressionFinish(); ordExp = resetCapture(); }
+	    (dir:orderDirection { ordDir = #dir.getText(); })? (ordNul=nullOrdering)?
+	        { out( renderOrderByElement( ordExp, ordDir, ordNul ) ); }
+	    ( {out(", "); } orderExprs )?
 	;
 
 groupExprs
@@ -166,6 +195,15 @@ orderDirection
 	: ASCENDING
 	| DESCENDING
 	;
+
+nullOrdering returns [String nullOrdExp = null]
+    : NULLS fl:nullPrecedence { nullOrdExp = #fl.getText(); }
+    ;
+
+nullPrecedence
+    : FIRST
+    | LAST
+    ;
 
 whereExpr
 	// Expect the filter subtree, followed by the theta join subtree, followed by the HQL condition subtree.
@@ -309,19 +347,28 @@ inList
 	;
 	
 simpleExprList
-	: { out("("); } (e:simpleExpr { separator(e," , "); } )* { out(")"); }
+	: { out("("); } (e:simpleOrTupleExpr { separator(e," , "); } )* { out(")"); }
 	;
+
+simpleOrTupleExpr
+    : simpleExpr
+    | tupleExpr
+    ;
 
 // A simple expression, or a sub-select with parens around it.
 expr
 	: simpleExpr
-	| #( VECTOR_EXPR { out("("); } (e:expr { separator(e," , "); } )*  { out(")"); } )
+	| tupleExpr
 	| parenSelect
 	| #(ANY { out("any "); } quantified )
 	| #(ALL { out("all "); } quantified )
 	| #(SOME { out("some "); } quantified )
 	;
-	
+
+tupleExpr
+    : #( VECTOR_EXPR { out("("); } (e:expr { separator(e," , "); } )*  { out(")"); } )
+    ;
+
 quantified
 	: { out("("); } ( sqlToken | selectStatement ) { out(")"); } 
 	;
@@ -361,7 +408,7 @@ arithmeticExpr
 	: additiveExpr
 	| multiplicativeExpr
 //	| #(CONCAT { out("("); } expr ( { out("||"); } expr )+ { out(")"); } )
-	| #(UNARY_MINUS { out("-"); } expr)
+	| #(UNARY_MINUS { out("-"); } nestedExprAfterMinusDiv)
 	| caseExpr
 	;
 
@@ -427,6 +474,7 @@ addrExpr
 	| i:ALIAS_REF { out(i); }
 	| j:INDEX_OP { out(j); }
 	| v:RESULT_VARIABLE_REF { out(v); }
+	| mcr:mapComponentReference { out(mcr); }
 	;
 
 sqlToken

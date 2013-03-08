@@ -23,8 +23,10 @@
  */
 package org.hibernate.envers.configuration.metadata;
 import java.util.Iterator;
+
 import org.dom4j.Element;
 import org.dom4j.tree.DefaultElement;
+
 import org.hibernate.MappingException;
 import org.hibernate.envers.ModificationStore;
 import org.hibernate.envers.RelationTargetAuditMode;
@@ -39,6 +41,7 @@ import org.hibernate.envers.entities.mapper.id.SingleIdMapper;
 import org.hibernate.mapping.Component;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.mapping.Property;
+import org.hibernate.type.ManyToOneType;
 import org.hibernate.type.Type;
 
 /**
@@ -59,11 +62,17 @@ public final class IdMetadataGenerator {
             Property property = properties.next();
             Type propertyType = property.getType();
             if (!"_identifierMapper".equals(property.getName())) {
-                // Last but one parameter: ids are always insertable
-                boolean added =  mainGenerator.getBasicMetadataGenerator().addBasic(parent,
-                        getIdPersistentPropertyAuditingData(property),
-                        property.getValue(), mapper, true, key);
-
+                boolean added = false;
+                if (propertyType instanceof ManyToOneType) {
+                    added = mainGenerator.getBasicMetadataGenerator().addManyToOne(parent,
+                            getIdPersistentPropertyAuditingData(property),
+                            property.getValue(), mapper);
+                } else {
+                    // Last but one parameter: ids are always insertable
+                    added = mainGenerator.getBasicMetadataGenerator().addBasic(parent,
+                            getIdPersistentPropertyAuditingData(property),
+                            property.getValue(), mapper, true, key);
+                }
                 if (!added) {
                     // If the entity is audited, and a non-supported id component is used, throwing an exception.
                     // If the entity is not audited, then we simply don't support this entity, even in

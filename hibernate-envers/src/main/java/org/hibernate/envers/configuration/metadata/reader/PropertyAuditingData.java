@@ -25,6 +25,7 @@
 package org.hibernate.envers.configuration.metadata.reader;
 import java.util.ArrayList;
 import java.util.List;
+
 import org.hibernate.envers.AuditJoinTable;
 import org.hibernate.envers.AuditOverride;
 import org.hibernate.envers.AuditOverrides;
@@ -34,6 +35,7 @@ import org.hibernate.envers.entities.PropertyData;
 
 /**
  * @author Adam Warski (adam at warski dot org)
+ * @author Michal Skowronek (mskowr at o2 dot pl)
  */
 public class PropertyAuditingData {
     private String name;
@@ -45,8 +47,11 @@ public class PropertyAuditingData {
     private final List<AuditOverride> auditJoinTableOverrides = new ArrayList<AuditOverride>(0);
 	private RelationTargetAuditMode relationTargetAuditMode;
     private String auditMappedBy;
+    private String relationMappedBy;
     private String positionMappedBy;
     private boolean forceInsertable;
+	private boolean usingModifiedFlag;
+	private String modifiedFlagName;
 
 	public PropertyAuditingData() {
     }
@@ -114,7 +119,8 @@ public class PropertyAuditingData {
     }
 
     public PropertyData getPropertyData() {
-        return new PropertyData(name, beanName, accessType, store);
+		return new PropertyData(name, beanName, accessType, store,
+				usingModifiedFlag, modifiedFlagName);
     }
 
 	public List<AuditOverride> getAuditingOverrides() {
@@ -127,6 +133,14 @@ public class PropertyAuditingData {
 
     public void setAuditMappedBy(String auditMappedBy) {
         this.auditMappedBy = auditMappedBy;
+    }
+
+    public String getRelationMappedBy() {
+        return relationMappedBy;
+    }
+
+    public void setRelationMappedBy(String relationMappedBy) {
+        this.relationMappedBy = relationMappedBy;
     }
 
     public String getPositionMappedBy() {
@@ -145,7 +159,19 @@ public class PropertyAuditingData {
         this.forceInsertable = forceInsertable;
     }
 
-    public void addAuditingOverride(AuditOverride annotation) {
+	public boolean isUsingModifiedFlag() {
+		return usingModifiedFlag;
+	}
+
+	public void setUsingModifiedFlag(boolean usingModifiedFlag) {
+		this.usingModifiedFlag = usingModifiedFlag;
+	}
+
+	public void setModifiedFlagName(String modifiedFlagName) {
+		this.modifiedFlagName = modifiedFlagName;
+	}
+
+	public void addAuditingOverride(AuditOverride annotation) {
 		if (annotation != null) {
 			String overrideName = annotation.name();
 			boolean present = false;

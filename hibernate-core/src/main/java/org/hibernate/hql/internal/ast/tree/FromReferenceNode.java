@@ -23,11 +23,11 @@
  *
  */
 package org.hibernate.hql.internal.ast.tree;
-import org.hibernate.internal.CoreMessageLogger;
-
-import org.jboss.logging.Logger;
 import antlr.SemanticException;
 import antlr.collections.AST;
+import org.jboss.logging.Logger;
+
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * Represents a reference to a FROM element, for example a class alias in a WHERE clause.
@@ -37,7 +37,7 @@ import antlr.collections.AST;
 public abstract class FromReferenceNode extends AbstractSelectExpression
         implements ResolvableNode, DisplayableNode, InitializeableNode, PathNode {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, FromReferenceNode.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, FromReferenceNode.class.getName() );
 
 	private FromElement fromElement;
 	private boolean resolved = false;
@@ -70,11 +70,13 @@ public abstract class FromReferenceNode extends AbstractSelectExpression
 
 	public void setResolved() {
 		this.resolved = true;
-        LOG.debugf("Resolved : %s -> %s", this.getPath(), this.getText());
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "Resolved : %s -> %s", this.getPath(), this.getText() );
+		}
 	}
 
 	public String getDisplayText() {
-		StringBuffer buf = new StringBuffer();
+		StringBuilder buf = new StringBuilder();
 		buf.append( "{" ).append( ( fromElement == null ) ? "no fromElement" : fromElement.getDisplayText() );
 		buf.append( "}" );
 		return buf.toString();

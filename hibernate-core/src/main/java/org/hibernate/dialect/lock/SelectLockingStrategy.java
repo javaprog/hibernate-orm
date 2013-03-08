@@ -22,10 +22,12 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.dialect.lock;
+
 import java.io.Serializable;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
 import org.hibernate.JDBCException;
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
@@ -44,9 +46,9 @@ import org.hibernate.sql.SimpleSelect;
  *
  * @see org.hibernate.dialect.Dialect#getForUpdateString(org.hibernate.LockMode)
  * @see org.hibernate.dialect.Dialect#appendLockHint(org.hibernate.LockMode, String)
- * @since 3.2
  *
  * @author Steve Ebersole
+ * @since 3.2
  */
 public class SelectLockingStrategy extends AbstractSelectLockingStrategy {
 	/**
@@ -83,7 +85,7 @@ public class SelectLockingStrategy extends AbstractSelectLockingStrategy {
 					);
 				}
 
-				ResultSet rs = st.executeQuery();
+				ResultSet rs = session.getTransactionCoordinator().getJdbcCoordinator().getResultSetReturn().extract( st );
 				try {
 					if ( !rs.next() ) {
 						if ( factory.getStatistics().isStatisticsEnabled() ) {
@@ -94,11 +96,11 @@ public class SelectLockingStrategy extends AbstractSelectLockingStrategy {
 					}
 				}
 				finally {
-					rs.close();
+					session.getTransactionCoordinator().getJdbcCoordinator().release( rs );
 				}
 			}
 			finally {
-				st.close();
+				session.getTransactionCoordinator().getJdbcCoordinator().release( st );
 			}
 
 		}

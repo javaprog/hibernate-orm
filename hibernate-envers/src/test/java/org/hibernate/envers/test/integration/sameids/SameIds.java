@@ -23,23 +23,23 @@
  */
 package org.hibernate.envers.test.integration.sameids;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
 
 /**
  * A test which checks that if we add two different entities with the same ids in one revision, they
  * will both be stored.
  * @author Adam Warski (adam at warski dot org)
  */
-public class SameIds extends AbstractEntityTest {
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(SameIdTestEntity1.class);
-        cfg.addAnnotatedClass(SameIdTestEntity2.class);
+public class SameIds extends BaseEnversJPAFunctionalTestCase {
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { SameIdTestEntity1.class, SameIdTestEntity2.class };
     }
 
     @Test

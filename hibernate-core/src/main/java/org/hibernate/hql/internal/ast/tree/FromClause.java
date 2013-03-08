@@ -31,13 +31,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.hibernate.internal.CoreMessageLogger;
+import antlr.SemanticException;
+import antlr.collections.AST;
+import org.jboss.logging.Logger;
+
 import org.hibernate.hql.internal.antlr.HqlSqlTokenTypes;
 import org.hibernate.hql.internal.ast.util.ASTIterator;
 import org.hibernate.hql.internal.ast.util.ASTUtil;
-import org.jboss.logging.Logger;
-import antlr.SemanticException;
-import antlr.collections.AST;
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * Represents the 'FROM' part of a query or subquery, containing all mapped class references.
@@ -277,7 +278,9 @@ public class FromClause extends HqlSqlWalkerNode implements HqlSqlTokenTypes, Di
 	}
 
 	void addJoinByPathMap(String path, FromElement destination) {
-        LOG.debugf("addJoinByPathMap() : %s -> %s", path, destination.getDisplayText());
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "addJoinByPathMap() : %s -> %s", path, destination.getDisplayText() );
+		}
 		fromElementsByPath.put( path, destination );
 	}
 
@@ -347,7 +350,7 @@ public class FromClause extends HqlSqlWalkerNode implements HqlSqlTokenTypes, Di
 	}
 
 	public void promoteJoin(FromElement elem) {
-        LOG.debugf("Promoting [%s] to [%s]", elem, this);
+		LOG.debugf( "Promoting [%s] to [%s]", elem, this );
 		//TODO: implement functionality
 		//  this might be painful to do here, as the "join post processing" for
 		//  the subquery has already been performed (meaning that for
@@ -363,7 +366,7 @@ public class FromClause extends HqlSqlWalkerNode implements HqlSqlTokenTypes, Di
 	}
 
 	void addCollectionJoinFromElementByPath(String path, FromElement destination) {
-        LOG.debugf("addCollectionJoinFromElementByPath() : %s -> %s", path, destination);
+		LOG.debugf( "addCollectionJoinFromElementByPath() : %s -> %s", path, destination );
 		collectionJoinFromElementsByPath.put( path, destination );	// Add the new node to the map so that we don't create it twice.
 	}
 

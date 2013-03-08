@@ -1,11 +1,10 @@
-// $Id:$
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2009 by Red Hat Inc and/or its affiliates or by
- * third-party contributors as indicated by either @author tags or express
- * copyright attribution statements applied by the authors.  All
- * third-party contributions are distributed under license by Red Hat Inc.
+ * Copyright (c) 2009-2012, Red Hat Inc. or third-party contributors as
+ * indicated by the @author tags or express copyright attribution
+ * statements applied by the authors.  All third-party contributions are
+ * distributed under license by Red Hat Inc.
  *
  * This copyrighted material is made available to anyone wishing to use, modify,
  * copy, or redistribute it subject to the terms and conditions of the GNU
@@ -23,11 +22,12 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate;
+
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-
 
 /**
  * Contains locking details (LockMode, Timeout and Scope).
@@ -39,15 +39,42 @@ public class LockOptions implements Serializable {
 	 * NONE represents LockMode.NONE (timeout + scope do not apply)
 	 */
 	public static final LockOptions NONE = new LockOptions(LockMode.NONE);
+
 	/**
 	 * READ represents LockMode.READ (timeout + scope do not apply)
 	 */
 	public static final LockOptions READ = new LockOptions(LockMode.READ);
+
 	/**
 	 * UPGRADE represents LockMode.UPGRADE (will wait forever for lock and
 	 * scope of false meaning only entity is locked)
 	 */
+	@SuppressWarnings("deprecation")
 	public static final LockOptions UPGRADE = new LockOptions(LockMode.UPGRADE);
+
+	/**
+	 * Indicates that the database should not wait at all to acquire the pessimistic lock.
+	 * @see #getTimeOut
+	 */
+	public static final int NO_WAIT = 0;
+
+	/**
+	 * Indicates that there is no timeout for the acquisition.
+	 * @see #getTimeOut
+	 */
+	public static final int WAIT_FOREVER = -1;
+
+	/**
+	 * Indicates that rows that are already locked should be skipped.
+	 * @see #getTimeOut()
+	 */
+	public static final int SKIP_LOCKED = -2;
+
+	private LockMode lockMode = LockMode.NONE;
+	private int timeout = WAIT_FOREVER;
+
+	//initialize lazily as LockOptions is frequently created without needing this
+	private Map<String,LockMode> aliasSpecificLockModes = null;
 
 	public LockOptions() {
 	}
@@ -56,7 +83,6 @@ public class LockOptions implements Serializable {
 		this.lockMode = lockMode;
 	}
 
-	private LockMode lockMode = LockMode.NONE;
 
 	/**
 	 * Retrieve the overall lock mode in effect for this set of options.
@@ -83,7 +109,6 @@ public class LockOptions implements Serializable {
 		return this;
 	}
 
-	private Map aliasSpecificLockModes = new HashMap();
 
 	/**
 	 * Specify the {@link LockMode} to be used for a specific query alias.
@@ -97,6 +122,9 @@ public class LockOptions implements Serializable {
 	 * @see Criteria#setLockMode(String, LockMode)
 	 */
 	public LockOptions setAliasSpecificLockMode(String alias, LockMode lockMode) {
+		if ( aliasSpecificLockModes == null ) {
+			aliasSpecificLockModes = new HashMap<String,LockMode>();
+		}
 		aliasSpecificLockModes.put( alias, lockMode );
 		return this;
 	}
@@ -113,7 +141,10 @@ public class LockOptions implements Serializable {
 	 * @return The explicit lock mode for that alias.
 	 */
 	public LockMode getAliasSpecificLockMode(String alias) {
-		return (LockMode) aliasSpecificLockModes.get( alias );
+		if ( aliasSpecificLockModes == null ) {
+			return null;
+		}
+		return aliasSpecificLockModes.get( alias );
 	}
 
 	/**
@@ -137,12 +168,20 @@ public class LockOptions implements Serializable {
 		return lockMode == null ? LockMode.NONE : lockMode;
 	}
 
+	public boolean hasAliasSpecificLockModes() {
+		return aliasSpecificLockModes != null
+				&& ! aliasSpecificLockModes.isEmpty();
+	}
+
 	/**
 	 * Get the number of aliases that have specific lock modes defined.
 	 *
 	 * @return the number of explicitly defined alias lock modes.
 	 */
 	public int getAliasLockCount() {
+		if ( aliasSpecificLockModes == null ) {
+			return 0;
+		}
 		return aliasSpecificLockModes.size();
 	}
 
@@ -152,21 +191,35 @@ public class LockOptions implements Serializable {
 	 * @return Iterator for accessing the Map.Entry's
 	 */
 	public Iterator getAliasLockIterator() {
+		if ( aliasSpecificLockModes == null ) {
+			return Collections.emptyList().iterator();
+		}
 		return aliasSpecificLockModes.entrySet().iterator();
 	}
 
 	/**
-	 * Indicates that the database should not wait at all to acquire the pessimistic lock.
-	 * @see #getTimeOut
+	 * Currently needed for follow-on locking
+	 *
+	 * @return The greatest of all requested lock modes.
 	 */
-	public static final int NO_WAIT = 0;
-	/**
-	 * Indicates that there is no timeout for the acquisition.
-	 * @see #getTimeOut
-	 */
-	public static final int WAIT_FOREVER = -1;
+	public LockMode findGreatestLockMode() {
+		LockMode lockModeToUse = getLockMode();
+		if ( lockModeToUse == null ) {
+			lockModeToUse = LockMode.NONE;
+		}
 
-	private int timeout = WAIT_FOREVER;
+		if ( aliasSpecificLockModes == null ) {
+			return lockModeToUse;
+		}
+
+		for ( LockMode lockMode : aliasSpecificLockModes.values() ) {
+			if ( lockMode.greaterThan( lockModeToUse ) ) {
+				lockModeToUse = lockMode;
+			}
+		}
+
+		return lockModeToUse;
+	}
 
 	/**
 	 * Retrieve the current timeout setting.
@@ -174,9 +227,9 @@ public class LockOptions implements Serializable {
 	 * The timeout is the amount of time, in milliseconds, we should instruct the database
 	 * to wait for any requested pessimistic lock acquisition.
 	 * <p/>
-	 * {@link #NO_WAIT} and {@link #WAIT_FOREVER} represent 2 "magic" values.
+	 * {@link #NO_WAIT}, {@link #WAIT_FOREVER} or {@link #SKIP_LOCKED} represent 3 "magic" values.
 	 *
-	 * @return timeout in milliseconds, or {@link #NO_WAIT} or {@link #WAIT_FOREVER}
+	 * @return timeout in milliseconds, {@link #NO_WAIT}, {@link #WAIT_FOREVER} or {@link #SKIP_LOCKED}
 	 */
 	public int getTimeOut() {
 		return timeout;
@@ -223,18 +276,27 @@ public class LockOptions implements Serializable {
 		return this;
 	}
 
+	public LockOptions makeCopy() {
+		final LockOptions copy = new LockOptions();
+		copy( this, copy );
+		return copy;
+	}
+
 	/**
-	 * Shallow copy From to Dest
+	 * Perform a shallow copy
 	 *
-	 * @param from is copied from
-	 * @param dest is copied to
-	 * @return dest
+	 * @param source Source for the copy (copied from)
+	 * @param destination Destination for the copy (copied to)
+	 *
+	 * @return destination
 	 */
-	public static LockOptions copy(LockOptions from, LockOptions dest) {
-		dest.setLockMode(from.getLockMode());
-		dest.setScope(from.getScope());
-		dest.setTimeOut(from.getTimeOut());
-		dest.aliasSpecificLockModes = new HashMap(from.aliasSpecificLockModes );
-		return dest;
+	public static LockOptions copy(LockOptions source, LockOptions destination) {
+		destination.setLockMode( source.getLockMode() );
+		destination.setScope( source.getScope() );
+		destination.setTimeOut( source.getTimeOut() );
+		if ( source.aliasSpecificLockModes != null ) {
+			destination.aliasSpecificLockModes = new HashMap<String,LockMode>( source.aliasSpecificLockModes );
+		}
+		return destination;
 	}
 }

@@ -24,11 +24,13 @@
 package org.hibernate.integrator.internal;
 
 import java.util.LinkedHashSet;
+
 import org.jboss.logging.Logger;
+
 import org.hibernate.cfg.beanvalidation.BeanValidationIntegrator;
 import org.hibernate.integrator.spi.Integrator;
 import org.hibernate.integrator.spi.IntegratorService;
-import org.hibernate.service.classloading.spi.ClassLoaderService;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 
 /**
  * @author Steve Ebersole

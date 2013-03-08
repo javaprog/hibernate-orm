@@ -1,8 +1,13 @@
-apply plugin: 'java'
-
 dependencies {
-    compile( project( ':hibernate-core' ) )
-    compile( [group: 'net.sf.ehcache', name: 'ehcache-core', version: '2.4.3', ext: 'jar'] )
-    testCompile( project(':hibernate-testing') )
-    testCompile( libraries.h2 )
+    compile project( ':hibernate-core' )
+    compile( libraries.ehcache )
+
+    testCompile project( ':hibernate-testing' )
+}
+
+jar {
+    manifest {
+        instruction 'Bundle-Description', 'Hibernate ORM EHCache'
+        instruction 'Bundle-SymbolicName', 'org.hibernate.ehcache'
+    }
 }

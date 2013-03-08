@@ -81,6 +81,10 @@ public class ParameterParser {
 				inQuote = true;
 				recognizer.other( c );
 			}
+			else if ( '\\' == c ) {
+				// skip sending the backslash and instead send then next character, treating is as a literal
+				recognizer.other( sqlString.charAt( ++indx ) );
+			}
 			else {
 				if ( c == ':' ) {
 					// named parameter
@@ -104,7 +108,7 @@ public class ParameterParser {
 						String param = sqlString.substring( indx + 1, chopLocation );
 						// make sure this "name" is an integral
 						try {
-							new Integer( param );
+                            Integer.valueOf( param );
 						}
 						catch( NumberFormatException e ) {
 							throw new QueryException( "JPA-style positional param was not an integral ordinal" );

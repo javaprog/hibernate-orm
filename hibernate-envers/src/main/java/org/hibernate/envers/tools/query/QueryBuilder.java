@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.hibernate.Query;
 import org.hibernate.Session;
 import org.hibernate.envers.tools.MutableInteger;
@@ -180,6 +181,10 @@ public class QueryBuilder {
 
         return aliasList;
     }
+
+	public String getRootAlias() {
+		return alias;
+	}
 
     private List<String> getFromList() {
         List<String> fromList = new ArrayList<String>();

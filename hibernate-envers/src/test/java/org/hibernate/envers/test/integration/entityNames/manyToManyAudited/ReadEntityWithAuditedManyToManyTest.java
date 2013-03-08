@@ -1,15 +1,16 @@
 package org.hibernate.envers.test.integration.entityNames.manyToManyAudited;
 
-import org.hibernate.MappingException;
-import org.hibernate.envers.test.AbstractOneSessionTest;
-import org.hibernate.envers.test.Priority;
-import org.junit.Test;
-
 import java.io.File;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.junit.Test;
+
+import org.hibernate.MappingException;
+import org.hibernate.envers.test.AbstractOneSessionTest;
+import org.hibernate.envers.test.Priority;
 
 /**
  * @author Hern&aacute;n Chanfreau
@@ -82,12 +83,12 @@ public class ReadEntityWithAuditedManyToManyTest extends AbstractOneSessionTest{
     	// navigate through relations to load objects
     	for (Person owner : car1_2.getOwners()) {
     		for (Car ownedCar : owner.getCars()) {
-    			ownedCar.getNumber();
+    			ownedCar.getRegistrationNumber();
 			}
 		}
     	for (Person owner : car2_2.getOwners()) {
     		for (Car ownedCar : owner.getCars()) {
-				ownedCar.getNumber();
+				ownedCar.getRegistrationNumber();
 			}
 		}
     	

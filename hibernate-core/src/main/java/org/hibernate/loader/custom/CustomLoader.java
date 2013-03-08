@@ -1,10 +1,10 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2008, Red Hat Middleware LLC or third-party contributors as
+ * Copyright (c) 2008-2011, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
- * distributed under license by Red Hat Middleware LLC.
+ * distributed under license by Red Hat Inc.
  *
  * This copyrighted material is made available to anyone wishing to use, modify,
  * copy, or redistribute it subject to the terms and conditions of the GNU
@@ -20,7 +20,6 @@
  * Free Software Foundation, Inc.
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
- *
  */
 package org.hibernate.loader.custom;
 
@@ -28,17 +27,24 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
 import org.hibernate.QueryException;
 import org.hibernate.ScrollableResults;
+import org.hibernate.Session;
+import org.hibernate.dialect.Dialect;
+import org.hibernate.dialect.pagination.LimitHandler;
+import org.hibernate.dialect.pagination.LimitHelper;
 import org.hibernate.engine.spi.QueryParameters;
+import org.hibernate.engine.spi.RowSelection;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.hql.internal.HolderInstantiator;
@@ -50,6 +56,7 @@ import org.hibernate.loader.Loader;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.collection.QueryableCollection;
 import org.hibernate.persister.entity.Loadable;
+import org.hibernate.persister.entity.Lockable;
 import org.hibernate.persister.entity.Queryable;
 import org.hibernate.transform.ResultTransformer;
 import org.hibernate.type.CollectionType;
@@ -294,7 +301,7 @@ public class CustomLoader extends Loader {
 	}
 
 	@Override
-    protected String getSQLString() {
+    public String getSQLString() {
 		return sql;
 	}
 
@@ -329,6 +336,35 @@ public class CustomLoader extends Loader {
 
 	public List list(SessionImplementor session, QueryParameters queryParameters) throws HibernateException {
 		return list( session, queryParameters, querySpaces, resultTypes );
+	}
+
+	@Override
+	protected String applyLocks(
+			String sql,
+			QueryParameters parameters,
+			Dialect dialect,
+			List<AfterLoadAction> afterLoadActions) throws QueryException {
+		final LockOptions lockOptions = parameters.getLockOptions();
+		if ( lockOptions == null ||
+				( lockOptions.getLockMode() == LockMode.NONE && lockOptions.getAliasLockCount() == 0 ) ) {
+			return sql;
+		}
+
+		// user is request locking, lets see if we can apply locking directly to the SQL...
+
+		// 		some dialects wont allow locking with paging...
+		afterLoadActions.add(
+				new AfterLoadAction() {
+					private final LockOptions originalLockOptions = lockOptions.makeCopy();
+					@Override
+					public void afterLoad(SessionImplementor session, Object entity, Loadable persister) {
+						( (Session) session ).buildLockRequest( originalLockOptions ).lock( persister.getEntityName(), entity );
+					}
+				}
+		);
+		parameters.getLockOptions().setLockMode( LockMode.READ );
+
+		return sql;
 	}
 
 	public ScrollableResults scroll(
@@ -506,7 +542,7 @@ public class CustomLoader extends Loader {
 
 	private static interface ResultColumnProcessor {
 		public Object extract(Object[] data, ResultSet resultSet, SessionImplementor session) throws SQLException, HibernateException;
-		public void performDiscovery(Metadata metadata, List types, List aliases) throws SQLException, HibernateException;
+		public void performDiscovery(Metadata metadata, List<Type> types, List<String> aliases) throws SQLException, HibernateException;
 	}
 
 	public class NonScalarResultColumnProcessor implements ResultColumnProcessor {
@@ -516,6 +552,7 @@ public class CustomLoader extends Loader {
 			this.position = position;
 		}
 
+		@Override
 		public Object extract(
 				Object[] data,
 				ResultSet resultSet,
@@ -523,7 +560,8 @@ public class CustomLoader extends Loader {
 			return data[ position ];
 		}
 
-		public void performDiscovery(Metadata metadata, List types, List aliases) {
+		@Override
+		public void performDiscovery(Metadata metadata, List<Type> types, List<String> aliases) {
 		}
 
 	}
@@ -542,6 +580,7 @@ public class CustomLoader extends Loader {
 			this.type = type;
 		}
 
+		@Override
 		public Object extract(
 				Object[] data,
 				ResultSet resultSet,
@@ -549,7 +588,8 @@ public class CustomLoader extends Loader {
 			return type.nullSafeGet( resultSet, alias, session, null );
 		}
 
-		public void performDiscovery(Metadata metadata, List types, List aliases) throws SQLException {
+		@Override
+		public void performDiscovery(Metadata metadata, List<Type> types, List<String> aliases) throws SQLException {
 			if ( alias == null ) {
 				alias = metadata.getColumnName( position );
 			}
@@ -568,13 +608,30 @@ public class CustomLoader extends Loader {
     protected void autoDiscoverTypes(ResultSet rs) {
 		try {
 			Metadata metadata = new Metadata( getFactory(), rs );
-			List aliases = new ArrayList();
-			List types = new ArrayList();
-
 			rowProcessor.prepareForAutoDiscovery( metadata );
 
+			List<String> aliases = new ArrayList<String>();
+			List<Type> types = new ArrayList<Type>();
 			for ( int i = 0; i < rowProcessor.columnProcessors.length; i++ ) {
 				rowProcessor.columnProcessors[i].performDiscovery( metadata, types, aliases );
+			}
+
+			// lets make sure we did not end up with duplicate aliases.  this can occur when the user supplied query
+			// did not rename same-named columns.  e.g.:
+			//		select u.username, u2.username from t_user u, t_user u2 ...
+			//
+			// the above will lead to an unworkable situation in most cases (the difference is how the driver/db
+			// handle this situation.  But if the 'aliases' variable contains duplicate names, then we have that
+			// troublesome condition, so lets throw an error.  See HHH-5992
+			final HashSet<String> aliasesSet = new HashSet<String>();
+			for ( String alias : aliases ) {
+				boolean alreadyExisted = !aliasesSet.add( alias );
+				if ( alreadyExisted ) {
+					throw new NonUniqueDiscoveredSqlAliasException(
+							"Encountered a duplicated sql alias [" + alias +
+									"] during auto-discovery of a native-sql query"
+					);
+				}
 			}
 
 			resultTypes = ArrayHelper.toTypeArray( types );
@@ -632,10 +689,14 @@ public class CustomLoader extends Loader {
 			int columnType = resultSetMetaData.getColumnType( columnPos );
 			int scale = resultSetMetaData.getScale( columnPos );
 			int precision = resultSetMetaData.getPrecision( columnPos );
+            int length = precision;
+            if ( columnType == 1 && precision == 0 ) {
+                length = resultSetMetaData.getColumnDisplaySize( columnPos );
+            }
 			return factory.getTypeResolver().heuristicType(
 					factory.getDialect().getHibernateTypeName(
 							columnType,
-							precision,
+							length,
 							precision,
 							scale
 					)

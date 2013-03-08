@@ -23,25 +23,26 @@
  */
 package org.hibernate.envers.test.integration.secondary.ids;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import java.util.Iterator;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.ids.MulId;
 import org.hibernate.mapping.Join;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.Iterator;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class MulIdSecondary extends AbstractEntityTest {
+public class MulIdSecondary extends BaseEnversJPAFunctionalTestCase {
     private MulId id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(SecondaryMulIdTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { SecondaryMulIdTestEntity.class };
     }
 
     @Test

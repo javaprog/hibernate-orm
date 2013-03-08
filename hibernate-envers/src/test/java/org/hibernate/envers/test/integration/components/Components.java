@@ -23,28 +23,29 @@
  */
 package org.hibernate.envers.test.integration.components;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase ;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.components.Component1;
 import org.hibernate.envers.test.entities.components.Component2;
 import org.hibernate.envers.test.entities.components.ComponentTestEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class Components extends AbstractEntityTest {
+public class Components extends BaseEnversJPAFunctionalTestCase  {
     private Integer id1;
     private Integer id2;
     private Integer id3;
     private Integer id4;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(ComponentTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { ComponentTestEntity.class };
     }
 
     @Test

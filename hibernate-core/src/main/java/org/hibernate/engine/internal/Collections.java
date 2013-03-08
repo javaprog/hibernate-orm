@@ -25,8 +25,6 @@ package org.hibernate.engine.internal;
 
 import java.io.Serializable;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.AssertionFailure;
 import org.hibernate.HibernateException;
 import org.hibernate.collection.spi.PersistentCollection;
@@ -41,7 +39,7 @@ import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.pretty.MessageHelper;
 import org.hibernate.type.CollectionType;
-import org.hibernate.type.Type;
+import org.jboss.logging.Logger;
 
 /**
  * Implements book-keeping for the collection persistence by reachability algorithm
@@ -74,13 +72,11 @@ public final class Collections {
 		CollectionEntry entry = persistenceContext.getCollectionEntry(coll);
 		final CollectionPersister loadedPersister = entry.getLoadedPersister();
 
-        if (LOG.isDebugEnabled() && loadedPersister != null) {
+		if ( LOG.isDebugEnabled() && loadedPersister != null ) {
 			LOG.debugf(
 					"Collection dereferenced: %s",
-					MessageHelper.collectionInfoString(
-							loadedPersister,
-							entry.getLoadedKey(),
-							session.getFactory()
+					MessageHelper.collectionInfoString( loadedPersister, 
+							coll, entry.getLoadedKey(), session
 					)
 			);
 		}
@@ -134,8 +130,12 @@ public final class Collections {
 		final PersistenceContext persistenceContext = session.getPersistenceContext();
 		CollectionEntry entry = persistenceContext.getCollectionEntry(coll);
 
-        LOG.debugf("Found collection with unloaded owner: %s",
-                   MessageHelper.collectionInfoString(entry.getLoadedPersister(), entry.getLoadedKey(), session.getFactory()));
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "Found collection with unloaded owner: %s",
+					MessageHelper.collectionInfoString( 
+							entry.getLoadedPersister(), coll,
+							entry.getLoadedKey(), session ) );
+		}
 
 		entry.setCurrentPersister( entry.getLoadedPersister() );
 		entry.setCurrentKey( entry.getLoadedKey() );
@@ -188,13 +188,13 @@ public final class Collections {
 
         if (LOG.isDebugEnabled()) {
             if (collection.wasInitialized()) LOG.debugf("Collection found: %s, was: %s (initialized)",
-                                                        MessageHelper.collectionInfoString(persister, ce.getCurrentKey(), factory),
-                                                        MessageHelper.collectionInfoString(ce.getLoadedPersister(),
+                                                        MessageHelper.collectionInfoString(persister, collection, ce.getCurrentKey(), session),
+                                                        MessageHelper.collectionInfoString(ce.getLoadedPersister(), collection, 
                                                                                            ce.getLoadedKey(),
-                                                                                           factory));
+                                                                                           session));
             else LOG.debugf("Collection found: %s, was: %s (uninitialized)",
-                            MessageHelper.collectionInfoString(persister, ce.getCurrentKey(), factory),
-                            MessageHelper.collectionInfoString(ce.getLoadedPersister(), ce.getLoadedKey(), factory));
+                            MessageHelper.collectionInfoString(persister, collection, ce.getCurrentKey(), session),
+                            MessageHelper.collectionInfoString(ce.getLoadedPersister(), collection, ce.getLoadedKey(), session));
         }
 
 		prepareCollectionForUpdate( collection, ce, factory );
@@ -251,7 +251,7 @@ public final class Collections {
 				if ( loadedPersister != null ) {
 					entry.setDoremove( true );		// we will need to remove ye olde entries
 					if ( entry.isDorecreate() ) {
-                        LOG.trace( "Forcing collection initialization" );
+						LOG.trace( "Forcing collection initialization" );
 						collection.forceInitialization();
 					}
 				}

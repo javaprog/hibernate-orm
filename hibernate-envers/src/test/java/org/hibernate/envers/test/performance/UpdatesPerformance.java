@@ -23,23 +23,24 @@
  */
 package org.hibernate.envers.test.performance;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.entities.StrTestEntity;
-import org.junit.Ignore;
-
-import javax.persistence.EntityManager;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import javax.persistence.EntityManager;
+
+import org.junit.Ignore;
+
+import org.hibernate.envers.test.entities.StrTestEntity;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
 @Ignore
 public class UpdatesPerformance extends AbstractPerformanceTest {
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(StrTestEntity.class);
+	@Override
+	protected Class[] getAnnotatedClasses() {
+		return new Class[] { StrTestEntity.class };
     }
 
     private final static int NUMBER_UPDATES = 5000;

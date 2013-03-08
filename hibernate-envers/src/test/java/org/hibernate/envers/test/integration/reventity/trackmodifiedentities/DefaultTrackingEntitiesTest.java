@@ -1,9 +1,15 @@
 package org.hibernate.envers.test.integration.reventity.trackmodifiedentities;
 
-import org.hibernate.ejb.Ejb3Configuration;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
 import org.hibernate.envers.CrossTypeRevisionChangesReader;
 import org.hibernate.envers.RevisionType;
-import org.hibernate.envers.test.AbstractEntityTest;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrIntTestEntity;
 import org.hibernate.envers.test.entities.StrTestEntity;
@@ -11,12 +17,6 @@ import org.hibernate.envers.test.tools.TestTools;
 import org.hibernate.envers.tools.Pair;
 import org.hibernate.mapping.Column;
 import org.hibernate.mapping.Table;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Tests proper behavior of tracking modified entity names when {@code org.hibernate.envers.track_entities_changed_in_revision}
@@ -24,18 +24,22 @@ import java.util.Map;
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 @SuppressWarnings({"unchecked"})
-public class DefaultTrackingEntitiesTest extends AbstractEntityTest {
+public class DefaultTrackingEntitiesTest extends BaseEnversJPAFunctionalTestCase {
     private Integer steId = null;
     private Integer siteId = null;
 
-    @Override
-    public void configure(Ejb3Configuration cfg) {
-        cfg.setProperty("org.hibernate.envers.track_entities_changed_in_revision", "true");
-        cfg.addAnnotatedClass(StrTestEntity.class);
-        cfg.addAnnotatedClass(StrIntTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { StrTestEntity.class, StrIntTestEntity.class };
     }
 
-    @Test
+	@Override
+	public void addConfigOptions(Map configuration) {
+		super.addConfigOptions( configuration );
+		configuration.put("org.hibernate.envers.track_entities_changed_in_revision", "true");
+	}
+
+	@Test
     @Priority(10)
     public void initData() {
         EntityManager em = getEntityManager();

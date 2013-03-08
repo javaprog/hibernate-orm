@@ -30,20 +30,23 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.Properties;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.HibernateException;
-import org.hibernate.engine.spi.SessionImplementor;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.LockMode;
 import org.hibernate.cfg.ObjectNameNormalizer;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.jdbc.internal.FormatStyle;
 import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.engine.jdbc.spi.SqlStatementLogger;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.id.enhanced.SequenceStyleGenerator;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.jdbc.AbstractReturningWork;
 import org.hibernate.mapping.Table;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
 
 /**
  * An <tt>IdentifierGenerator</tt> that uses a database
@@ -69,7 +72,10 @@ import org.jboss.logging.Logger;
  *
  * @see TableHiLoGenerator
  * @author Gavin King
+ * 
+ * @deprecated use {@link SequenceStyleGenerator} instead.
  */
+@Deprecated
 public class TableGenerator implements PersistentIdentifierGenerator, Configurable {
 	/* COLUMN and TABLE should be renamed but it would break the public API */
 	/** The column parameter */
@@ -137,7 +143,7 @@ public class TableGenerator implements PersistentIdentifierGenerator, Configurab
 		return generateHolder( session ).makeValue();
 	}
 
-	protected IntegralDataTypeHolder generateHolder(SessionImplementor session) {
+	protected IntegralDataTypeHolder generateHolder(final SessionImplementor session) {
 		final SqlStatementLogger statementLogger = session
 				.getFactory()
 				.getServiceRegistry()
@@ -175,7 +181,7 @@ public class TableGenerator implements PersistentIdentifierGenerator, Configurab
 							}
 
 							statementLogger.logStatement( update, FormatStyle.BASIC.getFormatter() );
-							PreparedStatement ups = connection.prepareStatement(update);
+							PreparedStatement ups = connection.prepareStatement( update );
 							try {
 								value.copy().increment().bind( ups, 1 );
 								value.bind( ups, 2 );
@@ -205,15 +211,7 @@ public class TableGenerator implements PersistentIdentifierGenerator, Configurab
 	}
 
 	public String[] sqlDropStrings(Dialect dialect) {
-		StringBuffer sqlDropString = new StringBuffer( "drop table " );
-		if ( dialect.supportsIfExistsBeforeTableName() ) {
-			sqlDropString.append( "if exists " );
-		}
-		sqlDropString.append( tableName ).append( dialect.getCascadeConstraintsString() );
-		if ( dialect.supportsIfExistsAfterTableName() ) {
-			sqlDropString.append( " if exists" );
-		}
-		return new String[] { sqlDropString.toString() };
+		return new String[] { dialect.getDropTableString( tableName ) };
 	}
 
 	public Object generatorKey() {

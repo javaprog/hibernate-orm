@@ -22,31 +22,30 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.dialect.function;
+
 import java.util.HashMap;
 import java.util.Map;
+
 import org.hibernate.dialect.Dialect;
 
 public class SQLFunctionRegistry {
 	private final Dialect dialect;
 	private final Map<String, SQLFunction> userFunctions;
-	
+
 	public SQLFunctionRegistry(Dialect dialect, Map<String, SQLFunction> userFunctions) {
 		this.dialect = dialect;
-		this.userFunctions = new HashMap<String, SQLFunction>();
-		this.userFunctions.putAll( userFunctions );
+		this.userFunctions = new HashMap<String, SQLFunction>( userFunctions );
 	}
-	
+
 	public SQLFunction findSQLFunction(String functionName) {
-		// TODO: lower casing done here. Was done "at random" before; maybe not needed at all ?
 		String name = functionName.toLowerCase();
 		SQLFunction userFunction = userFunctions.get( name );
 		return userFunction != null
 				? userFunction
-				: (SQLFunction) dialect.getFunctions().get( name );
+				: dialect.getFunctions().get( name );
 	}
 
 	public boolean hasFunction(String functionName) {
-		// TODO: toLowerCase was not done before. Only used in Template.
 		String name = functionName.toLowerCase();
 		return userFunctions.containsKey( name ) || dialect.getFunctions().containsKey( name );
 	}

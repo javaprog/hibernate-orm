@@ -23,29 +23,31 @@
  */
 package org.hibernate.envers.test.integration.naming;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.mapping.Column;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
 import java.util.Arrays;
 import java.util.Iterator;
+import javax.persistence.EntityManager;
 
-import static junit.framework.Assert.*;
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.mapping.Column;
+
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertFalse;
+import static junit.framework.Assert.assertTrue;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class JoinNaming extends AbstractEntityTest {
+public class JoinNaming extends BaseEnversJPAFunctionalTestCase {
     private Integer ed_id1;
     private Integer ed_id2;
     private Integer ing_id1;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(JoinNamingRefEdEntity.class);
-        cfg.addAnnotatedClass(JoinNamingRefIngEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { JoinNamingRefEdEntity.class, JoinNamingRefIngEntity.class };
     }
 
     @Test

@@ -28,10 +28,12 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
+import org.hibernate.CustomEntityDirtinessStrategy;
 import org.hibernate.EntityMode;
 import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
-import org.hibernate.bytecode.instrumentation.internal.FieldInterceptionHelper;
+import org.hibernate.Session;
+import org.hibernate.bytecode.instrumentation.spi.FieldInterceptor;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.persister.entity.UniqueKeyLoadable;
 import org.hibernate.pretty.MessageHelper;
@@ -58,6 +60,7 @@ public final class EntityEntry implements Serializable {
 	private boolean isBeingReplicated;
 	private boolean loadedWithLazyPropertiesUnfetched; //NOTE: this is not updated when properties are fetched lazily!
 	private final transient Object rowId;
+	private final transient PersistenceContext persistenceContext;
 
 	public EntityEntry(
 			final Status status,
@@ -71,11 +74,14 @@ public final class EntityEntry implements Serializable {
 			final EntityMode entityMode,
 			final String tenantId,
 			final boolean disableVersionIncrement,
-			final boolean lazyPropertiesAreUnfetched) {
-		this.status=status;
+			final boolean lazyPropertiesAreUnfetched,
+			final PersistenceContext persistenceContext) {
+		this.status = status;
 		this.previousStatus = null;
 		// only retain loaded state if the status is not Status.READ_ONLY
-		if ( status != Status.READ_ONLY ) { this.loadedState = loadedState; }
+		if ( status != Status.READ_ONLY ) {
+			this.loadedState = loadedState;
+		}
 		this.id=id;
 		this.rowId=rowId;
 		this.existsInDatabase=existsInDatabase;
@@ -87,8 +93,13 @@ public final class EntityEntry implements Serializable {
 		this.entityMode = entityMode;
 		this.tenantId = tenantId;
 		this.entityName = persister == null ? null : persister.getEntityName();
+		this.persistenceContext = persistenceContext;
 	}
 
+	/**
+	 * This for is used during custom deserialization handling
+	 */
+	@SuppressWarnings( {"JavaDoc"})
 	private EntityEntry(
 			final SessionFactoryImplementor factory,
 			final String entityName,
@@ -103,8 +114,8 @@ public final class EntityEntry implements Serializable {
 			final LockMode lockMode,
 			final boolean existsInDatabase,
 			final boolean isBeingReplicated,
-			final boolean loadedWithLazyPropertiesUnfetched) {
-		// Used during custom deserialization
+			final boolean loadedWithLazyPropertiesUnfetched,
+			final PersistenceContext persistenceContext) {
 		this.entityName = entityName;
 		this.persister = ( factory == null ? null : factory.getEntityPersister( entityName ) );
 		this.id = id;
@@ -120,6 +131,7 @@ public final class EntityEntry implements Serializable {
 		this.isBeingReplicated = isBeingReplicated;
 		this.loadedWithLazyPropertiesUnfetched = loadedWithLazyPropertiesUnfetched;
 		this.rowId = null; // this is equivalent to the old behavior...
+		this.persistenceContext = persistenceContext;
 	}
 
 	public LockMode getLockMode() {
@@ -211,14 +223,23 @@ public final class EntityEntry implements Serializable {
 	 */
 	public void postUpdate(Object entity, Object[] updatedState, Object nextVersion) {
 		this.loadedState = updatedState;
-		setLockMode(LockMode.WRITE);
+		setLockMode( LockMode.WRITE );
 
 		if ( getPersister().isVersioned() ) {
 			this.version = nextVersion;
 			getPersister().setPropertyValue( entity, getPersister().getVersionProperty(), nextVersion );
 		}
 
-		FieldInterceptionHelper.clearDirty( entity );
+		if ( getPersister().getInstrumentationMetadata().isInstrumented() ) {
+			final FieldInterceptor interceptor = getPersister().getInstrumentationMetadata().extractInterceptor( entity );
+			if ( interceptor != null ) {
+				interceptor.clearDirty();
+			}
+		}
+		persistenceContext.getSession()
+				.getFactory()
+				.getCustomEntityDirtinessStrategy()
+				.resetDirty( entity, getPersister(), (Session) persistenceContext.getSession() );
 	}
 
 	/**
@@ -235,7 +256,7 @@ public final class EntityEntry implements Serializable {
 	 * After actually inserting a row, record the fact that the instance exists on the 
 	 * database (needed for identity-column key generation)
 	 */
-	public void postInsert() {
+	public void postInsert(Object[] insertedState) {
 		existsInDatabase = true;
 	}
 	
@@ -249,16 +270,51 @@ public final class EntityEntry implements Serializable {
 	}
 	
 	public Object getLoadedValue(String propertyName) {
-		int propertyIndex = ( (UniqueKeyLoadable) persister ).getPropertyIndex(propertyName);
-		return loadedState[propertyIndex];
+		if ( loadedState == null ) {
+			return null;
+		}
+		else {
+			int propertyIndex = ( (UniqueKeyLoadable) persister )
+					.getPropertyIndex( propertyName );
+			return loadedState[propertyIndex];
+		}
 	}
 
-	public boolean requiresDirtyCheck(Object entity) {		
-		return isModifiableEntity() && (
-				getPersister().hasMutableProperties() ||
-				!FieldInterceptionHelper.isInstrumented( entity ) ||
-				FieldInterceptionHelper.extractFieldInterceptor( entity).isDirty()
-			);
+	/**
+	 * Not sure this is the best method name, but the general idea here is to return {@code true} if the entity can
+	 * possibly be dirty.  This can only be the case if it is in a modifiable state (not read-only/deleted) and it
+	 * either has mutable properties or field-interception is not telling us it is dirty.  Clear as mud? :/
+	 *
+	 * A name like canPossiblyBeDirty might be better
+	 *
+	 * @param entity The entity to test
+	 *
+	 * @return {@code true} indicates that the entity could possibly be dirty and that dirty check
+	 * should happen; {@code false} indicates there is no way the entity can be dirty
+	 */
+	public boolean requiresDirtyCheck(Object entity) {
+		return isModifiableEntity()
+				&& ( ! isUnequivocallyNonDirty( entity ) );
+	}
+
+	@SuppressWarnings( {"SimplifiableIfStatement"})
+	private boolean isUnequivocallyNonDirty(Object entity) {
+		final CustomEntityDirtinessStrategy customEntityDirtinessStrategy =
+				persistenceContext.getSession().getFactory().getCustomEntityDirtinessStrategy();
+		if ( customEntityDirtinessStrategy.canDirtyCheck( entity, getPersister(), (Session) persistenceContext.getSession() ) ) {
+			return ! customEntityDirtinessStrategy.isDirty( entity, getPersister(), (Session) persistenceContext.getSession() );
+		}
+		
+		if ( getPersister().hasMutableProperties() ) {
+			return false;
+		}
+		
+		if ( getPersister().getInstrumentationMetadata().isInstrumented() ) {
+			// the entity must be instrumented (otherwise we cant check dirty flag) and the dirty flag is false
+			return ! getPersister().getInstrumentationMetadata().extractInterceptor( entity ).isDirty();
+		}
+		
+		return false;
 	}
 
 	/**
@@ -273,9 +329,9 @@ public final class EntityEntry implements Serializable {
 	 * @return true, if the entity is modifiable; false, otherwise,
 	 */
 	public boolean isModifiableEntity() {
-		return ( status != Status.READ_ONLY ) &&
-				! ( status == Status.DELETED && previousStatus == Status.READ_ONLY ) &&
-				getPersister().isMutable();
+		return getPersister().isMutable()
+				&& status != Status.READ_ONLY
+				&& ! ( status == Status.DELETED && previousStatus == Status.READ_ONLY );
 	}
 
 	public void forceLocked(Object entity, Object nextVersion) {
@@ -308,6 +364,13 @@ public final class EntityEntry implements Serializable {
 			}
 			setStatus( Status.MANAGED );
 			loadedState = getPersister().getPropertyValues( entity );
+			persistenceContext.getNaturalIdHelper().manageLocalNaturalIdCrossReference(
+					persister,
+					id,
+					loadedState,
+					null,
+					CachedNaturalIdValueSource.LOAD
+			);
 		}
 	}
 	
@@ -351,7 +414,7 @@ public final class EntityEntry implements Serializable {
 	 * Session/PersistenceContext for increased performance.
 	 *
 	 * @param ois The stream from which to read the entry.
-	 * @param session The session being deserialized.
+	 * @param persistenceContext The context being deserialized.
 	 *
 	 * @return The deserialized EntityEntry
 	 *
@@ -361,10 +424,11 @@ public final class EntityEntry implements Serializable {
 	 */
 	public static EntityEntry deserialize(
 			ObjectInputStream ois,
-	        SessionImplementor session) throws IOException, ClassNotFoundException {
-		String previousStatusString = null;
+	        PersistenceContext persistenceContext) throws IOException, ClassNotFoundException {
+		String previousStatusString;
 		return new EntityEntry(
-				( session == null ? null : session.getFactory() ),
+				// this complexity comes from non-flushed changes, should really look at how that reattaches entries
+				( persistenceContext.getSession() == null ? null : persistenceContext.getSession().getFactory() ),
 		        (String) ois.readObject(),
 				( Serializable ) ois.readObject(),
 	            EntityMode.parse( (String) ois.readObject() ),
@@ -380,7 +444,8 @@ public final class EntityEntry implements Serializable {
 	            LockMode.valueOf( (String) ois.readObject() ),
 	            ois.readBoolean(),
 	            ois.readBoolean(),
-	            ois.readBoolean()
+	            ois.readBoolean(),
+				persistenceContext
 		);
 	}
 }

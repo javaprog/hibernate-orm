@@ -26,11 +26,12 @@ import java.io.Serializable;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+
+import org.jboss.logging.Logger;
+
 import org.hibernate.HibernateException;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.CoreMessageLogger;
-
-import org.jboss.logging.Logger;
 
 /**
  * Generates <tt>string</tt> values using the SQL Server NEWID() function.
@@ -56,20 +57,20 @@ public class GUIDGenerator implements IdentifierGenerator {
 		try {
 			PreparedStatement st = session.getTransactionCoordinator().getJdbcCoordinator().getStatementPreparer().prepareStatement( sql );
 			try {
-				ResultSet rs = st.executeQuery();
+				ResultSet rs = session.getTransactionCoordinator().getJdbcCoordinator().getResultSetReturn().extract( st );
 				final String result;
 				try {
 					rs.next();
 					result = rs.getString(1);
 				}
 				finally {
-					rs.close();
+					session.getTransactionCoordinator().getJdbcCoordinator().release( rs );
 				}
                 LOG.guidGenerated(result);
 				return result;
 			}
 			finally {
-				st.close();
+				session.getTransactionCoordinator().getJdbcCoordinator().release( st );
 			}
 		}
 		catch (SQLException sqle) {

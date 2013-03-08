@@ -23,38 +23,33 @@
  */
 package org.hibernate.envers.entities.mapper.relation;
 
-import org.hibernate.collection.spi.PersistentCollection;
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.envers.configuration.AuditConfiguration;
-import org.hibernate.envers.entities.EntityConfiguration;
 import org.hibernate.envers.entities.PropertyData;
-import org.hibernate.envers.entities.mapper.PersistentCollectionChangeData;
-import org.hibernate.envers.entities.mapper.PropertyMapper;
 import org.hibernate.envers.entities.mapper.id.IdMapper;
 import org.hibernate.envers.entities.mapper.relation.lazy.ToOneDelegateSessionImplementor;
 import org.hibernate.envers.reader.AuditReaderImplementor;
 import org.hibernate.envers.tools.Tools;
-import org.hibernate.envers.tools.reflection.ReflectionTools;
-import org.hibernate.property.Setter;
-
-import java.io.Serializable;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import org.hibernate.envers.tools.query.Parameters;
+import org.hibernate.persister.entity.EntityPersister;
 
 /**
  * @author Adam Warski (adam at warski dot org)
- * @author Hern�n Chanfreau
+ * @author HernпїЅn Chanfreau
+ * @author Michal Skowronek (mskowr at o2 dot pl)
  */
-public class ToOneIdMapper implements PropertyMapper {
+public class ToOneIdMapper extends AbstractToOneMapper {
     private final IdMapper delegate;
-    private final PropertyData propertyData;
     private final String referencedEntityName;
     private final boolean nonInsertableFake;
 
     public ToOneIdMapper(IdMapper delegate, PropertyData propertyData, String referencedEntityName, boolean nonInsertableFake) {
+        super(propertyData);
         this.delegate = delegate;
-        this.propertyData = propertyData;
         this.referencedEntityName = referencedEntityName;
         this.nonInsertableFake = nonInsertableFake;
     }
@@ -71,46 +66,48 @@ public class ToOneIdMapper implements PropertyMapper {
 			data.put(entry.getKey(), entry.getValue());
 		}
 
+        return checkModified(session, newObj, oldObj);
+    }
+
+    @Override
+    public void mapModifiedFlagsToMapFromEntity(SessionImplementor session, Map<String, Object> data, Object newObj, Object oldObj) {
+        if (getPropertyData().isUsingModifiedFlag()) {
+            data.put(getPropertyData().getModifiedFlagPropertyName(), checkModified(session, newObj, oldObj));
+        }
+    }
+
+    @Override
+    public void mapModifiedFlagsToMapForCollectionChange(String collectionPropertyName, Map<String, Object> data) {
+        if (getPropertyData().isUsingModifiedFlag()) {
+            data.put(getPropertyData().getModifiedFlagPropertyName(), collectionPropertyName.equals(getPropertyData().getName()));
+        }
+    }
+
+    protected boolean checkModified(SessionImplementor session, Object newObj, Object oldObj) {
         //noinspection SimplifiableConditionalExpression
         return nonInsertableFake ? false : !Tools.entitiesEqual(session, referencedEntityName, newObj, oldObj);
     }
 
-    public void mapToEntityFromMap(AuditConfiguration verCfg, Object obj, Map data, Object primaryKey,
-                                   AuditReaderImplementor versionsReader, Number revision) {
-        if (obj == null) {
-            return;
-        }
-
-		Object entityId;
-		entityId = delegate.mapToIdFromMap(data);
-        Object value;
-        if (entityId == null) {
-            value = null;
-        } else {
+    public void nullSafeMapToEntityFromMap(AuditConfiguration verCfg, Object obj, Map data, Object primaryKey,
+                                           AuditReaderImplementor versionsReader, Number revision) {
+        Object entityId = delegate.mapToIdFromMap(data);
+        Object value = null;
+        if (entityId != null) {
             if (versionsReader.getFirstLevelCache().contains(referencedEntityName, revision, entityId)) {
                 value = versionsReader.getFirstLevelCache().get(referencedEntityName, revision, entityId);
             } else {
-            	EntityConfiguration entCfg = verCfg.getEntCfg().get(referencedEntityName);
-            	if(entCfg == null) {
-            		// a relation marked as RelationTargetAuditMode.NOT_AUDITED
-            		entCfg = verCfg.getEntCfg().getNotVersionEntityConfiguration(referencedEntityName);
-            	}
-
-                Class<?> entityClass = ReflectionTools.loadClass(entCfg.getEntityClassName());
-
-                value = versionsReader.getSessionImplementor().getFactory().getEntityPersister(referencedEntityName).
-                        createProxy((Serializable)entityId, new ToOneDelegateSessionImplementor(versionsReader, entityClass, entityId, revision, verCfg));
+                EntityInfo referencedEntity = getEntityInfo(verCfg, referencedEntityName);
+                value = ToOneEntityLoader.createProxyOrLoadImmediate(
+                        versionsReader, referencedEntity.getEntityClass(), referencedEntityName,
+                        entityId, revision, verCfg
+                );
             }
         }
 
-        Setter setter = ReflectionTools.getSetter(obj.getClass(), propertyData);
-        setter.set(obj, value, null);
+        setPropertyValue(obj, value);
     }
 
-    public List<PersistentCollectionChangeData> mapCollectionChanges(String referencingPropertyName,
-                                                                     PersistentCollection newColl,
-                                                                     Serializable oldColl,
-                                                                     Serializable id) {
-        return null;
-    }
+	public void addMiddleEqualToQuery(Parameters parameters, String idPrefix1, String prefix1, String idPrefix2, String prefix2) {
+		delegate.addIdsEqualToQuery( parameters, prefix1, delegate, prefix2 );
+	}
 }

@@ -1,8 +1,12 @@
-apply plugin: 'java'
-
 dependencies {
-    compile( project( ':hibernate-core' ) )
-    compile( [group: 'proxool', name: 'proxool', version: '0.8.3'] )
-    testCompile( project(':hibernate-testing') )
-    testRuntime( libraries.h2 )
+    compile project( ':hibernate-core' )
+    compile( libraries.proxool )
+    testCompile project( ':hibernate-testing' )
+}
+
+jar {
+    manifest {
+        instruction 'Bundle-Description', 'Hibernate ORM Proxool'
+        instruction 'Bundle-SymbolicName', 'org.hibernate.proxool'
+    }
 }

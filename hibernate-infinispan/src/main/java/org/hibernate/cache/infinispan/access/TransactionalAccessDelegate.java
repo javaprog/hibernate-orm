@@ -22,17 +22,19 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.cache.infinispan.access;
+
 import javax.transaction.Transaction;
+
+import org.hibernate.cache.infinispan.util.Caches;
+import org.infinispan.AdvancedCache;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
+
 import org.hibernate.cache.CacheException;
+import org.hibernate.cache.infinispan.impl.BaseRegion;
 import org.hibernate.cache.spi.access.CollectionRegionAccessStrategy;
 import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
 import org.hibernate.cache.spi.access.SoftLock;
-import org.hibernate.cache.infinispan.impl.BaseRegion;
-import org.hibernate.cache.infinispan.util.CacheAdapter;
-import org.hibernate.cache.infinispan.util.CacheHelper;
-import org.hibernate.cache.infinispan.util.FlagAdapter;
-import org.infinispan.util.logging.Log;
-import org.infinispan.util.logging.LogFactory;
 
 /**
  * Defines the strategy for transactional access to entity or collection data in a Infinispan instance.
@@ -46,47 +48,59 @@ import org.infinispan.util.logging.LogFactory;
  */
 public class TransactionalAccessDelegate {
    private static final Log log = LogFactory.getLog(TransactionalAccessDelegate.class);
-   protected final CacheAdapter cacheAdapter;
-   protected final BaseRegion region;
-   protected final PutFromLoadValidator putValidator;
+   private static final boolean isTrace = log.isTraceEnabled();
+   private final AdvancedCache cache;
+   private final BaseRegion region;
+   private final PutFromLoadValidator putValidator;
+   private final AdvancedCache<Object, Object> writeCache;
 
    public TransactionalAccessDelegate(BaseRegion region, PutFromLoadValidator validator) {
       this.region = region;
-      this.cacheAdapter = region.getCacheAdapter();
+      this.cache = region.getCache();
       this.putValidator = validator;
+      this.writeCache = Caches.ignoreReturnValuesCache(cache);
    }
 
    public Object get(Object key, long txTimestamp) throws CacheException {
       if (!region.checkValid()) 
          return null;
-      Object val = cacheAdapter.get(key);
+      Object val = cache.get(key);
       if (val == null)
          putValidator.registerPendingPut(key);
       return val;
    }
 
-   public boolean putFromLoad(Object key, Object value, long txTimestamp, Object version) throws CacheException {
-      if (!region.checkValid())
+   public boolean putFromLoad(Object key, Object value, long txTimestamp, Object version) {
+      return putFromLoad(key, value, txTimestamp, version, false);
+   }
+
+   public boolean putFromLoad(Object key, Object value, long txTimestamp, Object version, boolean minimalPutOverride)
+            throws CacheException {
+      if (!region.checkValid()) {
+         if (isTrace) log.tracef("Region %s not valid", region.getName());
+         return false;
+      }
+
+      // In theory, since putForExternalRead is already as minimal as it can
+      // get, we shouldn't be need this check. However, without the check and
+      // without https://issues.jboss.org/browse/ISPN-1986, it's impossible to
+      // know whether the put actually occurred. Knowing this is crucial so
+      // that Hibernate can expose accurate statistics.
+      if (minimalPutOverride && cache.containsKey(key))
          return false;
 
-      if (!putValidator.acquirePutFromLoadLock(key))
+      if (!putValidator.acquirePutFromLoadLock(key)) {
+         if (isTrace) log.tracef("Put from load lock not acquired for key %s", key);
          return false;
+      }
 
       try {
-         cacheAdapter.putForExternalRead(key, value);
+         writeCache.putForExternalRead(key, value);
       } finally {
          putValidator.releasePutFromLoadLock(key);
       }
 
       return true;
-   }
-
-   public boolean putFromLoad(Object key, Object value, long txTimestamp, Object version, boolean minimalPutOverride)
-            throws CacheException {
-      // We ignore minimalPutOverride. Infinispan putForExternalRead is
-      // already about as minimal as we can get; it will promptly return
-      // if it discovers that the node we want to write to already exists
-      return putFromLoad(key, value, txTimestamp, version);
    }
 
    public SoftLock lockItem(Object key, Object version) throws CacheException {
@@ -107,11 +121,7 @@ public class TransactionalAccessDelegate {
       if (!region.checkValid())
          return false;
 
-      if (cacheAdapter.isClusteredInvalidation())
-         cacheAdapter.withFlags(FlagAdapter.CACHE_MODE_LOCAL).put(key, value);
-      else
-         cacheAdapter.put(key, value);
-
+      writeCache.put(key, value);
       return true;
    }
 
@@ -123,7 +133,7 @@ public class TransactionalAccessDelegate {
       // We update whether or not the region is valid. Other nodes
       // may have already restored the region so they need to
       // be informed of the change.
-      cacheAdapter.put(key, value);
+      writeCache.put(key, value);
       return true;
    }
 
@@ -139,21 +149,21 @@ public class TransactionalAccessDelegate {
       // We update whether or not the region is valid. Other nodes
       // may have already restored the region so they need to
       // be informed of the change.
-      cacheAdapter.remove(key);
+      writeCache.remove(key);
    }
 
    public void removeAll() throws CacheException {
        if (!putValidator.invalidateRegion()) {
          throw new CacheException("Failed to invalidate pending putFromLoad calls for region " + region.getName());
        }
-      cacheAdapter.clear();
+      cache.clear();
    }
 
    public void evict(Object key) throws CacheException {
       if (!putValidator.invalidateKey(key)) {
          throw new CacheException("Failed to invalidate pending putFromLoad calls for key " + key + " from region " + region.getName());
-      }      
-      cacheAdapter.remove(key);
+      }
+      writeCache.remove(key);
    }
 
    public void evictAll() throws CacheException {
@@ -162,9 +172,11 @@ public class TransactionalAccessDelegate {
       }
       Transaction tx = region.suspend();
       try {
-         CacheHelper.sendEvictAllNotification(cacheAdapter, region.getAddress());
+         region.invalidateRegion(); // Invalidate the local region and then go remote
+         Caches.broadcastEvictAll(cache);
       } finally {
          region.resume(tx);
       }
    }
+
 }

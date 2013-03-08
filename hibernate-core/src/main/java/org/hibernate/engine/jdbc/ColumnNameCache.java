@@ -24,8 +24,8 @@
 package org.hibernate.engine.jdbc;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Cache of column-name -> column-index resolutions
@@ -43,9 +43,9 @@ public class ColumnNameCache {
 	}
 
 	public int getIndexForColumnName(String columnName, ResultSet rs) throws SQLException {
-		Integer cached = ( Integer ) columnNameToIndexCache.get( columnName );
+		Integer cached = columnNameToIndexCache.get( columnName );
 		if ( cached != null ) {
-			return cached.intValue();
+			return cached;
 		}
 		else {
 			int index = rs.findColumn( columnName );

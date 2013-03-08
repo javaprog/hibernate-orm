@@ -23,24 +23,25 @@
  */
 package org.hibernate.envers.test.integration.customtype;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.customtype.Component;
 import org.hibernate.envers.test.entities.customtype.CompositeCustomTypeEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class CompositeCustom extends AbstractEntityTest {
+public class CompositeCustom extends BaseEnversJPAFunctionalTestCase {
     private Integer ccte_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(CompositeCustomTypeEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { CompositeCustomTypeEntity.class };
     }
 
     @Test

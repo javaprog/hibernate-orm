@@ -25,17 +25,15 @@ package org.hibernate.test.cache.infinispan.functional.cluster;
 
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
+import org.junit.After;
+import org.junit.Before;
 
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.transaction.internal.jta.CMTTransactionFactory;
-import org.hibernate.service.internal.StandardServiceRegistryImpl;
-
-import org.junit.After;
-import org.junit.Before;
-
+import org.hibernate.boot.registry.internal.StandardServiceRegistryImpl;
 import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
 
 /**
@@ -155,7 +153,7 @@ public abstract class DualNodeTestCase extends BaseCoreFunctionalTestCase {
 			configuration.buildMappings();
 			applyCacheSettings( configuration );
 			afterConfigurationBuilt( configuration );
-			serviceRegistry = buildServiceRegistry( configuration );
+			serviceRegistry = buildServiceRegistry( buildBootstrapServiceRegistry(), configuration );
 			sessionFactory = (SessionFactoryImplementor) configuration.buildSessionFactory( serviceRegistry );
 		}
 

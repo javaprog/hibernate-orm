@@ -32,18 +32,20 @@ import org.jboss.logging.Logger;
 
 import org.hibernate.EntityMode;
 import org.hibernate.HibernateException;
-import org.hibernate.engine.spi.SessionImplementor;
-import org.hibernate.event.spi.PersistEvent;
-import org.hibernate.event.spi.PersistEventListener;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.MappingException;
 import org.hibernate.bytecode.instrumentation.spi.LazyPropertyInitializer;
 import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.EntityKey;
+import org.hibernate.engine.spi.PersistenceContext;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.event.service.spi.EventListenerRegistry;
 import org.hibernate.event.spi.EventSource;
 import org.hibernate.event.spi.EventType;
+import org.hibernate.event.spi.PersistEvent;
+import org.hibernate.event.spi.PersistEventListener;
 import org.hibernate.id.Assigned;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.mapping.Component;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.mapping.Property;
@@ -53,7 +55,6 @@ import org.hibernate.property.Getter;
 import org.hibernate.property.Setter;
 import org.hibernate.proxy.HibernateProxy;
 import org.hibernate.proxy.ProxyFactory;
-import org.hibernate.event.service.spi.EventListenerRegistry;
 import org.hibernate.tuple.Instantiator;
 import org.hibernate.tuple.StandardProperty;
 import org.hibernate.tuple.VersionProperty;
@@ -327,6 +328,9 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		if ( entityMetamodel.getIdentifierProperty().isEmbedded() ) {
 			id = entity;
 		}
+		else if ( HibernateProxy.class.isInstance( entity ) ) {
+			id = ( (HibernateProxy) entity ).getHibernateLazyInitializer().getIdentifier();
+		}
 		else {
 			if ( idGetter == null ) {
 				if (identifierMapperType==null) {
@@ -345,7 +349,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 			return (Serializable) id;
 		}
 		catch ( ClassCastException cce ) {
-			StringBuffer msg = new StringBuffer( "Identifier classes must be serializable. " );
+			StringBuilder msg = new StringBuilder( "Identifier classes must be serializable. " );
 			if ( id != null ) {
 				msg.append( id.getClass().getName() ).append( " is not serializable. " );
 			}
@@ -416,8 +420,8 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		}
 
 		return wereAllEquivalent
-				? (MappedIdentifierValueMarshaller) new NormalMappedIdentifierValueMarshaller( virtualIdComponent, mappedIdClassComponentType )
-				: (MappedIdentifierValueMarshaller) new IncrediblySillyJpaMapsIdMappedIdentifierValueMarshaller( virtualIdComponent, mappedIdClassComponentType );
+				? new NormalMappedIdentifierValueMarshaller( virtualIdComponent, mappedIdClassComponentType )
+				: new IncrediblySillyJpaMapsIdMappedIdentifierValueMarshaller( virtualIdComponent, mappedIdClassComponentType );
 	}
 
 	private static class NormalMappedIdentifierValueMarshaller implements MappedIdentifierValueMarshaller {
@@ -459,6 +463,8 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 			final Object[] propertyValues = virtualIdComponent.getPropertyValues( entity, entityMode );
 			final Type[] subTypes = virtualIdComponent.getSubtypes();
 			final Type[] copierSubTypes = mappedIdentifierType.getSubtypes();
+			final Iterable<PersistEventListener> persistEventListeners = persistEventListeners( session );
+			final PersistenceContext persistenceContext = session.getPersistenceContext();
 			final int length = subTypes.length;
 			for ( int i = 0 ; i < length; i++ ) {
 				if ( propertyValues[i] == null ) {
@@ -482,12 +488,12 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 							subId = pcEntry.getId();
 						}
 						else {
-                            LOG.debugf( "Performing implicit derived identity cascade" );
+							LOG.debug( "Performing implicit derived identity cascade" );
 							final PersistEvent event = new PersistEvent( null, propertyValues[i], (EventSource) session );
-							for ( PersistEventListener listener : persistEventListeners( session ) ) {
+							for ( PersistEventListener listener : persistEventListeners ) {
 								listener.onPersist( event );
 							}
-							pcEntry = session.getPersistenceContext().getEntry( propertyValues[i] );
+							pcEntry = persistenceContext.getEntry( propertyValues[i] );
 							if ( pcEntry == null || pcEntry.getId() == null ) {
 								throw new HibernateException( "Unable to process implicit derived identity cascade" );
 							}
@@ -506,6 +512,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		public void setIdentifier(Object entity, Serializable id, EntityMode entityMode, SessionImplementor session) {
 			final Object[] extractedValues = mappedIdentifierType.getPropertyValues( id, entityMode );
 			final Object[] injectionValues = new Object[ extractedValues.length ];
+			final PersistenceContext persistenceContext = session.getPersistenceContext();
 			for ( int i = 0; i < virtualIdComponent.getSubtypes().length; i++ ) {
 				final Type virtualPropertyType = virtualIdComponent.getSubtypes()[i];
 				final Type idClassPropertyType = mappedIdentifierType.getSubtypes()[i];
@@ -521,10 +528,10 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 							session.getFactory().getEntityPersister( associatedEntityName )
 					);
 					// it is conceivable there is a proxy, so check that first
-					Object association = session.getPersistenceContext().getProxy( entityKey );
+					Object association = persistenceContext.getProxy( entityKey );
 					if ( association == null ) {
 						// otherwise look for an initialized version
-						association = session.getPersistenceContext().getEntity( entityKey );
+						association = persistenceContext.getEntity( entityKey );
 					}
 					injectionValues[i] = association;
 				}
@@ -638,13 +645,13 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 				: propertyPath;
 		}
 		index = entityMetamodel.getPropertyIndexOrNull( basePropertyName );
-		final Object baseValue = getPropertyValue( entity, index.intValue() );
+		final Object baseValue = getPropertyValue( entity, index );
 		if ( loc > 0 ) {
 			if ( baseValue == null ) {
 				return null;
 			}
 			return getComponentValue(
-					(ComponentType) entityMetamodel.getPropertyTypes()[index.intValue()],
+					(ComponentType) entityMetamodel.getPropertyTypes()[index],
 					baseValue,
 					propertyPath.substring(loc+1)
 			);

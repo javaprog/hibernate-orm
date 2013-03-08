@@ -23,28 +23,28 @@
  */
 package org.hibernate.envers.test.integration.components.relations;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase ;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
 import org.hibernate.envers.test.entities.components.relations.OneToManyComponent;
 import org.hibernate.envers.test.entities.components.relations.OneToManyComponentTestEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class OneToManyInComponent extends AbstractEntityTest {
+public class OneToManyInComponent extends BaseEnversJPAFunctionalTestCase  {
     private Integer otmcte_id1;
 	private Integer ste_id1;
 	private Integer ste_id2;
 
-	public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(OneToManyComponentTestEntity.class);
-		cfg.addAnnotatedClass(StrTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { OneToManyComponentTestEntity.class, StrTestEntity.class };
     }
 
     @Test

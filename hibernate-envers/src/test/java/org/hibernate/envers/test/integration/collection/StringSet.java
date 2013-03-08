@@ -23,26 +23,27 @@
  */
 package org.hibernate.envers.test.integration.collection;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import java.util.Collections;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.collection.StringSetEntity;
 import org.hibernate.envers.test.tools.TestTools;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.Collections;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class StringSet extends AbstractEntityTest {
+public class StringSet extends BaseEnversJPAFunctionalTestCase {
     private Integer sse1_id;
     private Integer sse2_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(StringSetEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { StringSetEntity.class };
     }
 
     @Test

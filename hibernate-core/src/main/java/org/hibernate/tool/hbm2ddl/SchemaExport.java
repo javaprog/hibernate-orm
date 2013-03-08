@@ -42,8 +42,8 @@ import java.util.Properties;
 import org.jboss.logging.Logger;
 
 import org.hibernate.HibernateException;
+import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.cfg.AvailableSettings;
-import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
 import org.hibernate.cfg.NamingStrategy;
@@ -53,15 +53,16 @@ import org.hibernate.engine.jdbc.internal.Formatter;
 import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.engine.jdbc.spi.SqlExceptionHelper;
 import org.hibernate.engine.jdbc.spi.SqlStatementLogger;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ConfigHelper;
 import org.hibernate.internal.util.ReflectHelper;
+import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.metamodel.source.MetadataImplementor;
 import org.hibernate.service.ServiceRegistry;
-import org.hibernate.service.ServiceRegistryBuilder;
-import org.hibernate.service.config.spi.ConfigurationService;
-import org.hibernate.service.internal.StandardServiceRegistryImpl;
-import org.hibernate.service.jdbc.connections.spi.ConnectionProvider;
+import org.hibernate.engine.config.spi.ConfigurationService;
+import org.hibernate.boot.registry.internal.StandardServiceRegistryImpl;
+import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
 
 /**
  * Commandline tool to export table schema to the database. This class may also be called from inside an application.
@@ -99,6 +100,7 @@ public class SchemaExport {
 	private final List<Exception> exceptions = new ArrayList<Exception>();
 
 	private Formatter formatter;
+	private ImportSqlCommandExtractor importSqlCommandExtractor = ImportSqlCommandExtractorInitiator.DEFAULT_EXTRACTOR;
 
 	private String outputFile = null;
 	private String delimiter;
@@ -113,7 +115,7 @@ public class SchemaExport {
 		this.sqlExceptionHelper = serviceRegistry.getService( JdbcServices.class ).getSqlExceptionHelper();
 
 		this.importFiles = ConfigurationHelper.getString(
-				Environment.HBM2DDL_IMPORT_FILES,
+				AvailableSettings.HBM2DDL_IMPORT_FILES,
 				configuration.getProperties(),
 				DEFAULT_IMPORT_FILE
 		);
@@ -178,7 +180,7 @@ public class SchemaExport {
 		this.sqlExceptionHelper = new SqlExceptionHelper();
 
 		this.importFiles = ConfigurationHelper.getString(
-				Environment.HBM2DDL_IMPORT_FILES,
+				AvailableSettings.HBM2DDL_IMPORT_FILES,
 				properties,
 				DEFAULT_IMPORT_FILE
 		);
@@ -202,7 +204,7 @@ public class SchemaExport {
 		this.sqlExceptionHelper = new SqlExceptionHelper();
 
 		this.importFiles = ConfigurationHelper.getString(
-				Environment.HBM2DDL_IMPORT_FILES,
+				AvailableSettings.HBM2DDL_IMPORT_FILES,
 				configuration.getProperties(),
 				DEFAULT_IMPORT_FILE
 		);
@@ -255,6 +257,17 @@ public class SchemaExport {
 	 */
 	public SchemaExport setFormat(boolean format) {
 		this.formatter = ( format ? FormatStyle.DDL : FormatStyle.NONE ).getFormatter();
+		return this;
+	}
+
+	/**
+	 * Set <i>import.sql</i> command extractor. By default {@link SingleLineSqlCommandExtractor} is used.
+	 *
+	 * @param importSqlCommandExtractor <i>import.sql</i> command extractor.
+	 * @return this
+	 */
+	public SchemaExport setImportSqlCommandExtractor(ImportSqlCommandExtractor importSqlCommandExtractor) {
+		this.importSqlCommandExtractor = importSqlCommandExtractor;
 		return this;
 	}
 
@@ -322,7 +335,7 @@ public class SchemaExport {
 	}
 
 	public void execute(Target output, Type type) {
-		if ( output == Target.NONE || type == SchemaExport.Type.NONE ) {
+		if ( (outputFile == null && output == Target.NONE) || type == SchemaExport.Type.NONE ) {
 			return;
 		}
 		exceptions.clear();
@@ -418,29 +431,27 @@ public class SchemaExport {
 
 	private void importScript(NamedReader namedReader, List<Exporter> exporters) throws Exception {
 		BufferedReader reader = new BufferedReader( namedReader.getReader() );
-		long lineNo = 0;
-		for ( String sql = reader.readLine(); sql != null; sql = reader.readLine() ) {
-			try {
-				lineNo++;
-				String trimmedSql = sql.trim();
-				if ( trimmedSql.length() == 0 ||
-						trimmedSql.startsWith( "--" ) ||
-						trimmedSql.startsWith( "//" ) ||
-						trimmedSql.startsWith( "/*" ) ) {
-					continue;
-				}
-                if ( trimmedSql.endsWith(";") ) {
-					trimmedSql = trimmedSql.substring(0, trimmedSql.length() - 1);
-				}
-                LOG.debugf( trimmedSql );
-				for ( Exporter exporter: exporters ) {
-					if ( exporter.acceptsImportScripts() ) {
-						exporter.export( trimmedSql );
+		String[] statements = importSqlCommandExtractor.extractCommands( reader );
+		if (statements != null) {
+			for ( String statement : statements ) {
+				if ( statement != null ) {
+					String trimmedSql = statement.trim();
+					if ( trimmedSql.endsWith( ";" )) {
+						trimmedSql = trimmedSql.substring( 0, statement.length() - 1 );
+					}
+					if ( !StringHelper.isEmpty( trimmedSql ) ) {
+						try {
+							for ( Exporter exporter : exporters ) {
+								if ( exporter.acceptsImportScripts() ) {
+									exporter.export( trimmedSql );
+								}
+							}
+						}
+						catch ( Exception e ) {
+							throw new ImportScriptException( "Error during statement execution (file: '" + namedReader.getName() + "'): " + trimmedSql, e );
+						}
 					}
 				}
-			}
-			catch ( Exception e ) {
-				throw new ImportScriptException( "Error during import script execution at line " + lineNo, e );
 			}
 		}
 	}
@@ -470,7 +481,7 @@ public class SchemaExport {
 		String formatted = formatter.format( sql );
         if (delimiter != null) formatted += delimiter;
         if (script) System.out.println(formatted);
-        LOG.debugf(formatted);
+        LOG.debug(formatted);
 		if ( outputFile != null ) {
 			fileOutput.write( formatted + "\n" );
 		}
@@ -493,7 +504,7 @@ public class SchemaExport {
 	private static StandardServiceRegistryImpl createServiceRegistry(Properties properties) {
 		Environment.verifyProperties( properties );
 		ConfigurationHelper.resolvePlaceHolders( properties );
-		return (StandardServiceRegistryImpl) new ServiceRegistryBuilder().applySettings( properties ).buildServiceRegistry();
+		return (StandardServiceRegistryImpl) new StandardServiceRegistryBuilder().applySettings( properties ).build();
 	}
 
 	public static void main(String[] args) {
@@ -573,7 +584,7 @@ public class SchemaExport {
 			}
 
 			if (importFile != null) {
-				cfg.setProperty( Environment.HBM2DDL_IMPORT_FILES, importFile );
+				cfg.setProperty( AvailableSettings.HBM2DDL_IMPORT_FILES, importFile );
 			}
 
 			StandardServiceRegistryImpl serviceRegistry = createServiceRegistry( cfg.getProperties() );
@@ -581,7 +592,8 @@ public class SchemaExport {
 				SchemaExport se = new SchemaExport( serviceRegistry, cfg )
 						.setHaltOnError( halt )
 						.setOutputFile( outFile )
-						.setDelimiter( delim );
+						.setDelimiter( delim )
+						.setImportSqlCommandExtractor( serviceRegistry.getService( ImportSqlCommandExtractor.class ) );
 				if ( format ) {
 					se.setFormat( true );
 				}

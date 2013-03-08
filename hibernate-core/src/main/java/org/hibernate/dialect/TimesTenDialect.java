@@ -102,14 +102,6 @@ public class TimesTenDialect extends Dialect {
 	public boolean qualifyIndexName() {
             return false;
 	}
-
-	public boolean supportsUnique() {
-		return false;
-	}
-    
-	public boolean supportsUniqueConstraintInCreateAlterTable() {
-		return false;
-	}
 	
     public String getAddColumnString() {
             return "add";
@@ -184,7 +176,7 @@ public class TimesTenDialect extends Dialect {
 		if ( offset > 0 ) {
 			throw new UnsupportedOperationException( "query result offset is not supported" );
 		}
-		return new StringBuffer( querySelect.length() + 8 )
+		return new StringBuilder( querySelect.length() + 8 )
 				.append( querySelect )
 				.insert( 6, " first " + limit )
 				.toString();

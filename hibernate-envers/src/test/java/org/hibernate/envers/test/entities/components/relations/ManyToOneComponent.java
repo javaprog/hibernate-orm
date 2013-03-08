@@ -22,14 +22,18 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.envers.test.entities.components.relations;
+
 import javax.persistence.Embeddable;
 import javax.persistence.ManyToOne;
+import javax.persistence.Table;
+
 import org.hibernate.envers.test.entities.StrTestEntity;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
 @Embeddable
+@Table(name = "ManyToOneCompEmb")
 public class ManyToOneComponent {
 	@ManyToOne
     private StrTestEntity entity;

@@ -1,18 +1,20 @@
 package org.hibernate.envers.test.integration.manytomany.unidirectional;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import java.util.List;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.UnversionedStrTestEntity;
 import org.hibernate.envers.test.entities.manytomany.unidirectional.M2MIndexedListTargetNotAuditedEntity;
-import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.List;
-
-import static org.hibernate.envers.test.tools.TestTools.*;
-import static org.junit.Assert.*;
+import static org.hibernate.envers.test.tools.TestTools.checkList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * A test for auditing a many-to-many indexed list where the target entity is not audited.
@@ -20,17 +22,16 @@ import static org.junit.Assert.*;
  * @author Vladimir Klyushnikov
  * @author Adam Warski
  */
-public class M2MIndexedListNotAuditedTarget extends AbstractEntityTest {
+public class M2MIndexedListNotAuditedTarget extends BaseEnversJPAFunctionalTestCase {
     private Integer itnae1_id;
     private Integer itnae2_id;
 
     private UnversionedStrTestEntity uste1;
     private UnversionedStrTestEntity uste2;
 
-
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(UnversionedStrTestEntity.class);
-        cfg.addAnnotatedClass(M2MIndexedListTargetNotAuditedEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { UnversionedStrTestEntity.class, M2MIndexedListTargetNotAuditedEntity.class };
     }
 
     @Test

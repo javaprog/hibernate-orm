@@ -33,7 +33,6 @@ import java.util.Iterator;
 
 import org.jboss.logging.Logger;
 
-import org.hibernate.EntityMode;
 import org.hibernate.HibernateException;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.CoreMessageLogger;
@@ -51,7 +50,7 @@ import org.hibernate.type.Type;
 public class PersistentArrayHolder extends AbstractPersistentCollection {
 	protected Object array;
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, PersistentArrayHolder.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, PersistentArrayHolder.class.getName());
 
 	//just to help out during the load (ugly, i know)
 	private transient Class elementClass;
@@ -72,7 +71,7 @@ public class PersistentArrayHolder extends AbstractPersistentCollection {
 				Array.set( result, i, persister.getElementType().deepCopy(elt, persister.getFactory()) );
 			}
 			catch (IllegalArgumentException iae) {
-                LOG.invalidArrayElementType(iae.getMessage());
+				LOG.invalidArrayElementType( iae.getMessage() );
 				throw new HibernateException( "Array element type error", iae );
 			}
 		}
@@ -84,7 +83,7 @@ public class PersistentArrayHolder extends AbstractPersistentCollection {
 	}
 
 	@Override
-    public Collection getOrphans(Serializable snapshot, String entityName) throws HibernateException {
+	public Collection getOrphans(Serializable snapshot, String entityName) throws HibernateException {
 		Object[] sn = (Object[]) snapshot;
 		Object[] arr = (Object[]) array;
 		ArrayList result = new ArrayList();
@@ -127,7 +126,7 @@ public class PersistentArrayHolder extends AbstractPersistentCollection {
 		return list.iterator();
 	}
 	@Override
-    public boolean empty() {
+	public boolean empty() {
 		return false;
 	}
 
@@ -135,7 +134,7 @@ public class PersistentArrayHolder extends AbstractPersistentCollection {
 	throws HibernateException, SQLException {
 
 		Object element = persister.readElement( rs, owner, descriptor.getSuffixedElementAliases(), getSession() );
-		int index = ( (Integer) persister.readIndex( rs, descriptor.getSuffixedIndexAliases(), getSession() ) ).intValue();
+		int index = (Integer) persister.readIndex( rs, descriptor.getSuffixedIndexAliases(), getSession() );
 		for ( int i = tempList.size(); i<=index; i++) {
 			tempList.add(i, null);
 		}
@@ -148,7 +147,7 @@ public class PersistentArrayHolder extends AbstractPersistentCollection {
 	}
 
 	@Override
-    public void beginRead() {
+	public void beginRead() {
 		super.beginRead();
 		tempList = new ArrayList();
 	}
@@ -206,20 +205,20 @@ public class PersistentArrayHolder extends AbstractPersistentCollection {
 	}
 
 	public Iterator getDeletes(CollectionPersister persister, boolean indexIsFormula) throws HibernateException {
-		java.util.List deletes = new ArrayList();
+		java.util.List<Integer> deletes = new ArrayList<Integer>();
 		Serializable sn = getSnapshot();
 		int snSize = Array.getLength(sn);
 		int arraySize = Array.getLength(array);
 		int end;
 		if ( snSize > arraySize ) {
-			for ( int i=arraySize; i<snSize; i++ ) deletes.add( new Integer(i) );
+			for ( int i=arraySize; i<snSize; i++ ) deletes.add( i );
 			end = arraySize;
 		}
 		else {
 			end = snSize;
 		}
 		for ( int i=0; i<end; i++ ) {
-			if ( Array.get(array, i)==null && Array.get(sn, i)!=null ) deletes.add( new Integer(i) );
+			if ( Array.get(array, i)==null && Array.get(sn, i)!=null ) deletes.add( i );
 		}
 		return deletes.iterator();
 	}
@@ -238,7 +237,7 @@ public class PersistentArrayHolder extends AbstractPersistentCollection {
 	}
 
 	public Object getIndex(Object entry, int i, CollectionPersister persister) {
-		return new Integer(i);
+		return i;
 	}
 
 	public Object getElement(Object entry) {

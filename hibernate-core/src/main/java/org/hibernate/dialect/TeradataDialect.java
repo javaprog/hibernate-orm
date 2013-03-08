@@ -23,6 +23,7 @@
  */
 package org.hibernate.dialect;
 import java.sql.Types;
+
 import org.hibernate.HibernateException;
 import org.hibernate.cfg.Environment;
 import org.hibernate.dialect.function.SQLFunctionTemplate;
@@ -36,6 +37,8 @@ import org.hibernate.type.StandardBasicTypes;
  * @author Jay Nance
  */
 public class TeradataDialect extends Dialect {
+	
+	private static final int PARAM_LIST_SIZE_LIMIT = 1024;
 
 	/**
 	 * Constructor
@@ -254,5 +257,13 @@ public class TeradataDialect extends Dialect {
 
 	public boolean supportsBindAsCallableArgument() {
 		return false;
+	}
+
+	/* (non-Javadoc)
+		 * @see org.hibernate.dialect.Dialect#getInExpressionCountLimit()
+		 */
+	@Override
+	public int getInExpressionCountLimit() {
+		return PARAM_LIST_SIZE_LIMIT;
 	}
 }

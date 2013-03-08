@@ -23,27 +23,27 @@
  */
 package org.hibernate.envers.test.integration.onetoone.bidirectional.ids;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.entities.ids.EmbId;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.Arrays;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.entities.ids.EmbId;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class EmbIdBidirectional extends AbstractEntityTest {
+public class EmbIdBidirectional extends BaseEnversJPAFunctionalTestCase {
     private EmbId ed1_id;
     private EmbId ed2_id;
 
     private EmbId ing1_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(BiEmbIdRefEdEntity.class);
-        cfg.addAnnotatedClass(BiEmbIdRefIngEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { BiEmbIdRefEdEntity.class, BiEmbIdRefIngEntity.class };
     }
 
     @Test

@@ -23,16 +23,15 @@
  */
 package org.hibernate.metamodel.binding;
 
-import org.hibernate.metamodel.MetadataSourceProcessingOrder;
-import org.hibernate.metamodel.MetadataSources;
-import org.hibernate.metamodel.source.internal.MetadataImpl;
-import org.hibernate.service.ServiceRegistryBuilder;
-import org.hibernate.service.internal.StandardServiceRegistryImpl;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.hibernate.metamodel.MetadataSourceProcessingOrder;
+import org.hibernate.metamodel.MetadataSources;
+import org.hibernate.metamodel.source.internal.MetadataImpl;
+import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
+import org.hibernate.boot.registry.internal.StandardServiceRegistryImpl;
 import org.hibernate.testing.junit4.BaseUnitTestCase;
 
 import static org.junit.Assert.assertEquals;
@@ -47,7 +46,7 @@ public class BasicCollectionBindingTests extends BaseUnitTestCase {
 
 	@Before
 	public void setUp() {
-		serviceRegistry = (StandardServiceRegistryImpl) new ServiceRegistryBuilder().buildServiceRegistry();
+		serviceRegistry = (StandardServiceRegistryImpl) new StandardServiceRegistryBuilder().build();
 	}
 
 	@After
@@ -69,7 +68,7 @@ public class BasicCollectionBindingTests extends BaseUnitTestCase {
 		MetadataSources sources = new MetadataSources( serviceRegistry );
 //		sources.addAnnotatedClass( EntityWithBasicCollections.class );
 		sources.addResource( "org/hibernate/metamodel/binding/EntityWithBasicCollections.hbm.xml" );
-		MetadataImpl metadata = (MetadataImpl) sources.getMetadataBuilder().with( processingOrder ).buildMetadata();
+		MetadataImpl metadata = (MetadataImpl) sources.getMetadataBuilder().with( processingOrder ).build();
 
 		final EntityBinding entityBinding = metadata.getEntityBinding( EntityWithBasicCollections.class.getName() );
 		assertNotNull( entityBinding );

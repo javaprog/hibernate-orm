@@ -23,7 +23,7 @@
  */
 package org.hibernate.metamodel.domain;
 
-import org.hibernate.internal.util.Value;
+import org.hibernate.internal.util.ValueHolder;
 
 /**
  * Basic information about a Java type, in regards to its role in particular set of mappings.
@@ -50,13 +50,13 @@ public interface Type {
 	 *
 	 * @return The {@link Class} reference
 	 *
-	 * @throws org.hibernate.service.classloading.spi.ClassLoadingException Indicates the class reference
+	 * @throws org.hibernate.boot.registry.classloading.spi.ClassLoadingException Indicates the class reference
 	 * could not be determined.  Generally this is the case in reverse-engineering scenarios where the specified
 	 * domain model classes do not yet exist.
 	 */
 	public Class<?> getClassReference();
 
-	public Value<Class<?>> getClassReferenceUnresolved();
+	public ValueHolder<Class<?>> getClassReferenceUnresolved();
 
 	public boolean isAssociation();
 

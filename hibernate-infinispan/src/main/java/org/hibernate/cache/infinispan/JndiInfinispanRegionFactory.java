@@ -20,10 +20,13 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 package org.hibernate.cache.infinispan;
+
 import java.util.Properties;
+
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
+
 import org.hibernate.cache.CacheException;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.internal.util.jndi.JndiHelper;

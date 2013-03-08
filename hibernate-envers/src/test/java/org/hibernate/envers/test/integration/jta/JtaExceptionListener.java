@@ -1,10 +1,10 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2008, Red Hat Middleware LLC or third-party contributors as
+ * Copyright (c) 2008-2012, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
- * distributed under license by Red Hat Middleware LLC.
+ * distributed under license by Red Hat Inc.
  *
  * This copyrighted material is made available to anyone wishing to use, modify,
  * copy, or redistribute it subject to the terms and conditions of the GNU
@@ -23,69 +23,64 @@
  */
 package org.hibernate.envers.test.integration.jta;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.EnversTestingJtaBootstrap;
+import java.util.Map;
+import javax.persistence.EntityManager;
+import javax.transaction.RollbackException;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
 import org.hibernate.envers.test.integration.reventity.ExceptionListenerRevEntity;
-import org.hibernate.testing.FailureExpected;
-import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import javax.transaction.RollbackException;
-import javax.transaction.TransactionManager;
-import java.util.Properties;
-
-import static org.hibernate.envers.test.EnversTestingJtaBootstrap.*;
+import org.hibernate.testing.jta.TestingJtaBootstrap;
+import org.hibernate.testing.jta.TestingJtaPlatformImpl;
 
 /**
  * Same as {@link org.hibernate.envers.test.integration.reventity.ExceptionListener}, but in a JTA environment.
  * @author Adam Warski (adam at warski dot org)
  */
-public class JtaExceptionListener extends AbstractEntityTest {
-    private TransactionManager tm;
-
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(StrTestEntity.class);
-        cfg.addAnnotatedClass(ExceptionListenerRevEntity.class);
+public class JtaExceptionListener extends BaseEnversJPAFunctionalTestCase {
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { StrTestEntity.class, ExceptionListenerRevEntity.class };
     }
 
     @Override
-    public void addConfigurationProperties(Properties configuration) {
-        super.addConfigurationProperties(configuration);
-        tm = EnversTestingJtaBootstrap.updateConfigAndCreateTM(configuration);
+    protected void addConfigOptions(Map options) {
+        TestingJtaBootstrap.prepare(options);
     }
 
     @Test(expected = RollbackException.class)
     @Priority(5) // must run before testDataNotPersisted()
     public void testTransactionRollback() throws Exception {
-        tm.begin();
+		TestingJtaPlatformImpl.INSTANCE.getTransactionManager().begin();
 
         try {
+			EntityManager em = getEntityManager();
+
             // Trying to persist an entity - however the listener should throw an exception, so the entity
 		    // shouldn't be persisted
-            newEntityManager();
-            EntityManager em = getEntityManager();
             StrTestEntity te = new StrTestEntity("x");
             em.persist(te);
         } finally {
-            tryCommit(tm);
+			TestingJtaPlatformImpl.tryCommit();
         }
     }
 
     @Test
     public void testDataNotPersisted() throws Exception {
-        tm.begin();
+		TestingJtaPlatformImpl.INSTANCE.getTransactionManager().begin();
 
         try {
     		// Checking if the entity became persisted
-            newEntityManager();
 		    EntityManager em = getEntityManager();
-            Long count = (Long) em.createQuery("select count(s) from StrTestEntity s where s.str = 'x'").getSingleResult();
-		    assert count == 0l;
+            long count = em.createQuery("from StrTestEntity s where s.str = 'x'").getResultList().size();
+		    Assert.assertEquals( 0, count );
         } finally {
-            tryCommit(tm);
+			TestingJtaPlatformImpl.tryCommit();
         }
     }
 }

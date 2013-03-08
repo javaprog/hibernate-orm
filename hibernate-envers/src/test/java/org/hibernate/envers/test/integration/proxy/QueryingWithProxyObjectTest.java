@@ -1,26 +1,27 @@
 package org.hibernate.envers.test.integration.proxy;
 
-import org.hibernate.MappingException;
-import org.hibernate.envers.test.AbstractSessionTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.entities.StrTestEntity;
-import org.hibernate.testing.TestForIssue;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.Assert;
+import org.junit.Test;
+
+import org.hibernate.MappingException;
+import org.hibernate.envers.test.BaseEnversFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.entities.StrTestEntity;
+import org.hibernate.testing.TestForIssue;
+
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
-public class QueryingWithProxyObjectTest extends AbstractSessionTest {
+public class QueryingWithProxyObjectTest extends BaseEnversFunctionalTestCase {
     private Integer id = null;
 
     @Override
-    protected void initMappings() throws MappingException, URISyntaxException {
-        config.addAnnotatedClass(StrTestEntity.class);
+    protected Class<?>[] getAnnotatedClasses() {
+        return new Class[]{ StrTestEntity.class};
     }
 
     @Test
@@ -32,6 +33,7 @@ public class QueryingWithProxyObjectTest extends AbstractSessionTest {
         getSession().persist(ste);
         getSession().getTransaction().commit();
         id = ste.getId();
+        getSession().close();
     }
 
     @Test
@@ -58,5 +60,7 @@ public class QueryingWithProxyObjectTest extends AbstractSessionTest {
 
         ste = (StrTestEntity) getAuditReader().createQuery().forEntitiesModifiedAtRevision(proxySte.getClass(), 1).getSingleResult();
         Assert.assertEquals(originalSte, ste);
+
+        getSession().close();
     }
 }

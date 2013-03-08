@@ -23,21 +23,27 @@
  */
 package org.hibernate.envers.test.integration.strategy;
 
+import java.sql.Types;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.persistence.EntityManager;
+import javax.persistence.Query;
+
+import org.junit.Test;
+
 import org.hibernate.Session;
-import org.hibernate.ejb.Ejb3Configuration;
 import org.hibernate.envers.strategy.ValidityAuditStrategy;
-import org.hibernate.envers.test.AbstractEntityTest;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.manytomany.sametable.Child1Entity;
 import org.hibernate.envers.test.entities.manytomany.sametable.Child2Entity;
 import org.hibernate.envers.test.entities.manytomany.sametable.ParentEntity;
 import org.hibernate.envers.test.entities.reventity.CustomDateRevEntity;
 import org.hibernate.envers.test.tools.TestTools;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import javax.persistence.Query;
-import java.util.*;
 
 /**
  * Test which checks that the revision end timestamp is correctly set for
@@ -45,7 +51,7 @@ import java.util.*;
  * 
  * @author Erik-Berndt Scheper
  */
-public class ValidityAuditStrategyRevEndTestCustomRevEnt extends AbstractEntityTest {
+public class ValidityAuditStrategyRevEndTestCustomRevEnt extends BaseEnversJPAFunctionalTestCase {
 	private final String revendTimestampColumName = "REVEND_TIMESTAMP";
 
 	private Integer p1_id;
@@ -56,23 +62,23 @@ public class ValidityAuditStrategyRevEndTestCustomRevEnt extends AbstractEntityT
 	private Integer c2_2_id;
 	private Map<Number, CustomDateRevEntity> revisions;
 
-	public void configure(Ejb3Configuration cfg) {
-		cfg.addAnnotatedClass(ParentEntity.class);
-		cfg.addAnnotatedClass(Child1Entity.class);
-		cfg.addAnnotatedClass(Child2Entity.class);
-        cfg.addAnnotatedClass(CustomDateRevEntity.class);
-
-		cfg.setProperty("org.hibernate.envers.audit_strategy",
-				"org.hibernate.envers.strategy.ValidityAuditStrategy");
-		cfg
-				.setProperty(
-						"org.hibernate.envers.audit_strategy_validity_store_revend_timestamp",
-						"true");
-		cfg
-				.setProperty(
-						"org.hibernate.envers.audit_strategy_validity_revend_timestamp_field_name",
-						revendTimestampColumName);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] {
+				ParentEntity.class,
+				Child1Entity.class,
+				Child2Entity.class,
+				CustomDateRevEntity.class
+		};
 	}
+
+	@Override
+	protected void addConfigOptions(Map options) {
+        super.addConfigOptions( options );
+        options.put("org.hibernate.envers.audit_strategy", "org.hibernate.envers.strategy.ValidityAuditStrategy");
+        options.put("org.hibernate.envers.audit_strategy_validity_store_revend_timestamp", "true");
+        options.put("org.hibernate.envers.audit_strategy_validity_revend_timestamp_field_name", revendTimestampColumName);
+    }
 
 	@Test
     @Priority(10)
@@ -87,15 +93,20 @@ public class ValidityAuditStrategyRevEndTestCustomRevEnt extends AbstractEntityT
 		session.createSQLQuery("DROP TABLE children").executeUpdate();
 		session
 				.createSQLQuery(
-						"CREATE TABLE children(parent_id integer, child1_id integer NULL, child2_id integer NULL)")
+                        "CREATE TABLE children ( parent_id " + getDialect().getTypeName(Types.INTEGER) +
+                                              ", child1_id " + getDialect().getTypeName(Types.INTEGER) + " NULL" +
+                                              ", child2_id " + getDialect().getTypeName(Types.INTEGER) + " NULL )")
 				.executeUpdate();
 		session.createSQLQuery("DROP TABLE children_AUD").executeUpdate();
 		session
 				.createSQLQuery(
-						"CREATE TABLE children_AUD(REV integer NOT NULL, REVEND integer, "
-								+ revendTimestampColumName
-								+ " timestamp, REVTYPE tinyint, "
-								+ "parent_id integer, child1_id integer NULL, child2_id integer NULL)")
+                        "CREATE TABLE children_AUD ( REV " + getDialect().getTypeName(Types.INTEGER) + " NOT NULL" +
+                                                  ", REVEND " + getDialect().getTypeName(Types.INTEGER) +
+                                                  ", " + revendTimestampColumName + " " + getDialect().getTypeName(Types.TIMESTAMP) +
+                                                  ", REVTYPE " + getDialect().getTypeName(Types.TINYINT) +
+                                                  ", parent_id " + getDialect().getTypeName(Types.INTEGER) +
+                                                  ", child1_id " + getDialect().getTypeName(Types.INTEGER) + " NULL" +
+                                                  ", child2_id " + getDialect().getTypeName(Types.INTEGER) + " NULL )")
 				.executeUpdate();
 		em.getTransaction().commit();
 		em.clear();

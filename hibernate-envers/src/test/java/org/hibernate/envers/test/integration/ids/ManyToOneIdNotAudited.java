@@ -1,28 +1,27 @@
 package org.hibernate.envers.test.integration.ids;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
 import org.hibernate.envers.test.entities.UnversionedStrTestEntity;
 import org.hibernate.envers.test.entities.ids.ManyToOneIdNotAuditedTestEntity;
 import org.hibernate.envers.test.entities.ids.ManyToOneNotAuditedEmbId;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
 
 /**
  * A test checking that when using Envers it is possible to have non-audited entities that use unsupported
  * components in their ids, e.g. a many-to-one join to another entity.
  * @author Adam Warski (adam at warski dot org)
  */
-public class ManyToOneIdNotAudited extends AbstractEntityTest {
+public class ManyToOneIdNotAudited extends BaseEnversJPAFunctionalTestCase {
     private ManyToOneNotAuditedEmbId id1;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(ManyToOneIdNotAuditedTestEntity.class);
-        cfg.addAnnotatedClass(UnversionedStrTestEntity.class);
-        cfg.addAnnotatedClass(StrTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { ManyToOneIdNotAuditedTestEntity.class, UnversionedStrTestEntity.class, StrTestEntity.class };
     }
 
     @Test

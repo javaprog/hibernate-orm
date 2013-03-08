@@ -23,24 +23,25 @@
  */
 package org.hibernate.envers.test.integration.cache;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.entities.IntTestEntity;
+import java.util.List;
+import javax.persistence.EntityManager;
+
 import org.junit.Test;
 
-import javax.persistence.EntityManager;
-import java.util.List;
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.entities.IntTestEntity;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
 @SuppressWarnings({"ObjectEquality"})
-public class QueryCache extends AbstractEntityTest {
+public class QueryCache extends BaseEnversJPAFunctionalTestCase {
     private Integer id1;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(IntTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { IntTestEntity.class };
     }
 
     @Test

@@ -25,12 +25,13 @@ package org.hibernate.engine.jdbc.batch.internal;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Map;
-import org.hibernate.HibernateException;
-import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.engine.jdbc.batch.spi.BatchKey;
-import org.hibernate.engine.jdbc.spi.JdbcCoordinator;
 
 import org.jboss.logging.Logger;
+
+import org.hibernate.HibernateException;
+import org.hibernate.engine.jdbc.batch.spi.BatchKey;
+import org.hibernate.engine.jdbc.spi.JdbcCoordinator;
+import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * A {@link org.hibernate.engine.jdbc.batch.spi.Batch} implementation which does bathing based on a given size.  Once
@@ -40,7 +41,7 @@ import org.jboss.logging.Logger;
  */
 public class BatchingBatch extends AbstractBatchImpl {
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, BatchingBatch.class.getName());
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, BatchingBatch.class.getName() );
 
 	// IMPL NOTE : Until HHH-5797 is fixed, there will only be 1 statement in a batch
 
@@ -93,7 +94,7 @@ public class BatchingBatch extends AbstractBatchImpl {
 	@Override
 	protected void doExecuteBatch() {
 		if ( batchPosition == 0 ) {
-		    LOG.debugf("No batched statements to execute");
+			LOG.debug( "No batched statements to execute" );
 		}
 		else {
 			LOG.debugf( "Executing batch size: %s", batchPosition );
@@ -109,7 +110,7 @@ public class BatchingBatch extends AbstractBatchImpl {
 					checkRowCounts( statement.executeBatch(), statement );
 				}
 				catch ( SQLException e ) {
-		            LOG.debugf( "SQLException escaped proxy", e );
+					LOG.debug( "SQLException escaped proxy", e );
 					throw sqlExceptionHelper().convert( e, "could not perform addBatch", entry.getKey() );
 				}
 			}
@@ -126,7 +127,7 @@ public class BatchingBatch extends AbstractBatchImpl {
 	private void checkRowCounts(int[] rowCounts, PreparedStatement ps) throws SQLException, HibernateException {
 		int numberOfRowCounts = rowCounts.length;
 		if ( numberOfRowCounts != batchPosition ) {
-            LOG.unexpectedRowCounts();
+			LOG.unexpectedRowCounts();
 		}
 		for ( int i = 0; i < numberOfRowCounts; i++ ) {
 			getKey().getExpectation().verifyOutcome( rowCounts[i], ps, i );

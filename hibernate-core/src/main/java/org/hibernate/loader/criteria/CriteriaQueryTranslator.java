@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
+
 import org.hibernate.Criteria;
 import org.hibernate.EntityMode;
 import org.hibernate.HibernateException;
@@ -50,6 +51,7 @@ import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.TypedValue;
 import org.hibernate.hql.internal.ast.util.SessionFactoryHelper;
 import org.hibernate.internal.CriteriaImpl;
+import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.persister.entity.Loadable;
 import org.hibernate.persister.entity.PropertyMapping;
@@ -59,7 +61,6 @@ import org.hibernate.type.AssociationType;
 import org.hibernate.type.CollectionType;
 import org.hibernate.type.StringRepresentableType;
 import org.hibernate.type.Type;
-import org.hibernate.internal.util.StringHelper;
 
 /**
  * @author Gavin King
@@ -411,7 +412,7 @@ public class CriteriaQueryTranslator implements CriteriaQuery {
 	}
 
 	public String getWhereCondition() {
-		StringBuffer condition = new StringBuffer( 30 );
+		StringBuilder condition = new StringBuilder( 30 );
 		Iterator criterionIterator = rootCriteria.iterateExpressionEntries();
 		while ( criterionIterator.hasNext() ) {
 			CriteriaImpl.CriterionEntry entry = ( CriteriaImpl.CriterionEntry ) criterionIterator.next();
@@ -425,7 +426,7 @@ public class CriteriaQueryTranslator implements CriteriaQuery {
 	}
 
 	public String getOrderBy() {
-		StringBuffer orderBy = new StringBuffer( 30 );
+		StringBuilder orderBy = new StringBuilder( 30 );
 		Iterator criterionIterator = rootCriteria.iterateOrderings();
 		while ( criterionIterator.hasNext() ) {
 			CriteriaImpl.OrderEntry oe = ( CriteriaImpl.OrderEntry ) criterionIterator.next();
@@ -446,7 +447,8 @@ public class CriteriaQueryTranslator implements CriteriaQuery {
 	}
 
 	public String getEntityName(Criteria criteria) {
-		return (( CriteriaInfoProvider ) criteriaInfoMap.get( criteria )).getName();
+		final CriteriaInfoProvider infoProvider = ( CriteriaInfoProvider ) criteriaInfoMap.get( criteria );
+		return infoProvider != null ? infoProvider.getName() : null;
 	}
 
 	public String getColumn(Criteria criteria, String propertyName) {
@@ -632,6 +634,9 @@ public class CriteriaQueryTranslator implements CriteriaQuery {
 	private PropertyMapping getPropertyMapping(String entityName)
 			throws MappingException {
 		CriteriaInfoProvider info = ( CriteriaInfoProvider )nameCriteriaInfoMap.get(entityName);
+		if (info==null) {
+			throw new HibernateException( "Unknown entity: " + entityName );
+		}
 		return info.getPropertyMapping();
 	}
 

@@ -28,15 +28,6 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.StringReader;
 
-import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.QueryException;
-import org.hibernate.hql.internal.antlr.HqlBaseParser;
-import org.hibernate.hql.internal.antlr.HqlTokenTypes;
-import org.hibernate.hql.internal.ast.util.ASTPrinter;
-import org.hibernate.hql.internal.ast.util.ASTUtil;
-import org.hibernate.internal.util.StringHelper;
-
-import org.jboss.logging.Logger;
 import antlr.ASTPair;
 import antlr.MismatchedTokenException;
 import antlr.RecognitionException;
@@ -44,6 +35,15 @@ import antlr.Token;
 import antlr.TokenStream;
 import antlr.TokenStreamException;
 import antlr.collections.AST;
+import org.jboss.logging.Logger;
+
+import org.hibernate.QueryException;
+import org.hibernate.hql.internal.antlr.HqlBaseParser;
+import org.hibernate.hql.internal.antlr.HqlTokenTypes;
+import org.hibernate.hql.internal.ast.util.ASTPrinter;
+import org.hibernate.hql.internal.ast.util.ASTUtil;
+import org.hibernate.internal.CoreMessageLogger;
+import org.hibernate.internal.util.StringHelper;
 
 /**
  * Implements the semantic action methods defined in the HQL base parser to keep the grammar
@@ -79,19 +79,19 @@ public final class HqlParser extends HqlBaseParser {
 	private int traceDepth = 0;
 
 	@Override
-    public void traceIn(String ruleName) {
-        if (!LOG.isTraceEnabled()) return;
-        if (inputState.guessing > 0) return;
-		String prefix = StringHelper.repeat( '-', (traceDepth++ * 2) ) + "-> ";
-        LOG.trace(prefix + ruleName);
+	public void traceIn(String ruleName) {
+		if ( !LOG.isTraceEnabled() ) return;
+		if ( inputState.guessing > 0 ) return;
+		String prefix = StringHelper.repeat( '-', ( traceDepth++ * 2 ) ) + "-> ";
+		LOG.trace( prefix + ruleName );
 	}
 
 	@Override
-    public void traceOut(String ruleName) {
-        if (!LOG.isTraceEnabled()) return;
-        if (inputState.guessing > 0) return;
-		String prefix = "<-" + StringHelper.repeat( '-', (--traceDepth * 2) ) + " ";
-        LOG.trace(prefix + ruleName);
+	public void traceOut(String ruleName) {
+		if ( !LOG.isTraceEnabled() ) return;
+		if ( inputState.guessing > 0 ) return;
+		String prefix = "<-" + StringHelper.repeat( '-', ( --traceDepth * 2 ) ) + " ";
+		LOG.trace( prefix + ruleName );
 	}
 
 	@Override
@@ -339,49 +339,59 @@ public final class HqlParser extends HqlBaseParser {
 		switch ( t ) {
 			case ORDER:
 			case GROUP:
-                // Case 1: Multi token keywords GROUP BY and ORDER BY
+				// Case 1: Multi token keywords GROUP BY and ORDER BY
 				// The next token ( LT(2) ) should be 'by'... otherwise, this is just an ident.
 				if ( LA( 2 ) != LITERAL_by ) {
 					LT( 1 ).setType( IDENT );
-                    LOG.debugf("weakKeywords() : new LT(1) token - %s", LT(1));
+					if ( LOG.isDebugEnabled() ) {
+						LOG.debugf( "weakKeywords() : new LT(1) token - %s", LT( 1 ) );
+					}
 				}
 				break;
 			default:
-                // Case 2: The current token is after FROM and before '.'.
-                if (LA(0) == FROM && t != IDENT && LA(2) == DOT) {
-                    HqlToken hqlToken = (HqlToken)LT(1);
-                    if (hqlToken.isPossibleID()) {
-                        hqlToken.setType(IDENT);
-                        LOG.debugf("weakKeywords() : new LT(1) token - %s", LT(1));
-                    }
-                }
-				break;
+				// Case 2: The current token is after FROM and before '.'.
+			if ( LA( 0 ) == FROM && t != IDENT && LA( 2 ) == DOT ) {
+				HqlToken hqlToken = (HqlToken) LT( 1 );
+				if ( hqlToken.isPossibleID() ) {
+					hqlToken.setType( IDENT );
+					if ( LOG.isDebugEnabled() ) {
+						LOG.debugf( "weakKeywords() : new LT(1) token - %s", LT( 1 ) );
+					}
+				}
+			}
+			break;
 		}
 	}
 
-    @Override
-    public void handleDotIdent() throws TokenStreamException {
-        // This handles HHH-354, where there is a strange property name in a where clause.
-        // If the lookahead contains a DOT then something that isn't an IDENT...
-        if (LA(1) == DOT && LA(2) != IDENT) {
-            // See if the second lookahead token can be an identifier.
-            HqlToken t = (HqlToken)LT(2);
-            if (t.isPossibleID())
-            {
-                // Set it!
-                LT( 2 ).setType( IDENT );
-                LOG.debugf("handleDotIdent() : new LT(2) token - %s", LT(1));
-            }
-        }
-    }
+	@Override
+	public void handleDotIdent() throws TokenStreamException {
+		// This handles HHH-354, where there is a strange property name in a where clause.
+		// If the lookahead contains a DOT then something that isn't an IDENT...
+		if ( LA( 1 ) == DOT && LA( 2 ) != IDENT ) {
+			// See if the second lookahead token can be an identifier.
+			HqlToken t = (HqlToken) LT( 2 );
+			if ( t.isPossibleID() )
+			{
+				// Set it!
+				LT( 2 ).setType( IDENT );
+				if ( LOG.isDebugEnabled() ) {
+					LOG.debugf( "handleDotIdent() : new LT(2) token - %s", LT( 1 ) );
+				}
+			}
+		}
+	}
 
 	@Override
     public void processMemberOf(Token n, AST p, ASTPair currentAST) {
-		AST inAst = n == null ? astFactory.create( IN, "in" ) : astFactory.create( NOT_IN, "not in" );
-		astFactory.makeASTRoot( currentAST, inAst );
-		AST ast = createSubquery( p );
-		ast = ASTUtil.createParent( astFactory, IN_LIST, "inList", ast );
-		inAst.addChild( ast );
+		// convert MEMBER OF to the equivalent IN ELEMENTS structure...
+		AST inNode = n == null ? astFactory.create( IN, "in" ) : astFactory.create( NOT_IN, "not in" );
+		astFactory.makeASTRoot( currentAST, inNode );
+
+		AST inListNode = astFactory.create( IN_LIST, "inList" );
+		inNode.addChild( inListNode );
+		AST elementsNode = astFactory.create( ELEMENTS, "elements" );
+		inListNode.addChild( elementsNode );
+		elementsNode.addChild( p );
 	}
 
 	static public void panic() {

@@ -28,6 +28,7 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.Iterator;
 import java.util.Map;
+
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
 import org.hibernate.cfg.Environment;
@@ -46,10 +47,11 @@ import org.hibernate.type.StandardBasicTypes;
 abstract class AbstractTransactSQLDialect extends Dialect {
 	public AbstractTransactSQLDialect() {
 		super();
-		registerColumnType( Types.BIT, "tinyint" ); //Sybase BIT type does not support null values
+        registerColumnType( Types.BINARY, "binary($l)" );
+		registerColumnType( Types.BIT, "tinyint" );
 		registerColumnType( Types.BIGINT, "numeric(19,0)" );
 		registerColumnType( Types.SMALLINT, "smallint" );
-		registerColumnType( Types.TINYINT, "tinyint" );
+		registerColumnType( Types.TINYINT, "smallint" );
 		registerColumnType( Types.INTEGER, "int" );
 		registerColumnType( Types.CHAR, "char(1)" );
 		registerColumnType( Types.VARCHAR, "varchar($l)" );
@@ -127,7 +129,7 @@ abstract class AbstractTransactSQLDialect extends Dialect {
 		return "add";
 	}
 	public String getNullColumnString() {
-		return " null";
+		return "";
 	}
 	public boolean qualifyIndexName() {
 		return false;
@@ -155,19 +157,15 @@ abstract class AbstractTransactSQLDialect extends Dialect {
 		return insertSQL + "\nselect @@identity";
 	}
 
-	public String appendLockHint(LockMode mode, String tableName) {
-		if ( mode.greaterThan( LockMode.READ ) ) {
-			return tableName + " holdlock";
-		}
-		else {
-			return tableName;
-		}
+	@Override
+	public String appendLockHint(LockOptions lockOptions, String tableName) {
+		return lockOptions.getLockMode().greaterThan( LockMode.READ ) ? tableName + " holdlock" : tableName;
 	}
 
 	public String applyLocksToSql(String sql, LockOptions aliasedLockOptions, Map keyColumnNames) {
-		// TODO:  merge additional lockoptions support in Dialect.applyLocksToSql 
+		// TODO:  merge additional lockoptions support in Dialect.applyLocksToSql
 		Iterator itr = aliasedLockOptions.getAliasLockIterator();
-		StringBuffer buffer = new StringBuffer( sql );
+		StringBuilder buffer = new StringBuilder( sql );
 		int correction = 0;
 		while ( itr.hasNext() ) {
 			final Map.Entry entry = ( Map.Entry ) itr.next();

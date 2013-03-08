@@ -25,10 +25,10 @@ package org.hibernate.dialect.function;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.jboss.logging.Logger;
+
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.internal.CoreMessageLogger;
-
-import org.jboss.logging.Logger;
 
 /**
  * Delegate for handling function "templates".
@@ -49,8 +49,8 @@ public class TemplateRenderer {
 
 		List<String> chunkList = new ArrayList<String>();
 		List<Integer> paramList = new ArrayList<Integer>();
-		StringBuffer chunk = new StringBuffer( 10 );
-		StringBuffer index = new StringBuffer( 2 );
+		StringBuilder chunk = new StringBuilder( 10 );
+		StringBuilder index = new StringBuilder( 2 );
 
 		for ( int i = 0; i < template.length(); ++i ) {
 			char c = template.charAt( i );
@@ -84,7 +84,7 @@ public class TemplateRenderer {
 		chunks = chunkList.toArray( new String[chunkList.size()] );
 		paramIndexes = new int[paramList.size()];
 		for ( int i = 0; i < paramIndexes.length; ++i ) {
-			paramIndexes[i] = paramList.get( i ).intValue();
+			paramIndexes[i] = paramList.get( i );
 		}
 	}
 
@@ -99,9 +99,10 @@ public class TemplateRenderer {
 	@SuppressWarnings({ "UnusedDeclaration" })
 	public String render(List args, SessionFactoryImplementor factory) {
 		int numberOfArguments = args.size();
-        if (getAnticipatedNumberOfArguments() > 0 && numberOfArguments != getAnticipatedNumberOfArguments()) LOG.missingArguments(getAnticipatedNumberOfArguments(),
-                                                                                                                                  numberOfArguments);
-		StringBuffer buf = new StringBuffer();
+		if ( getAnticipatedNumberOfArguments() > 0 && numberOfArguments != getAnticipatedNumberOfArguments() ) {
+			LOG.missingArguments( getAnticipatedNumberOfArguments(), numberOfArguments );
+		}
+		StringBuilder buf = new StringBuilder();
 		for ( int i = 0; i < chunks.length; ++i ) {
 			if ( i < paramIndexes.length ) {
 				final int index = paramIndexes[i] - 1;

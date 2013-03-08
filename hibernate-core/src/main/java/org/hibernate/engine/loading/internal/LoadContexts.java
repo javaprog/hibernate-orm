@@ -26,6 +26,7 @@ package org.hibernate.engine.loading.internal;
 import java.io.Serializable;
 import java.sql.ResultSet;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,18 +42,15 @@ import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.pretty.MessageHelper;
 
 /**
- * Maps {@link ResultSet result-sets} to specific contextual data
- * related to processing that {@link ResultSet result-sets}.
+ * Maps {@link ResultSet result-sets} to specific contextual data related to processing that result set
  * <p/>
- * Implementation note: internally an {@link IdentityMap} is used to maintain
- * the mappings; {@link IdentityMap} was chosen because I'd rather not be
- * dependent upon potentially bad {@link ResultSet#equals} and {ResultSet#hashCode}
- * implementations.
+ * Implementation note: internally an {@link IdentityMap} is used to maintain the mappings mainly because I'd
+ * rather not be dependent upon potentially bad {@link Object#equals} and {@link Object#hashCode} implementations on
+ * the JDBC result sets
  * <p/>
- * Considering the JDBC-redesign work, would further like this contextual info
- * not mapped seperately, but available based on the result set being processed.
- * This would also allow maintaining a single mapping as we could reliably get
- * notification of the result-set closing...
+ * Considering the JDBC-redesign work, would further like this contextual info not mapped separately, but available
+ * based on the result set being processed.  This would also allow maintaining a single mapping as we could reliably
+ * get notification of the result-set closing...
  *
  * @author Steve Ebersole
  */
@@ -170,16 +168,14 @@ public class LoadContexts {
 	 */
 	public CollectionLoadContext getCollectionLoadContext(ResultSet resultSet) {
 		CollectionLoadContext context = null;
-        if ( collectionLoadContexts == null ) {
-			collectionLoadContexts = IdentityMap.instantiate( 8 );
+		if ( collectionLoadContexts == null ) {
+			collectionLoadContexts = new IdentityHashMap<ResultSet, CollectionLoadContext>( 8 );
 		}
-        else {
+		else {
 			context = collectionLoadContexts.get(resultSet);
 		}
 		if ( context == null ) {
-			if (LOG.isTraceEnabled()) {
-				LOG.trace("Constructing collection load context for result set [" + resultSet + "]");
-			}
+			LOG.tracev( "Constructing collection load context for result set [{0}]", resultSet );
 			context = new CollectionLoadContext( this, resultSet );
 			collectionLoadContexts.put( resultSet, context );
 		}
@@ -197,7 +193,7 @@ public class LoadContexts {
 	public PersistentCollection locateLoadingCollection(CollectionPersister persister, Serializable ownerKey) {
 		LoadingCollectionEntry lce = locateLoadingCollectionEntry( new CollectionKey( persister, ownerKey ) );
 		if ( lce != null ) {
-            if ( LOG.isTraceEnabled() ) {
+			if ( LOG.isTraceEnabled() ) {
 				LOG.tracef(
 						"Returning loading collection: %s",
 						MessageHelper.collectionInfoString( persister, ownerKey, getSession().getFactory() )
@@ -205,14 +201,7 @@ public class LoadContexts {
 			}
 			return lce.getCollection();
 		}
-        // TODO : should really move this log statement to CollectionType, where this is used from...
-        if ( LOG.isTraceEnabled() ) {
-			LOG.tracef(
-					"Creating collection wrapper: %s",
-					MessageHelper.collectionInfoString( persister, ownerKey, getSession().getFactory() )
-			);
-		}
-        return null;
+		return null;
 	}
 
 	// loading collection xrefs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -260,7 +249,8 @@ public class LoadContexts {
 		xrefLoadingCollectionEntries.remove(key);
 	 }
 
-	/*package*/Map getLoadingCollectionXRefs() {
+	@SuppressWarnings( {"UnusedDeclaration"})
+	Map getLoadingCollectionXRefs() {
  		return xrefLoadingCollectionEntries;
  	}
 
@@ -277,11 +267,17 @@ public class LoadContexts {
 	 * @return The located entry; or null.
 	 */
 	LoadingCollectionEntry locateLoadingCollectionEntry(CollectionKey key) {
-        if (xrefLoadingCollectionEntries == null) return null;
-        LOG.trace("Attempting to locate loading collection entry [" + key + "] in any result-set context");
+		if ( xrefLoadingCollectionEntries == null ) {
+			return null;
+		}
+		LOG.tracev( "Attempting to locate loading collection entry [{0}] in any result-set context", key );
 		LoadingCollectionEntry rtn = xrefLoadingCollectionEntries.get( key );
-        if (rtn == null) LOG.trace("Collection [" + key + "] not located in load context");
-        else LOG.trace("Collection [" + key + "] located in load context");
+		if ( rtn == null ) {
+			LOG.tracev( "Collection [{0}] not located in load context", key );
+		}
+		else {
+			LOG.tracev( "Collection [{0}] located in load context", key );
+		}
 		return rtn;
 	}
 
@@ -295,10 +291,11 @@ public class LoadContexts {
 	// Entity load contexts ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	// 	* currently, not yet used...
 
+	@SuppressWarnings( {"UnusedDeclaration"})
 	public EntityLoadContext getEntityLoadContext(ResultSet resultSet) {
 		EntityLoadContext context = null;
 		if ( entityLoadContexts == null ) {
-			entityLoadContexts = IdentityMap.instantiate( 8 );
+			entityLoadContexts = new IdentityHashMap<ResultSet, EntityLoadContext>( 8 );
 		}
 		else {
 			context = entityLoadContexts.get( resultSet );

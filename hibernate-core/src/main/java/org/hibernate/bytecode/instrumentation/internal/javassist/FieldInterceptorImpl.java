@@ -57,7 +57,7 @@ public final class FieldInterceptorImpl extends AbstractFieldInterceptor impleme
 	// FieldHandler impl ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	public boolean readBoolean(Object target, String name, boolean oldValue) {
-		return ( ( Boolean ) intercept( target, name, oldValue  ? Boolean.TRUE : Boolean.FALSE ) )
+		return ( ( Boolean ) intercept( target, name, oldValue ) )
 				.booleanValue();
 	}
 
@@ -81,8 +81,7 @@ public final class FieldInterceptorImpl extends AbstractFieldInterceptor impleme
 	}
 
 	public int readInt(Object target, String name, int oldValue) {
-		return ( ( Integer ) intercept( target, name, Integer.valueOf( oldValue ) ) )
-				.intValue();
+		return ( ( Integer ) intercept( target, name, Integer.valueOf( oldValue ) ) );
 	}
 
 	public long readLong(Object target, String name, long oldValue) {
@@ -107,7 +106,7 @@ public final class FieldInterceptorImpl extends AbstractFieldInterceptor impleme
 
 	public boolean writeBoolean(Object target, String name, boolean oldValue, boolean newValue) {
 		dirty();
-		intercept( target, name, oldValue ? Boolean.TRUE : Boolean.FALSE );
+		intercept( target, name, oldValue );
 		return newValue;
 	}
 

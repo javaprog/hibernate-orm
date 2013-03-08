@@ -33,9 +33,12 @@ import java.util.Map;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
+import org.hibernate.cache.spi.access.NaturalIdRegionAccessStrategy;
 import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
 import org.hibernate.engine.spi.Mapping;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.internal.DynamicFilterAliasGenerator;
+import org.hibernate.internal.FilterAliasGenerator;
 import org.hibernate.internal.util.MarkerObject;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.mapping.Column;
@@ -114,6 +117,7 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 	private final String discriminatorFormulaTemplate;
 	private final String discriminatorAlias;
 	private final Type discriminatorType;
+	private final Object discriminatorValue;
 	private final String discriminatorSQLValue;
 	private final boolean discriminatorInsertable;
 
@@ -135,10 +139,11 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 	public SingleTableEntityPersister(
 			final PersistentClass persistentClass, 
 			final EntityRegionAccessStrategy cacheAccessStrategy,
+			final NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
 			final SessionFactoryImplementor factory,
 			final Mapping mapping) throws HibernateException {
 
-		super( persistentClass, cacheAccessStrategy, factory );
+		super( persistentClass, cacheAccessStrategy, naturalIdRegionAccessStrategy, factory );
 
 		// CLASS + TABLE
 
@@ -292,7 +297,6 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 
 		// DISCRIMINATOR
 
-		final Object discriminatorValue;
 		if ( persistentClass.isPolymorphic() ) {
 			Value discrimValue = persistentClass.getDiscriminator();
 			if (discrimValue==null) {
@@ -451,10 +455,11 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 	public SingleTableEntityPersister(
 			final EntityBinding entityBinding,
 			final EntityRegionAccessStrategy cacheAccessStrategy,
+			final NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
 			final SessionFactoryImplementor factory,
 			final Mapping mapping) throws HibernateException {
 
-		super( entityBinding, cacheAccessStrategy, factory );
+		super( entityBinding, cacheAccessStrategy, naturalIdRegionAccessStrategy, factory );
 
 		// CLASS + TABLE
 
@@ -536,7 +541,6 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 
 		// DISCRIMINATOR
 
-		final Object discriminatorValue;
 		if ( entityBinding.isPolymorphic() ) {
 			SimpleValue discriminatorRelationalValue = entityBinding.getHierarchyDetails().getEntityDiscriminator().getBoundValue();
 			if ( discriminatorRelationalValue == null ) {
@@ -758,6 +762,10 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		return discriminatorType;
 	}
 
+	public Object getDiscriminatorValue() {
+		return discriminatorValue;
+	}
+
 	public String getDiscriminatorSQLValue() {
 		return discriminatorSQLValue;
 	}
@@ -846,7 +854,7 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 				if ( !queryable.isAbstract() ) frag.addValue( queryable.getDiscriminatorSQLValue() );
 			}
 
-			StringBuffer buf = new StringBuffer(50)
+			StringBuilder buf = new StringBuilder(50)
 				.append(" and ")
 				.append( frag.toFragmentString() );
 
@@ -919,7 +927,7 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		Type type = propertyMapping.toType(propertyName);
 		if ( type.isAssociationType() && ( (AssociationType) type ).useLHSPrimaryKey() ) return 0;
 		final Integer tabnum = (Integer) propertyTableNumbersByNameAndSubclass.get(entityName + '.' + propertyName);
-		return tabnum==null ? 0 : tabnum.intValue();
+		return tabnum==null ? 0 : tabnum;
 	}
 	
 	protected String getSequentialSelect(String entityName) {
@@ -1003,7 +1011,7 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 	public String getPropertyTableName(String propertyName) {
 		Integer index = getEntityMetamodel().getPropertyIndexOrNull(propertyName);
 		if (index==null) return null;
-		return qualifiedTableNames[ propertyTableNumbers[ index.intValue() ] ];
+		return qualifiedTableNames[ propertyTableNumbers[index] ];
 	}
 	
 	public void postInstantiate() {
@@ -1030,5 +1038,10 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 
 	public String[][] getContraintOrderedTableKeyColumnClosure() {
 		return constraintOrderedKeyColumnNames;
+	}
+
+	@Override
+	public FilterAliasGenerator getFilterAliasGenerator(String rootAlias) {
+		return new DynamicFilterAliasGenerator(qualifiedTableNames, rootAlias);
 	}
 }

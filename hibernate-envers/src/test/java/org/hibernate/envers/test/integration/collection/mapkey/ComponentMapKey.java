@@ -23,30 +23,30 @@
  */
 package org.hibernate.envers.test.integration.collection.mapkey;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
+import java.util.Arrays;
+import javax.persistence.EntityManager;
+
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.components.Component1;
 import org.hibernate.envers.test.entities.components.Component2;
 import org.hibernate.envers.test.entities.components.ComponentTestEntity;
 import org.hibernate.envers.test.tools.TestTools;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
-import java.util.Arrays;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  */
-public class ComponentMapKey extends AbstractEntityTest {
+public class ComponentMapKey extends BaseEnversJPAFunctionalTestCase {
     private Integer cmke_id;
 
     private Integer cte1_id;
     private Integer cte2_id;
 
-    public void configure(Ejb3Configuration cfg) {
-        cfg.addAnnotatedClass(ComponentMapKeyEntity.class);
-        cfg.addAnnotatedClass(ComponentTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { ComponentMapKeyEntity.class, ComponentTestEntity.class };
     }
 
     @Test

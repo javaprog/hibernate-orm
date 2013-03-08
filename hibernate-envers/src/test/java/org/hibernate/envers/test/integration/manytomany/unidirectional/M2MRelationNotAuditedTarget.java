@@ -23,35 +23,35 @@
  */
 package org.hibernate.envers.test.integration.manytomany.unidirectional;
 
-import org.hibernate.ejb.Ejb3Configuration;
-import org.hibernate.envers.test.AbstractEntityTest;
-import org.hibernate.envers.test.Priority;
-import org.hibernate.envers.test.entities.UnversionedStrTestEntity;
-import org.hibernate.envers.test.entities.manytomany.unidirectional.M2MTargetNotAuditedEntity;
-import org.junit.Test;
-
-import javax.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import javax.persistence.EntityManager;
 
-import static org.hibernate.envers.test.tools.TestTools.*;
-import static org.junit.Assert.*;
+import org.junit.Test;
+
+import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
+import org.hibernate.envers.test.Priority;
+import org.hibernate.envers.test.entities.UnversionedStrTestEntity;
+import org.hibernate.envers.test.entities.manytomany.unidirectional.M2MTargetNotAuditedEntity;
+
+import static org.hibernate.envers.test.tools.TestTools.checkList;
+import static org.junit.Assert.assertTrue;
 
 /**
  * A test for auditing a many-to-many relation where the target entity is not audited.
  * @author Adam Warski
  */
-public class M2MRelationNotAuditedTarget extends AbstractEntityTest {
+public class M2MRelationNotAuditedTarget extends BaseEnversJPAFunctionalTestCase {
 	private Integer tnae1_id;
 	private Integer tnae2_id;
 
 	private Integer uste1_id;
 	private Integer uste2_id;
 
-	public void configure(Ejb3Configuration cfg) {
-		cfg.addAnnotatedClass(M2MTargetNotAuditedEntity.class);
-		cfg.addAnnotatedClass(UnversionedStrTestEntity.class);
+	@Override
+	protected Class<?>[] getAnnotatedClasses() {
+		return new Class[] { M2MTargetNotAuditedEntity.class, UnversionedStrTestEntity.class };
 	}
 
 	@Test

@@ -26,6 +26,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.Map;
+
 import org.hibernate.HibernateException;
 import org.hibernate.PropertyAccessException;
 import org.hibernate.PropertyNotFoundException;
@@ -43,6 +44,7 @@ public class DirectPropertyAccessor implements PropertyAccessor {
 		private final transient Field field;
 		private final Class clazz;
 		private final String name;
+
 		DirectGetter(Field field, Class clazz, String name) {
 			this.field = field;
 			this.clazz = clazz;

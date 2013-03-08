@@ -1,11 +1,11 @@
 package org.hibernate.envers.test.integration.naming.quotation;
 
-import org.hibernate.envers.Audited;
-
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+
+import org.hibernate.envers.Audited;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
@@ -14,14 +14,14 @@ import javax.persistence.Id;
 public class QuotedFieldsEntity {
     @Id
     @GeneratedValue
-    @Column(name = "`id#`")
+    @Column(name = "`id`")
     private Long id;
 
-    @Column(name = "`#data1`")
+    @Column(name = "`data1`")
     @Audited
     private String data1;
 
-    @Column(name = "`#data2`")
+    @Column(name = "`data2`")
     @Audited
     private Integer data2;
 

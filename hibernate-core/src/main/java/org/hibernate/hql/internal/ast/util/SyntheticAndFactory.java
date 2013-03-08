@@ -26,7 +26,9 @@ package org.hibernate.hql.internal.ast.util;
 
 import java.util.Map;
 
-import org.hibernate.internal.CoreMessageLogger;
+import antlr.collections.AST;
+import org.jboss.logging.Logger;
+
 import org.hibernate.hql.internal.antlr.HqlSqlTokenTypes;
 import org.hibernate.hql.internal.ast.HqlSqlWalker;
 import org.hibernate.hql.internal.ast.tree.FromElement;
@@ -34,13 +36,12 @@ import org.hibernate.hql.internal.ast.tree.Node;
 import org.hibernate.hql.internal.ast.tree.QueryNode;
 import org.hibernate.hql.internal.ast.tree.RestrictableStatement;
 import org.hibernate.hql.internal.ast.tree.SqlFragment;
+import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.param.CollectionFilterKeyParameterSpecification;
 import org.hibernate.persister.entity.Queryable;
 import org.hibernate.sql.JoinFragment;
 import org.hibernate.type.Type;
-import org.jboss.logging.Logger;
-import antlr.collections.AST;
 
 /**
  * Creates synthetic and nodes based on the where fragment part of a JoinSequence.
@@ -88,7 +89,7 @@ public class SyntheticAndFactory implements HqlSqlTokenTypes {
 			whereFragment = whereFragment.substring( 4 );
 		}
 
-        LOG.debugf("Using unprocessed WHERE-fragment [%s]", whereFragment);
+		LOG.debugf( "Using unprocessed WHERE-fragment [%s]", whereFragment );
 
 		SqlFragment fragment = ( SqlFragment ) create( SQL_TOKEN, whereFragment );
 		fragment.setJoinFragment( joinFragment );
@@ -119,7 +120,9 @@ public class SyntheticAndFactory implements HqlSqlTokenTypes {
 				hqlSqlWalker
 		);
 
-        LOG.debugf("Using processed WHERE-fragment [%s]", fragment.getText());
+		if ( LOG.isDebugEnabled() ) {
+			LOG.debugf( "Using processed WHERE-fragment [%s]", fragment.getText() );
+		}
 
 		// Filter conditions need to be inserted before the HQL where condition and the
 		// theta join node.  This is because org.hibernate.loader.Loader binds the filter parameters first,
