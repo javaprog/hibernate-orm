@@ -25,12 +25,13 @@ package org.hibernate.cfg;
 
 import java.io.InputStream;
 
-import org.jboss.logging.Logger;
-import org.xml.sax.EntityResolver;
-import org.xml.sax.InputSource;
-
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.xml.DTDEntityResolver;
+
+import org.jboss.logging.Logger;
+
+import org.xml.sax.EntityResolver;
+import org.xml.sax.InputSource;
 
 /**
  * Resolve JPA xsd files locally
@@ -56,37 +57,57 @@ public class EJB3DTDEntityResolver extends DTDEntityResolver {
 	@Override
 	public InputSource resolveEntity(String publicId, String systemId) {
 		LOG.tracev( "Resolving XML entity {0} : {1}", publicId, systemId );
-		InputSource is = super.resolveEntity( publicId, systemId );
-		if ( is == null ) {
-			if ( systemId != null ) {
-				if ( systemId.endsWith( "orm_1_0.xsd" ) ) {
-					InputStream dtdStream = getStreamFromClasspath( "orm_1_0.xsd" );
-					final InputSource source = buildInputSource( publicId, systemId, dtdStream, false );
-					if (source != null) return source;
+		if ( systemId != null ) {
+			if ( systemId.endsWith( "orm_2_1.xsd" ) ) {
+				InputStream dtdStream = getStreamFromClasspath( "orm_2_1.xsd" );
+				final InputSource source = buildInputSource( publicId, systemId, dtdStream, false );
+				if ( source != null ) {
+					return source;
 				}
-				else if ( systemId.endsWith( "orm_2_0.xsd" ) ) {
-					InputStream dtdStream = getStreamFromClasspath( "orm_2_0.xsd" );
-					final InputSource source = buildInputSource( publicId, systemId, dtdStream, false );
-					if (source != null) return source;
+			}
+			else if ( systemId.endsWith( "orm_2_0.xsd" ) ) {
+				InputStream dtdStream = getStreamFromClasspath( "orm_2_0.xsd" );
+				final InputSource source = buildInputSource( publicId, systemId, dtdStream, false );
+				if ( source != null ) {
+					return source;
 				}
-				else if ( systemId.endsWith( "persistence_1_0.xsd" ) ) {
-					InputStream dtdStream = getStreamFromClasspath( "persistence_1_0.xsd" );
-					final InputSource source = buildInputSource( publicId, systemId, dtdStream, true );
-					if (source != null) return source;
+			}
+			else if ( systemId.endsWith( "orm_1_0.xsd" ) ) {
+				InputStream dtdStream = getStreamFromClasspath( "orm_1_0.xsd" );
+				final InputSource source = buildInputSource( publicId, systemId, dtdStream, false );
+				if ( source != null ) {
+					return source;
 				}
-				else if ( systemId.endsWith( "persistence_2_0.xsd" ) ) {
-					InputStream dtdStream = getStreamFromClasspath( "persistence_2_0.xsd" );
-					final InputSource source = buildInputSource( publicId, systemId, dtdStream, true );
-					if (source != null) return source;
+			}
+			else if ( systemId.endsWith( "persistence_2_1.xsd" ) ) {
+				InputStream dtdStream = getStreamFromClasspath( "persistence_2_1.xsd" );
+				final InputSource source = buildInputSource( publicId, systemId, dtdStream, true );
+				if ( source != null ) {
+					return source;
+				}
+			}
+			else if ( systemId.endsWith( "persistence_2_0.xsd" ) ) {
+				InputStream dtdStream = getStreamFromClasspath( "persistence_2_0.xsd" );
+				final InputSource source = buildInputSource( publicId, systemId, dtdStream, true );
+				if ( source != null ) {
+					return source;
+				}
+			}
+			else if ( systemId.endsWith( "persistence_1_0.xsd" ) ) {
+				InputStream dtdStream = getStreamFromClasspath( "persistence_1_0.xsd" );
+				final InputSource source = buildInputSource( publicId, systemId, dtdStream, true );
+				if ( source != null ) {
+					return source;
 				}
 			}
 		}
-		else {
+
+		// because the old code did this too (in terms of setting resolved)
+		InputSource source = super.resolveEntity( publicId, systemId );
+		if ( source != null ) {
 			resolved = true;
-			return is;
 		}
-		//use the default behavior
-		return null;
+		return source;
 	}
 
 	private InputSource buildInputSource(String publicId, String systemId, InputStream dtdStream, boolean resolved) {
@@ -103,8 +124,8 @@ public class EJB3DTDEntityResolver extends DTDEntityResolver {
 	}
 
 	private InputStream getStreamFromClasspath(String fileName) {
-		LOG.trace( "Recognized JPA ORM namespace; attempting to resolve on classpath under org/hibernate/ejb" );
-		String path = "org/hibernate/ejb/" + fileName;
+		LOG.trace( "Recognized JPA ORM namespace; attempting to resolve on classpath under org/hibernate/jpa" );
+		String path = "org/hibernate/jpa/" + fileName;
 		InputStream dtdStream = resolveInHibernateNamespace( path );
 		return dtdStream;
 	}

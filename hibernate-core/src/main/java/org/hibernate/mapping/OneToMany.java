@@ -22,11 +22,12 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.mapping;
+
 import java.util.Iterator;
 
 import org.hibernate.FetchMode;
 import org.hibernate.MappingException;
-import org.hibernate.cfg.Mappings;
+import org.hibernate.boot.spi.MetadataImplementor;
 import org.hibernate.engine.spi.Mapping;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
@@ -36,8 +37,7 @@ import org.hibernate.type.Type;
  * @author Gavin King
  */
 public class OneToMany implements Value {
-
-	private final Mappings mappings;
+	private final MetadataImplementor metadata;
 	private final Table referencingTable;
 
 	private String referencedEntityName;
@@ -45,20 +45,21 @@ public class OneToMany implements Value {
 	private boolean embedded;
 	private boolean ignoreNotFound;
 
+	public OneToMany(MetadataImplementor metadata, PersistentClass owner) throws MappingException {
+		this.metadata = metadata;
+		this.referencingTable = (owner==null) ? null : owner.getTable();
+	}
+
 	private EntityType getEntityType() {
-		return mappings.getTypeResolver().getTypeFactory().manyToOne(
-				getReferencedEntityName(), 
+		return metadata.getTypeResolver().getTypeFactory().manyToOne(
+				getReferencedEntityName(),
+				true, 
 				null, 
 				false,
 				false,
 				isIgnoreNotFound(),
 				false
 			);
-	}
-
-	public OneToMany(Mappings mappings, PersistentClass owner) throws MappingException {
-		this.mappings = mappings;
-		this.referencingTable = (owner==null) ? null : owner.getTable();
 	}
 
 	public PersistentClass getAssociatedClass() {
@@ -76,7 +77,7 @@ public class OneToMany implements Value {
 		// no foreign key element of for a one-to-many
 	}
 
-	public Iterator getColumnIterator() {
+	public Iterator<Selectable> getColumnIterator() {
 		return associatedClass.getKey().getColumnIterator();
 	}
 

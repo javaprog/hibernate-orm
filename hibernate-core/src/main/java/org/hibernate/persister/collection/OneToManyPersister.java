@@ -28,16 +28,15 @@ import java.io.Serializable;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Iterator;
+import java.util.Set;
 
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.spi.access.CollectionRegionAccessStrategy;
-import org.hibernate.cfg.Configuration;
 import org.hibernate.collection.spi.PersistentCollection;
 import org.hibernate.engine.jdbc.batch.internal.BasicBatchKey;
 import org.hibernate.engine.spi.LoadQueryInfluencers;
-import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.engine.spi.SubselectFetch;
 import org.hibernate.internal.FilterAliasGenerator;
@@ -51,6 +50,7 @@ import org.hibernate.loader.entity.CollectionElementLoader;
 import org.hibernate.mapping.Collection;
 import org.hibernate.persister.entity.Joinable;
 import org.hibernate.persister.entity.OuterJoinLoadable;
+import org.hibernate.persister.spi.PersisterCreationContext;
 import org.hibernate.pretty.MessageHelper;
 import org.hibernate.sql.Update;
 
@@ -81,15 +81,14 @@ public class OneToManyPersister extends AbstractCollectionPersister {
 	}
 
 	public OneToManyPersister(
-			Collection collection,
+			Collection collectionBinding,
 			CollectionRegionAccessStrategy cacheAccessStrategy,
-			Configuration cfg,
-			SessionFactoryImplementor factory) throws MappingException, CacheException {
-		super( collection, cacheAccessStrategy, cfg, factory );
-		cascadeDeleteEnabled = collection.getKey().isCascadeDeleteEnabled() &&
-				factory.getDialect().supportsCascadeDelete();
-		keyIsNullable = collection.getKey().isNullable();
-		keyIsUpdateable = collection.getKey().isUpdateable();
+			PersisterCreationContext creationContext) throws MappingException, CacheException {
+		super( collectionBinding, cacheAccessStrategy, creationContext );
+		cascadeDeleteEnabled = collectionBinding.getKey().isCascadeDeleteEnabled()
+				&& creationContext.getSessionFactory().getDialect().supportsCascadeDelete();
+		keyIsNullable = collectionBinding.getKey().isNullable();
+		keyIsUpdateable = collectionBinding.getKey().isUpdateable();
 	}
 
 	/**
@@ -181,29 +180,38 @@ public class OneToManyPersister extends AbstractCollectionPersister {
 	public void recreate(PersistentCollection collection, Serializable id, SessionImplementor session)
 			throws HibernateException {
 		super.recreate( collection, id, session );
-		writeIndex( collection, id, session );
+		writeIndex( collection, collection.entries( this ), id, true, session );
 	}
 	
 	@Override
 	public void insertRows(PersistentCollection collection, Serializable id, SessionImplementor session)
 			throws HibernateException {
 		super.insertRows( collection, id, session );
-		writeIndex( collection, id, session );
+		writeIndex( collection, collection.entries( this ), id, true, session );
 	}
 	
-	private void writeIndex(PersistentCollection collection, Serializable id, SessionImplementor session) {
+	@Override
+	protected void doProcessQueuedOps(PersistentCollection collection, Serializable id, SessionImplementor session)
+			throws HibernateException {
+		writeIndex( collection, collection.queuedAdditionIterator(), id, false, session );
+	}
+
+	private void writeIndex(
+			PersistentCollection collection,
+			Iterator entries,
+			Serializable id,
+			boolean resetIndex,
+			SessionImplementor session) {
 		// If one-to-many and inverse, still need to create the index.  See HHH-5732.
 		if ( isInverse && hasIndex && !indexContainsFormula ) {
 			try {
-				Iterator entries = collection.entries( this );
 				if ( entries.hasNext() ) {
+					int nextIndex = resetIndex ? 0 : getSize( id, session );
 					Expectation expectation = Expectations.appropriateExpectation( getUpdateCheckStyle() );
-					int i = 0;
-					int count = 0;
 					while ( entries.hasNext() ) {
 
 						final Object entry = entries.next();
-						if ( collection.entryExists( entry, i ) ) {
+						if ( entry != null && collection.entryExists( entry, nextIndex ) ) {
 							int offset = 1;
 							PreparedStatement st = null;
 							boolean callable = isUpdateCallable();
@@ -232,9 +240,9 @@ public class OneToManyPersister extends AbstractCollectionPersister {
 							try {
 								offset += expectation.prepare( st );
 								if ( hasIdentifier ) {
-									offset = writeIdentifier( st, collection.getIdentifier( entry, i ), offset, session );
+									offset = writeIdentifier( st, collection.getIdentifier( entry, nextIndex ), offset, session );
 								}
-								offset = writeIndex( st, collection.getIndex( entry, i, this ), offset, session );
+								offset = writeIndex( st, collection.getIndex( entry, nextIndex, this ), offset, session );
 								offset = writeElement( st, collection.getElement( entry ), offset, session );
 
 								if ( useBatch ) {
@@ -246,7 +254,6 @@ public class OneToManyPersister extends AbstractCollectionPersister {
 								else {
 									expectation.verifyOutcome( session.getTransactionCoordinator().getJdbcCoordinator().getResultSetReturn().executeUpdate( st ), st, -1 );
 								}
-								count++;
 							}
 							catch ( SQLException sqle ) {
 								if ( useBatch ) {
@@ -261,7 +268,7 @@ public class OneToManyPersister extends AbstractCollectionPersister {
 							}
 
 						}
-						i++;
+						nextIndex++;
 					}
 				}
 			}
@@ -473,21 +480,37 @@ public class OneToManyPersister extends AbstractCollectionPersister {
 				.createBatchingOneToManyInitializer( this, batchSize, getFactory(), loadQueryInfluencers );
 	}
 
-	public String fromJoinFragment(String alias,
-								   boolean innerJoin,
-								   boolean includeSubclasses) {
-		return ( ( Joinable ) getElementPersister() ).fromJoinFragment( alias, innerJoin, includeSubclasses );
+	@Override
+	public String fromJoinFragment(String alias, boolean innerJoin, boolean includeSubclasses) {
+		return ( (Joinable) getElementPersister() ).fromJoinFragment( alias, innerJoin, includeSubclasses );
 	}
 
-	public String whereJoinFragment(String alias,
-									boolean innerJoin,
-									boolean includeSubclasses) {
-		return ( ( Joinable ) getElementPersister() ).whereJoinFragment( alias, innerJoin, includeSubclasses );
+	@Override
+	public String fromJoinFragment(
+			String alias,
+			boolean innerJoin,
+			boolean includeSubclasses,
+			Set<String> treatAsDeclarations) {
+		return ( (Joinable) getElementPersister() ).fromJoinFragment( alias, innerJoin, includeSubclasses, treatAsDeclarations );
+	}
+
+	@Override
+	public String whereJoinFragment(String alias, boolean innerJoin, boolean includeSubclasses) {
+		return ( (Joinable) getElementPersister() ).whereJoinFragment( alias, innerJoin, includeSubclasses );
+	}
+
+	@Override
+	public String whereJoinFragment(
+			String alias,
+			boolean innerJoin,
+			boolean includeSubclasses,
+			Set<String> treatAsDeclarations) {
+		return ( (Joinable) getElementPersister() ).whereJoinFragment( alias, innerJoin, includeSubclasses, treatAsDeclarations );
 	}
 
 	@Override
     public String getTableName() {
-		return ( ( Joinable ) getElementPersister() ).getTableName();
+		return ( (Joinable) getElementPersister() ).getTableName();
 	}
 
 	@Override
@@ -498,6 +521,15 @@ public class OneToManyPersister extends AbstractCollectionPersister {
 		}
 		return result;
 
+	}
+
+	@Override
+	protected String filterFragment(String alias, Set<String> treatAsDeclarations) throws MappingException {
+		String result = super.filterFragment( alias );
+		if ( getElementPersister() instanceof Joinable ) {
+			result += ( ( Joinable ) getElementPersister() ).oneToManyFilterFragment( alias, treatAsDeclarations );
+		}
+		return result;
 	}
 
 	@Override

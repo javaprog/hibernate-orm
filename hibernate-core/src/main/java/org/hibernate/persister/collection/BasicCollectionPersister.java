@@ -23,20 +23,20 @@
  *
  */
 package org.hibernate.persister.collection;
+
 import java.io.Serializable;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Iterator;
+import java.util.Set;
 
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.spi.access.CollectionRegionAccessStrategy;
-import org.hibernate.cfg.Configuration;
 import org.hibernate.collection.spi.PersistentCollection;
 import org.hibernate.engine.jdbc.batch.internal.BasicBatchKey;
 import org.hibernate.engine.spi.LoadQueryInfluencers;
-import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.engine.spi.SubselectFetch;
 import org.hibernate.internal.FilterAliasGenerator;
@@ -44,12 +44,12 @@ import org.hibernate.internal.StaticFilterAliasGenerator;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.jdbc.Expectation;
 import org.hibernate.jdbc.Expectations;
-import org.hibernate.loader.collection.BatchingCollectionInitializer;
 import org.hibernate.loader.collection.BatchingCollectionInitializerBuilder;
 import org.hibernate.loader.collection.CollectionInitializer;
 import org.hibernate.loader.collection.SubselectCollectionLoader;
 import org.hibernate.mapping.Collection;
 import org.hibernate.persister.entity.Joinable;
+import org.hibernate.persister.spi.PersisterCreationContext;
 import org.hibernate.pretty.MessageHelper;
 import org.hibernate.sql.Delete;
 import org.hibernate.sql.Insert;
@@ -69,11 +69,10 @@ public class BasicCollectionPersister extends AbstractCollectionPersister {
 	}
 
 	public BasicCollectionPersister(
-			Collection collection,
+			Collection collectionBinding,
 			CollectionRegionAccessStrategy cacheAccessStrategy,
-			Configuration cfg,
-			SessionFactoryImplementor factory) throws MappingException, CacheException {
-		super( collection, cacheAccessStrategy, cfg, factory );
+			PersisterCreationContext creationContext) throws MappingException, CacheException {
+		super( collectionBinding, cacheAccessStrategy, creationContext );
 	}
 
 	/**
@@ -151,6 +150,12 @@ public class BasicCollectionPersister extends AbstractCollectionPersister {
 		}
 		
 		return update.toStatementString();
+	}
+	
+	@Override
+	protected void doProcessQueuedOps(PersistentCollection collection, Serializable id, SessionImplementor session)
+			throws HibernateException {
+		// nothing to do
 	}
 
 	/**
@@ -337,11 +342,23 @@ public class BasicCollectionPersister extends AbstractCollectionPersister {
 				.createBatchingCollectionInitializer( this, batchSize, getFactory(), loadQueryInfluencers );
 	}
 
+	@Override
 	public String fromJoinFragment(String alias, boolean innerJoin, boolean includeSubclasses) {
 		return "";
 	}
 
+	@Override
+	public String fromJoinFragment(String alias, boolean innerJoin, boolean includeSubclasses, Set<String> treatAsDeclarations) {
+		return "";
+	}
+
+	@Override
 	public String whereJoinFragment(String alias, boolean innerJoin, boolean includeSubclasses) {
+		return "";
+	}
+
+	@Override
+	public String whereJoinFragment(String alias, boolean innerJoin, boolean includeSubclasses, Set<String> treatAsDeclarations) {
 		return "";
 	}
 

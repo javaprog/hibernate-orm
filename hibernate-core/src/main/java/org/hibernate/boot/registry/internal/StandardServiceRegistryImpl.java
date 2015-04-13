@@ -26,8 +26,8 @@ package org.hibernate.boot.registry.internal;
 import java.util.List;
 import java.util.Map;
 
-import org.hibernate.boot.registry.StandardServiceInitiator;
 import org.hibernate.boot.registry.BootstrapServiceRegistry;
+import org.hibernate.boot.registry.StandardServiceInitiator;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.service.Service;
 import org.hibernate.service.internal.AbstractServiceRegistryImpl;
@@ -37,20 +37,54 @@ import org.hibernate.service.spi.ServiceBinding;
 import org.hibernate.service.spi.ServiceInitiator;
 
 /**
- * Hibernate implementation of the standard service registry.
+ * Standard Hibernate implementation of the standard service registry.
  *
  * @author Steve Ebersole
  */
 public class StandardServiceRegistryImpl extends AbstractServiceRegistryImpl implements StandardServiceRegistry {
 	private final Map configurationValues;
 
+	/**
+	 * Constructs a StandardServiceRegistryImpl.  Should not be instantiated directly; use
+	 * {@link org.hibernate.boot.registry.StandardServiceRegistryBuilder} instead
+	 *
+	 * @param bootstrapServiceRegistry The bootstrap service registry.
+	 * @param serviceInitiators Any StandardServiceInitiators provided by the user to the builder
+	 * @param providedServices Any standard services provided directly to the builder
+	 * @param configurationValues Configuration values
+	 *
+	 * @see org.hibernate.boot.registry.StandardServiceRegistryBuilder
+	 */
 	@SuppressWarnings( {"unchecked"})
 	public StandardServiceRegistryImpl(
 			BootstrapServiceRegistry bootstrapServiceRegistry,
 			List<StandardServiceInitiator> serviceInitiators,
 			List<ProvidedService> providedServices,
 			Map<?, ?> configurationValues) {
-		super( bootstrapServiceRegistry );
+		this( true, bootstrapServiceRegistry, serviceInitiators, providedServices, configurationValues );
+	}
+
+	/**
+	 * Constructs a StandardServiceRegistryImpl.  Should not be instantiated directly; use
+	 * {@link org.hibernate.boot.registry.StandardServiceRegistryBuilder} instead
+	 *
+	 * @param autoCloseRegistry See discussion on
+	 * {@link org.hibernate.boot.registry.StandardServiceRegistryBuilder#disableAutoClose}
+	 * @param bootstrapServiceRegistry The bootstrap service registry.
+	 * @param serviceInitiators Any StandardServiceInitiators provided by the user to the builder
+	 * @param providedServices Any standard services provided directly to the builder
+	 * @param configurationValues Configuration values
+	 *
+	 * @see org.hibernate.boot.registry.StandardServiceRegistryBuilder
+	 */
+	@SuppressWarnings( {"unchecked"})
+	public StandardServiceRegistryImpl(
+			boolean autoCloseRegistry,
+			BootstrapServiceRegistry bootstrapServiceRegistry,
+			List<StandardServiceInitiator> serviceInitiators,
+			List<ProvidedService> providedServices,
+			Map<?, ?> configurationValues) {
+		super( bootstrapServiceRegistry, autoCloseRegistry );
 
 		this.configurationValues = configurationValues;
 
@@ -77,5 +111,4 @@ public class StandardServiceRegistryImpl extends AbstractServiceRegistryImpl imp
 			( (Configurable) serviceBinding.getService() ).configure( configurationValues );
 		}
 	}
-
 }

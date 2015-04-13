@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,11 +43,20 @@ public final class CollectionHelper {
     public static final int MINIMUM_INITIAL_CAPACITY = 16;
 	public static final float LOAD_FACTOR = 0.75f;
 
-	@Deprecated // use java.util.Collections.EMPTY_LIST instead
+	/**
+	 * @deprecated use  {@link java.util.Collections#EMPTY_LIST} or {@link java.util.Collections#emptyList()}  instead
+	 */
+	@Deprecated
 	public static final List EMPTY_LIST = Collections.EMPTY_LIST;
-	@Deprecated // use java.util.Collections.EMPTY_LIST instead
+	/**
+	 * @deprecated use {@link java.util.Collections#EMPTY_LIST} or {@link java.util.Collections#emptyList()}  instead
+	 */
+	@Deprecated
 	public static final Collection EMPTY_COLLECTION = Collections.EMPTY_LIST;
-	@Deprecated // use java.util.Collections.EMPTY_MAP instead
+	/**
+	 * @deprecated use {@link java.util.Collections#EMPTY_MAP} or {@link java.util.Collections#emptyMap()}  instead
+	 */
+	@Deprecated
 	public static final Map EMPTY_MAP = Collections.EMPTY_MAP;
 
 	private CollectionHelper() {
@@ -127,8 +137,19 @@ public final class CollectionHelper {
 		return new ConcurrentHashMap<K, V>( size, loadFactor );
 	}
 
-	public static <T> List<T> arrayList(int anticipatedSize) {
+	public static <T> ArrayList<T> arrayList(int anticipatedSize) {
 		return new ArrayList<T>( anticipatedSize );
+	}
+
+	public static <T> Set<T> makeCopy(Set<T> source) {
+		if ( source == null ) {
+			return null;
+		}
+
+		final int size = source.size();
+		final Set<T> copy = new HashSet<T>( size + 1 );
+		copy.addAll( source );
+		return copy;
 	}
 
     public static boolean isEmpty(Collection collection) {
@@ -146,4 +167,14 @@ public final class CollectionHelper {
     public static boolean isNotEmpty(Map map) {
         return !isEmpty( map );
     }
+
+	public static boolean isEmpty(Object[] objects){
+		return objects == null || objects.length==0;
+	}
+
+	public static <X,Y> Map<X, Y> makeCopy(Map<X, Y> map) {
+		final Map<X,Y> copy = mapOfSize( map.size() + 1 );
+		copy.putAll( map );
+		return copy;
+	}
 }

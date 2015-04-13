@@ -25,7 +25,6 @@ package org.hibernate.envers.test.integration.collection.embeddable;
 
 import java.util.Arrays;
 import java.util.Collections;
-
 import javax.persistence.EntityManager;
 
 import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
@@ -34,15 +33,15 @@ import org.hibernate.envers.test.entities.collection.EmbeddableMapEntity;
 import org.hibernate.envers.test.entities.components.Component3;
 import org.hibernate.envers.test.entities.components.Component4;
 import org.hibernate.envers.test.tools.TestTools;
-import org.hibernate.testing.TestForIssue;
 
+import org.hibernate.testing.TestForIssue;
 import org.junit.Assert;
 import org.junit.Test;
 
 /**
  * @author Kristoffer Lundberg (kristoffer at cambio dot se)
  */
-@TestForIssue( jiraKey = "HHH-6613" )
+@TestForIssue(jiraKey = "HHH-6613")
 public class EmbeddableMap extends BaseEnversJPAFunctionalTestCase {
 	private Integer eme1_id = null;
 	private Integer eme2_id = null;
@@ -54,7 +53,7 @@ public class EmbeddableMap extends BaseEnversJPAFunctionalTestCase {
 
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class<?>[] { EmbeddableMapEntity.class };
+		return new Class<?>[] {EmbeddableMapEntity.class};
 	}
 
 	@Test
@@ -104,8 +103,18 @@ public class EmbeddableMap extends BaseEnversJPAFunctionalTestCase {
 
 	@Test
 	public void testRevisionsCounts() {
-		Assert.assertEquals( Arrays.asList( 1, 2, 3 ), getAuditReader().getRevisions( EmbeddableMapEntity.class, eme1_id ) );
-		Assert.assertEquals( Arrays.asList( 1, 3 ), getAuditReader().getRevisions( EmbeddableMapEntity.class, eme2_id ) );
+		Assert.assertEquals(
+				Arrays.asList( 1, 2, 3 ), getAuditReader().getRevisions(
+				EmbeddableMapEntity.class,
+				eme1_id
+		)
+		);
+		Assert.assertEquals(
+				Arrays.asList( 1, 3 ), getAuditReader().getRevisions(
+				EmbeddableMapEntity.class,
+				eme2_id
+		)
+		);
 	}
 
 	@Test

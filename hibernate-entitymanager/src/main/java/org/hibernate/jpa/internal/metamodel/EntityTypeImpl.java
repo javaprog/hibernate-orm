@@ -1,8 +1,10 @@
 /*
- * Copyright (c) 2009, Red Hat Middleware LLC or third-party contributors as
+ * Hibernate, Relational Persistence for Idiomatic Java
+ *
+ * Copyright (c) 2009, 2013, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
- * distributed under license by Red Hat Middleware LLC.
+ * distributed under license by Red Hat Inc.
  *
  * This copyrighted material is made available to anyone wishing to use, modify,
  * copy, or redistribute it subject to the terms and conditions of the GNU
@@ -20,8 +22,11 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.jpa.internal.metamodel;
+
 import java.io.Serializable;
 import javax.persistence.metamodel.EntityType;
+
+import org.hibernate.mapping.PersistentClass;
 
 /**
  * Defines the Hibernate implementation of the JPA {@link EntityType} contract.
@@ -29,39 +34,39 @@ import javax.persistence.metamodel.EntityType;
  * @author Steve Ebersole
  * @author Emmanuel Bernard
  */
-public class EntityTypeImpl<X> 
-		extends AbstractIdentifiableType<X>
-		implements EntityType<X>, Serializable {
+public class EntityTypeImpl<X> extends AbstractIdentifiableType<X> implements EntityType<X>, Serializable {
 	private final String jpaEntityName;
 
-	public EntityTypeImpl(
-			Class<X> javaType,
-			AbstractIdentifiableType<? super X> superType, 
-			String jpaEntityName,
-			boolean hasIdentifierProperty,
-			boolean isVersioned) {
-		super( javaType, superType, hasIdentifierProperty, isVersioned );
-		this.jpaEntityName = jpaEntityName;
+	@SuppressWarnings("unchecked")
+	public EntityTypeImpl(Class javaType, AbstractIdentifiableType<? super X> superType, PersistentClass persistentClass) {
+		super(
+				javaType,
+				persistentClass.getEntityName(),
+				superType,
+				persistentClass.getDeclaredIdentifierMapper() != null || ( superType != null && superType.hasIdClass() ),
+				persistentClass.hasIdentifierProperty(),
+				persistentClass.isVersioned()
+		);
+		this.jpaEntityName = persistentClass.getJpaEntityName();
 	}
 
+	@Override
 	public String getName() {
 		return jpaEntityName;
 	}
 
+	@Override
 	public BindableType getBindableType() {
 		return BindableType.ENTITY_TYPE;
 	}
 
+	@Override
 	public Class<X> getBindableJavaType() {
 		return getJavaType();
 	}
 
+	@Override
 	public PersistenceType getPersistenceType() {
 		return PersistenceType.ENTITY;
-	}
-
-	@Override
-	protected boolean requiresSupertypeForNonDeclaredIdentifier() {
-		return true;
 	}
 }

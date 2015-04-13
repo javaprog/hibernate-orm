@@ -62,6 +62,7 @@ public final class Settings {
 	private boolean queryCacheEnabled;
 	private boolean structuredCacheEntriesEnabled;
 	private boolean secondLevelCacheEnabled;
+	private boolean autoEvictCollectionCache;
 	private String cacheRegionPrefix;
 	private boolean minimalPutsEnabled;
 	private boolean commentsEnabled;
@@ -96,6 +97,9 @@ public final class Settings {
 	private MultiTableBulkIdStrategy multiTableBulkIdStrategy;
 	private BatchFetchStyle batchFetchStyle;
 	private boolean directReferenceCacheEntriesEnabled;
+	
+	private boolean jtaTrackByThread;
+	private BaselineSessionEventsListenerBuilder baselineSessionEventsListenerBuilder;
 
 
 	/**
@@ -436,7 +440,7 @@ public final class Settings {
 		this.namedQueryStartupCheckingEnabled = namedQueryStartupCheckingEnabled;
 	}
 
-	void setEntityTuplizerFactory(EntityTuplizerFactory entityTuplizerFactory) {
+	public void setEntityTuplizerFactory(EntityTuplizerFactory entityTuplizerFactory) {
 		this.entityTuplizerFactory = entityTuplizerFactory;
 	}
 
@@ -507,5 +511,29 @@ public final class Settings {
 
 	void setDefaultNullPrecedence(NullPrecedence defaultNullPrecedence) {
 		this.defaultNullPrecedence = defaultNullPrecedence;
+	}
+
+	public boolean isJtaTrackByThread() {
+		return jtaTrackByThread;
+	}
+
+	public void setJtaTrackByThread(boolean jtaTrackByThread) {
+		this.jtaTrackByThread = jtaTrackByThread;
+	}
+
+	public boolean isAutoEvictCollectionCache() {
+		return autoEvictCollectionCache;
+	}
+
+	public void setAutoEvictCollectionCache(boolean autoEvictCollectionCache) {
+		this.autoEvictCollectionCache = autoEvictCollectionCache;
+	}
+
+	public void setBaselineSessionEventsListenerBuilder(BaselineSessionEventsListenerBuilder baselineSessionEventsListenerBuilder) {
+		this.baselineSessionEventsListenerBuilder = baselineSessionEventsListenerBuilder;
+	}
+
+	public BaselineSessionEventsListenerBuilder getBaselineSessionEventsListenerBuilder() {
+		return baselineSessionEventsListenerBuilder;
 	}
 }

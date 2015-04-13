@@ -23,6 +23,7 @@
  *
  */
 package org.hibernate.id;
+
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -30,12 +31,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.type.CustomType;
 import org.hibernate.type.Type;
+
+import org.jboss.logging.Logger;
 
 /**
  * Factory and helper methods for {@link IdentifierGenerator} framework.
@@ -117,9 +118,16 @@ public final class IdentifierGeneratorHelper {
 				return ( (ResultSetIdentifierConsumer) customType.getUserType() ).consumeIdentifier( rs );
 			}
 		}
+		int columnCount = 1;
+		try {
+			columnCount = rs.getMetaData().getColumnCount();
+		}
+		catch(Exception e){
+			//Oracle driver will throw NPE
+		}
 
 		Class clazz = type.getReturnedClass();
-		if (rs.getMetaData().getColumnCount() == 1) {
+		if (columnCount == 1) {
 			if ( clazz == Long.class ) {
 				return rs.getLong( 1 );
 			}

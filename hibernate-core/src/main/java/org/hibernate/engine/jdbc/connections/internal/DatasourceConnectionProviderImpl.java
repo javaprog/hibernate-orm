@@ -22,6 +22,7 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.engine.jdbc.connections.internal;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Map;
@@ -30,8 +31,8 @@ import javax.sql.DataSource;
 import org.hibernate.HibernateException;
 import org.hibernate.cfg.Environment;
 import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
-import org.hibernate.service.UnknownUnwrapTypeException;
 import org.hibernate.engine.jndi.spi.JndiService;
+import org.hibernate.service.UnknownUnwrapTypeException;
 import org.hibernate.service.spi.Configurable;
 import org.hibernate.service.spi.InjectService;
 import org.hibernate.service.spi.Stoppable;
@@ -49,7 +50,6 @@ import org.hibernate.service.spi.Stoppable;
  * @author Steve Ebersole
  */
 public class DatasourceConnectionProviderImpl implements ConnectionProvider, Configurable, Stoppable {
-
 	private DataSource dataSource;
 	private String user;
 	private String pass;
@@ -67,6 +67,7 @@ public class DatasourceConnectionProviderImpl implements ConnectionProvider, Con
 	}
 
 	@InjectService( required = false )
+	@SuppressWarnings("UnusedDeclaration")
 	public void setJndiService(JndiService jndiService) {
 		this.jndiService = jndiService;
 	}
@@ -93,9 +94,7 @@ public class DatasourceConnectionProviderImpl implements ConnectionProvider, Con
 		}
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void configure(Map configValues) {
 		if ( this.dataSource == null ) {
 			final Object dataSource = configValues.get( Environment.DATASOURCE );
@@ -126,14 +125,13 @@ public class DatasourceConnectionProviderImpl implements ConnectionProvider, Con
 		available = true;
 	}
 
+	@Override
 	public void stop() {
 		available = false;
 		dataSource = null;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public Connection getConnection() throws SQLException {
 		if ( !available ) {
 			throw new HibernateException( "Provider is closed!" );
@@ -141,16 +139,12 @@ public class DatasourceConnectionProviderImpl implements ConnectionProvider, Con
 		return useCredentials ? dataSource.getConnection( user, pass ) : dataSource.getConnection();
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void closeConnection(Connection connection) throws SQLException {
 		connection.close();
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public boolean supportsAggressiveRelease() {
 		return true;
 	}

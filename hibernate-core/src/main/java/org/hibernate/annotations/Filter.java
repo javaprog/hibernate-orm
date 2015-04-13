@@ -22,6 +22,7 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.annotations;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
@@ -31,7 +32,7 @@ import static java.lang.annotation.ElementType.TYPE;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
- * Add filters to an entity or a target entity of a collection
+ * Add filters to an entity or a target entity of a collection.
  *
  * @author Emmanuel Bernard
  * @author Matthew Inger
@@ -41,8 +42,25 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Target({TYPE, METHOD, FIELD})
 @Retention(RUNTIME)
 public @interface Filter {
+	/**
+	 * The filter name.
+	 */
 	String name();
+
+	/**
+	 * The filter condition.  If empty, the default condition from the correspondingly named {@link FilterDef} is used.
+	 */
 	String condition() default "";
+
+	/**
+	 * If true, automatically determine all points within the condition fragment that an alias should be injected.
+	 * Otherwise, injection will only replace instances of explicit "{alias}" instances or
+	 * @SqlFragmentAlias descriptors.
+	 */
 	boolean deduceAliasInjectionPoints() default true;
+
+	/**
+	 * The alias descriptors for injection.
+	 */
 	SqlFragmentAlias[] aliases() default {};
 }

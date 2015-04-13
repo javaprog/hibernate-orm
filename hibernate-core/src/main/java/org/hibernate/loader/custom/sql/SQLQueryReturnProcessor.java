@@ -23,23 +23,27 @@
  *
  */
 package org.hibernate.loader.custom.sql;
+
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.engine.query.spi.sql.NativeSQLQueryCollectionReturn;
+import org.hibernate.engine.query.spi.sql.NativeSQLQueryConstructorReturn;
 import org.hibernate.engine.query.spi.sql.NativeSQLQueryJoinReturn;
 import org.hibernate.engine.query.spi.sql.NativeSQLQueryNonScalarReturn;
 import org.hibernate.engine.query.spi.sql.NativeSQLQueryReturn;
 import org.hibernate.engine.query.spi.sql.NativeSQLQueryRootReturn;
 import org.hibernate.engine.query.spi.sql.NativeSQLQueryScalarReturn;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.internal.CoreLogging;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.loader.BasicLoader;
 import org.hibernate.loader.CollectionAliases;
@@ -50,14 +54,17 @@ import org.hibernate.loader.GeneratedCollectionAliases;
 import org.hibernate.loader.custom.CollectionFetchReturn;
 import org.hibernate.loader.custom.CollectionReturn;
 import org.hibernate.loader.custom.ColumnCollectionAliases;
+import org.hibernate.loader.custom.ConstructorReturn;
 import org.hibernate.loader.custom.EntityFetchReturn;
 import org.hibernate.loader.custom.FetchReturn;
 import org.hibernate.loader.custom.NonScalarReturn;
 import org.hibernate.loader.custom.Return;
 import org.hibernate.loader.custom.RootReturn;
 import org.hibernate.loader.custom.ScalarReturn;
+import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.collection.SQLLoadableCollection;
 import org.hibernate.persister.entity.EntityPersister;
+import org.hibernate.persister.entity.Joinable;
 import org.hibernate.persister.entity.SQLLoadable;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
@@ -73,9 +80,9 @@ import org.hibernate.type.Type;
  * @author Steve Ebersole
  */
 public class SQLQueryReturnProcessor {
+    private static final CoreMessageLogger LOG = CoreLogging.messageLogger( SQLQueryReturnProcessor.class );
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                       SQLQueryReturnProcessor.class.getName());
+	private static final NativeSQLQueryReturn[] NO_RETURNS = new NativeSQLQueryReturn[0];
 
 	private NativeSQLQueryReturn[] queryReturns;
 
@@ -84,10 +91,10 @@ public class SQLQueryReturnProcessor {
 	private final Map alias2Return = new HashMap();
 	private final Map alias2OwnerAlias = new HashMap();
 
-	private final Map alias2Persister = new HashMap();
+	private final Map<String,EntityPersister> alias2Persister = new HashMap<String,EntityPersister>();
 	private final Map alias2Suffix = new HashMap();
 
-	private final Map alias2CollectionPersister = new HashMap();
+	private final Map<String,CollectionPersister> alias2CollectionPersister = new HashMap<String,CollectionPersister>();
 	private final Map alias2CollectionSuffix = new HashMap();
 
 	private final Map entityPropertyResultMaps = new HashMap();
@@ -103,38 +110,57 @@ public class SQLQueryReturnProcessor {
 //	private List collectionPersisters = new ArrayList();
 //	private List collectionResults = new ArrayList();
 
-	private int entitySuffixSeed = 0;
-	private int collectionSuffixSeed = 0;
+	private int entitySuffixSeed;
+	private int collectionSuffixSeed;
 
 
 	public SQLQueryReturnProcessor(NativeSQLQueryReturn[] queryReturns, SessionFactoryImplementor factory) {
-		this.queryReturns = queryReturns;
+		this.queryReturns = queryReturns == null ? NO_RETURNS : queryReturns;
 		this.factory = factory;
 	}
 
-	/*package*/ class ResultAliasContext {
+	public class ResultAliasContext {
 		public SQLLoadable getEntityPersister(String alias) {
-			return ( SQLLoadable ) alias2Persister.get( alias );
+			return (SQLLoadable) alias2Persister.get( alias );
 		}
 
 		public SQLLoadableCollection getCollectionPersister(String alias) {
-			return ( SQLLoadableCollection ) alias2CollectionPersister.get( alias );
+			return (SQLLoadableCollection) alias2CollectionPersister.get( alias );
 		}
 
 		public String getEntitySuffix(String alias) {
-			return ( String ) alias2Suffix.get( alias );
+			return (String) alias2Suffix.get( alias );
 		}
 
 		public String getCollectionSuffix(String alias) {
-			return ( String ) alias2CollectionSuffix.get ( alias );
+			return (String) alias2CollectionSuffix.get( alias );
 		}
 
 		public String getOwnerAlias(String alias) {
-			return ( String ) alias2OwnerAlias.get( alias );
+			return (String) alias2OwnerAlias.get( alias );
 		}
 
 		public Map getPropertyResultsMap(String alias) {
 			return internalGetPropertyResultsMap( alias );
+		}
+
+		public String[] collectQuerySpaces() {
+			final HashSet<String> spaces = new HashSet<String>();
+			collectQuerySpaces( spaces );
+			return spaces.toArray( new String[ spaces.size() ] );
+		}
+
+		public void collectQuerySpaces(Collection<String> spaces) {
+			for ( EntityPersister persister : alias2Persister.values() ) {
+				Collections.addAll( spaces, (String[]) persister.getQuerySpaces() );
+			}
+			for ( CollectionPersister persister : alias2CollectionPersister.values() ) {
+				final Type elementType = persister.getElementType();
+				if ( elementType.isEntityType() && ! elementType.isAnyType() ) {
+					final Joinable joinable = ( (EntityType) elementType ).getAssociatedJoinable( factory );
+					Collections.addAll( spaces, (String[]) ( (EntityPersister) joinable ).getQuerySpaces() );
+				}
+			}
 		}
 	}
 
@@ -328,6 +354,20 @@ public class SQLQueryReturnProcessor {
 				customReturns.add( customReturn );
 				customReturnsByAlias.put( alias, customReturn );
 			}
+			else if ( NativeSQLQueryConstructorReturn.class.isInstance( queryReturn ) ) {
+				final NativeSQLQueryConstructorReturn constructorReturn = (NativeSQLQueryConstructorReturn) queryReturn;
+				final ScalarReturn[] scalars = new ScalarReturn[ constructorReturn.getColumnReturns().length ];
+				int i = 0;
+				for ( NativeSQLQueryScalarReturn scalarReturn : constructorReturn.getColumnReturns() ) {
+					scalars[i++] = new ScalarReturn( scalarReturn.getType(), scalarReturn.getColumnAlias() );
+				}
+				customReturns.add( new ConstructorReturn( constructorReturn.getTargetClass(), scalars ) );
+			}
+			else {
+				throw new IllegalStateException(
+						"Unrecognized NativeSQLQueryReturn concrete type : " + queryReturn
+				);
+			}
 		}
 		return customReturns;
 	}
@@ -356,11 +396,23 @@ public class SQLQueryReturnProcessor {
 			processRootReturn( ( NativeSQLQueryRootReturn ) rtn );
 		}
 		else if ( rtn instanceof NativeSQLQueryCollectionReturn ) {
-			processCollectionReturn( ( NativeSQLQueryCollectionReturn ) rtn );
+			processCollectionReturn( (NativeSQLQueryCollectionReturn) rtn );
 		}
-		else {
+		else if ( NativeSQLQueryJoinReturn.class.isInstance( rtn ) ) {
 			processJoinReturn( ( NativeSQLQueryJoinReturn ) rtn );
 		}
+		else if ( NativeSQLQueryConstructorReturn.class.isInstance(  rtn ) ) {
+			processConstructorReturn( (NativeSQLQueryConstructorReturn) rtn );
+		}
+		else {
+			throw new IllegalStateException(
+					"Unrecognized NativeSQLQueryReturn concrete type encountered : " + rtn
+			);
+		}
+	}
+
+	private void processConstructorReturn(NativeSQLQueryConstructorReturn rtn) {
+		//To change body of created methods use File | Settings | File Templates.
 	}
 
 	private void processScalarReturn(NativeSQLQueryScalarReturn typeReturn) {

@@ -32,8 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.jboss.logging.Logger;
-
+import org.hibernate.Filter;
 import org.hibernate.HibernateException;
 import org.hibernate.QueryException;
 import org.hibernate.ScrollableResults;
@@ -47,6 +46,7 @@ import org.hibernate.hql.spi.FilterTranslator;
 import org.hibernate.hql.spi.ParameterTranslations;
 import org.hibernate.hql.spi.QueryTranslator;
 import org.hibernate.hql.spi.QueryTranslatorFactory;
+import org.hibernate.internal.CoreLogging;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.internal.util.collections.EmptyIterator;
@@ -60,10 +60,9 @@ import org.hibernate.type.Type;
  * @author Steve Ebersole
  */
 public class HQLQueryPlan implements Serializable {
+	private static final CoreMessageLogger LOG = CoreLogging.messageLogger( HQLQueryPlan.class );
 
     // TODO : keep separate notions of QT[] here for shallow/non-shallow queries...
-
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, HQLQueryPlan.class.getName());
 
 	private final String sourceQuery;
 	private final QueryTranslator[] translators;
@@ -73,17 +72,44 @@ public class HQLQueryPlan implements Serializable {
 	private final ReturnMetadata returnMetadata;
 	private final Set querySpaces;
 
-	private final Set enabledFilterNames;
+	private final Set<String> enabledFilterNames;
 	private final boolean shallow;
 
-	public HQLQueryPlan(String hql, boolean shallow, Map enabledFilters, SessionFactoryImplementor factory) {
-		this( hql, null, shallow, enabledFilters, factory );
+	/**
+	* We'll check the trace level only once per instance
+	*/
+	private final boolean TRACE_ENABLED = LOG.isTraceEnabled();
+
+	/**
+	 * Constructs a HQLQueryPlan
+	 *
+	 * @param hql The HQL query
+	 * @param shallow Whether the execution is to be shallow or not
+	 * @param enabledFilters The enabled filters (we only keep the names)
+	 * @param factory The factory
+	 */
+	public HQLQueryPlan(String hql, boolean shallow, Map<String,Filter> enabledFilters,
+			SessionFactoryImplementor factory) {
+		this( hql, null, shallow, enabledFilters, factory, null );
+	}
+	
+	public HQLQueryPlan(String hql, boolean shallow, Map<String,Filter> enabledFilters,
+			SessionFactoryImplementor factory, EntityGraphQueryHint entityGraphQueryHint) {
+		this( hql, null, shallow, enabledFilters, factory, entityGraphQueryHint );
 	}
 
-	protected HQLQueryPlan(String hql, String collectionRole, boolean shallow, Map enabledFilters,  SessionFactoryImplementor factory){
+	@SuppressWarnings("unchecked")
+	protected HQLQueryPlan(
+			String hql,
+			String collectionRole,
+			boolean shallow,
+			Map<String,Filter> enabledFilters,
+			SessionFactoryImplementor factory,
+			EntityGraphQueryHint entityGraphQueryHint) {
 		this.sourceQuery = hql;
 		this.shallow = shallow;
-		Set copy = new HashSet();
+
+		final Set<String> copy = new HashSet<String>();
 		copy.addAll( enabledFilters.keySet() );
 		this.enabledFilterNames = java.util.Collections.unmodifiableSet( copy );
 
@@ -91,8 +117,8 @@ public class HQLQueryPlan implements Serializable {
 		final int length = concreteQueryStrings.length;
 		this.translators = new QueryTranslator[length];
 
-		List<String> sqlStringList = new ArrayList<String>();
-		Set combinedQuerySpaces = new HashSet();
+		final List<String> sqlStringList = new ArrayList<String>();
+		final Set<Serializable> combinedQuerySpaces = new HashSet<Serializable>();
 
 		final boolean hasCollectionRole = (collectionRole == null);
 		final Map querySubstitutions = factory.getSettings().getQuerySubstitutions();
@@ -101,13 +127,13 @@ public class HQLQueryPlan implements Serializable {
 		for ( int i=0; i<length; i++ ) {
 			if ( hasCollectionRole ) {
 				translators[i] = queryTranslatorFactory
-						.createQueryTranslator( hql, concreteQueryStrings[i], enabledFilters, factory );
+						.createQueryTranslator( hql, concreteQueryStrings[i], enabledFilters, factory, entityGraphQueryHint );
 				translators[i].compile( querySubstitutions, shallow );
 			}
 			else {
 				translators[i] = queryTranslatorFactory
 						.createFilterTranslator( hql, concreteQueryStrings[i], enabledFilters, factory );
-				( ( FilterTranslator ) translators[i] ).compile( collectionRole, querySubstitutions, shallow );
+				( (FilterTranslator) translators[i] ).compile( collectionRole, querySubstitutions, shallow );
 			}
 			combinedQuerySpaces.addAll( translators[i].getQuerySpaces() );
 			sqlStringList.addAll( translators[i].collectSqlStrings() );
@@ -165,20 +191,34 @@ public class HQLQueryPlan implements Serializable {
 		return shallow;
 	}
 
+	/**
+	 * Coordinates the efforts to perform a list across all the included query translators.
+	 *
+	 * @param queryParameters The query parameters
+	 * @param session The session
+	 *
+	 * @return The query result list
+	 *
+	 * @throws HibernateException Indicates a problem performing the query
+	 */
+	@SuppressWarnings("unchecked")
 	public List performList(
 			QueryParameters queryParameters,
-	        SessionImplementor session) throws HibernateException {
-		if ( LOG.isTraceEnabled() ) {
+			SessionImplementor session) throws HibernateException {
+		if ( TRACE_ENABLED ) {
 			LOG.tracev( "Find: {0}", getSourceQuery() );
 			queryParameters.traceParameters( session.getFactory() );
 		}
-		boolean hasLimit = queryParameters.getRowSelection() != null &&
-		                   queryParameters.getRowSelection().definesLimits();
-		boolean needsLimit = hasLimit && translators.length > 1;
-		QueryParameters queryParametersToUse;
+
+		final RowSelection rowSelection = queryParameters.getRowSelection();
+		final boolean hasLimit = rowSelection != null
+				&& rowSelection.definesLimits();
+		final boolean needsLimit = hasLimit && translators.length > 1;
+
+		final QueryParameters queryParametersToUse;
 		if ( needsLimit ) {
 			LOG.needsLimit();
-			RowSelection selection = new RowSelection();
+			final RowSelection selection = new RowSelection();
 			selection.setFetchSize( queryParameters.getRowSelection().getFetchSize() );
 			selection.setTimeout( queryParameters.getRowSelection().getTimeout() );
 			queryParametersToUse = queryParameters.createCopyUsing( selection );
@@ -187,12 +227,13 @@ public class HQLQueryPlan implements Serializable {
 			queryParametersToUse = queryParameters;
 		}
 
-		List combinedResults = new ArrayList();
-		IdentitySet distinction = new IdentitySet();
+		final int guessedResultSize = guessResultSize( rowSelection );
+		final List combinedResults = new ArrayList( guessedResultSize );
+		final IdentitySet distinction = new IdentitySet( guessedResultSize );
 		int includedCount = -1;
 		translator_loop:
 		for ( QueryTranslator translator : translators ) {
-			List tmp = translator.list( session, queryParametersToUse );
+			final List tmp = translator.list( session, queryParametersToUse );
 			if ( needsLimit ) {
 				// NOTE : firstRow is zero-based
 				final int first = queryParameters.getRowSelection().getFirstRow() == null
@@ -223,10 +264,46 @@ public class HQLQueryPlan implements Serializable {
 		return combinedResults;
 	}
 
+	/**
+	 * If we're able to guess a likely size of the results we can optimize allocation
+	 * of our datastructures.
+	 * Essentially if we detect the user is not using pagination, we attempt to use the FetchSize
+	 * as a reasonable hint. If fetch size is not being set either, it is reasonable to expect
+	 * that we're going to have a single hit. In such a case it would be tempting to return a constant
+	 * of value one, but that's dangerous as it doesn't scale up appropriately for example
+	 * with an ArrayList if the guess is wrong.
+	 *
+	 * @param rowSelection
+	 * @return a reasonable size to use for allocation
+	 */
+	private final int guessResultSize(RowSelection rowSelection) {
+		if ( rowSelection != null ) {
+			final int maxReasonableAllocation = rowSelection.getFetchSize() != null ? rowSelection.getFetchSize().intValue() : 100;
+			if ( rowSelection.getMaxRows() != null && rowSelection.getMaxRows().intValue() > 0 ) {
+				return Math.min( maxReasonableAllocation, rowSelection.getMaxRows().intValue() );
+			}
+			else if ( rowSelection.getFetchSize() != null && rowSelection.getFetchSize().intValue() > 0 ) {
+				return rowSelection.getFetchSize().intValue();
+			}
+		}
+		return 7;//magic number guessed as a reasonable default.
+	}
+
+	/**
+	 * Coordinates the efforts to perform an iterate across all the included query translators.
+	 *
+	 * @param queryParameters The query parameters
+	 * @param session The session
+	 *
+	 * @return The query result iterator
+	 *
+	 * @throws HibernateException Indicates a problem performing the query
+	 */
+	@SuppressWarnings("unchecked")
 	public Iterator performIterate(
 			QueryParameters queryParameters,
-	        EventSource session) throws HibernateException {
-		if ( LOG.isTraceEnabled() ) {
+			EventSource session) throws HibernateException {
+		if ( TRACE_ENABLED ) {
 			LOG.tracev( "Iterate: {0}", getSourceQuery() );
 			queryParameters.traceParameters( session.getFactory() );
 		}
@@ -234,8 +311,8 @@ public class HQLQueryPlan implements Serializable {
 			return EmptyIterator.INSTANCE;
 		}
 
+		final boolean many = translators.length > 1;
 		Iterator[] results = null;
-		boolean many = translators.length > 1;
 		if ( many ) {
 			results = new Iterator[translators.length];
 		}
@@ -248,13 +325,23 @@ public class HQLQueryPlan implements Serializable {
 			}
 		}
 
-		return many ? new JoinedIterator(results) : result;
+		return many ? new JoinedIterator( results ) : result;
 	}
 
+	/**
+	 * Coordinates the efforts to perform a scroll across all the included query translators.
+	 *
+	 * @param queryParameters The query parameters
+	 * @param session The session
+	 *
+	 * @return The query result iterator
+	 *
+	 * @throws HibernateException Indicates a problem performing the query
+	 */
 	public ScrollableResults performScroll(
 			QueryParameters queryParameters,
-	        SessionImplementor session) throws HibernateException {
-		if ( LOG.isTraceEnabled() ) {
+			SessionImplementor session) throws HibernateException {
+		if ( TRACE_ENABLED ) {
 			LOG.tracev( "Iterate: {0}", getSourceQuery() );
 			queryParameters.traceParameters( session.getFactory() );
 		}
@@ -268,9 +355,19 @@ public class HQLQueryPlan implements Serializable {
 		return translators[0].scroll( queryParameters, session );
 	}
 
+	/**
+	 * Coordinates the efforts to perform an execution across all the included query translators.
+	 *
+	 * @param queryParameters The query parameters
+	 * @param session The session
+	 *
+	 * @return The aggregated "affected row" count
+	 *
+	 * @throws HibernateException Indicates a problem performing the execution
+	 */
 	public int performExecuteUpdate(QueryParameters queryParameters, SessionImplementor session)
 			throws HibernateException {
-		if ( LOG.isTraceEnabled() ) {
+		if ( TRACE_ENABLED ) {
 			LOG.tracev( "Execute update: {0}", getSourceQuery() );
 			queryParameters.traceParameters( session.getFactory() );
 		}
@@ -285,57 +382,65 @@ public class HQLQueryPlan implements Serializable {
 	}
 
 	private ParameterMetadata buildParameterMetadata(ParameterTranslations parameterTranslations, String hql) {
-		long start = System.currentTimeMillis();
-		ParamLocationRecognizer recognizer = ParamLocationRecognizer.parseLocations( hql );
-		long end = System.currentTimeMillis();
-		if ( LOG.isTraceEnabled() ) {
-			LOG.tracev( "HQL param location recognition took {0} mills ({1})", ( end - start ), hql );
+		final long start = TRACE_ENABLED ? System.nanoTime() : 0;
+		final ParamLocationRecognizer recognizer = ParamLocationRecognizer.parseLocations( hql );
+
+		if ( TRACE_ENABLED ) {
+			final long end = System.nanoTime();
+			LOG.tracev( "HQL param location recognition took {0} nanoseconds ({1})", ( end - start ), hql );
 		}
 
 		int ordinalParamCount = parameterTranslations.getOrdinalParameterCount();
-		int[] locations = ArrayHelper.toIntArray( recognizer.getOrdinalParameterLocationList() );
+		final int[] locations = ArrayHelper.toIntArray( recognizer.getOrdinalParameterLocationList() );
 		if ( parameterTranslations.supportsOrdinalParameterMetadata() && locations.length != ordinalParamCount ) {
 			throw new HibernateException( "ordinal parameter mismatch" );
 		}
 		ordinalParamCount = locations.length;
-		OrdinalParameterDescriptor[] ordinalParamDescriptors = new OrdinalParameterDescriptor[ordinalParamCount];
+
+		final OrdinalParameterDescriptor[] ordinalParamDescriptors = new OrdinalParameterDescriptor[ordinalParamCount];
 		for ( int i = 1; i <= ordinalParamCount; i++ ) {
 			ordinalParamDescriptors[ i - 1 ] = new OrdinalParameterDescriptor(
 					i,
-			        parameterTranslations.supportsOrdinalParameterMetadata()
-		                    ? parameterTranslations.getOrdinalParameterExpectedType( i )
-		                    : null,
-			        locations[ i - 1 ]
+					parameterTranslations.supportsOrdinalParameterMetadata()
+							? parameterTranslations.getOrdinalParameterExpectedType( i )
+							: null,
+					locations[ i - 1 ]
 			);
 		}
 
-		Iterator itr = recognizer.getNamedParameterDescriptionMap().entrySet().iterator();
-		Map<String, NamedParameterDescriptor> namedParamDescriptorMap = new HashMap<String, NamedParameterDescriptor>();
-		while( itr.hasNext() ) {
-			final Map.Entry entry = ( Map.Entry ) itr.next();
-			final String name = ( String ) entry.getKey();
-			final ParamLocationRecognizer.NamedParameterDescription description =
-					( ParamLocationRecognizer.NamedParameterDescription ) entry.getValue();
+		final Map<String, NamedParameterDescriptor> namedParamDescriptorMap = new HashMap<String, NamedParameterDescriptor>();
+		final Map<String, ParamLocationRecognizer.NamedParameterDescription> map = recognizer.getNamedParameterDescriptionMap();
+		for ( final String name : map.keySet() ) {
+			final ParamLocationRecognizer.NamedParameterDescription description = map.get( name );
 			namedParamDescriptorMap.put(
 					name,
 					new NamedParameterDescriptor(
 							name,
-					        parameterTranslations.getNamedParameterExpectedType( name ),
-					        description.buildPositionsArray(),
-					        description.isJpaStyle()
+							parameterTranslations.getNamedParameterExpectedType( name ),
+							description.buildPositionsArray(),
+							description.isJpaStyle()
 					)
 			);
 		}
-
 		return new ParameterMetadata( ordinalParamDescriptors, namedParamDescriptorMap );
 	}
+
+	/**
+	 * Access to the underlying translators associated with this query
+	 *
+	 * @return The translators
+	 */
 	public QueryTranslator[] getTranslators() {
-		QueryTranslator[] copy = new QueryTranslator[translators.length];
-		System.arraycopy(translators, 0, copy, 0, copy.length);
+		final QueryTranslator[] copy = new QueryTranslator[translators.length];
+		System.arraycopy( translators, 0, copy, 0, copy.length );
 		return copy;
 	}
 
 	public Class getDynamicInstantiationResultType() {
 		return translators[0].getDynamicInstantiationResultType();
+	}
+
+	public boolean isSelect() {
+		return !translators[0].isManipulationStatement();
 	}
 }

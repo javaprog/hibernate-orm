@@ -23,8 +23,9 @@
  */
 package org.hibernate.procedure;
 
-import javax.persistence.ParameterMode;
 import java.util.List;
+import java.util.Map;
+import javax.persistence.ParameterMode;
 
 import org.hibernate.BasicQueryContract;
 import org.hibernate.MappingException;
@@ -58,6 +59,7 @@ public interface ProcedureCall extends BasicQueryContract, SynchronizeableQuery 
 	 * @param position The position
 	 * @param type The Java type of the parameter
 	 * @param mode The parameter mode (in, out, inout)
+	 * @param <T> The parameterized Java type of the parameter.
 	 *
 	 * @return The parameter registration memento
 	 */
@@ -80,6 +82,9 @@ public interface ProcedureCall extends BasicQueryContract, SynchronizeableQuery 
 	 * @param position The parameter position
 	 *
 	 * @return The parameter registration memento
+	 *
+	 * @throws ParameterStrategyException If the ProcedureCall is defined using named parameters
+	 * @throws NoSuchParameterException If no parameter with that position exists
 	 */
 	public ParameterRegistration getParameterRegistration(int position);
 
@@ -89,8 +94,12 @@ public interface ProcedureCall extends BasicQueryContract, SynchronizeableQuery 
 	 * @param parameterName The parameter name
 	 * @param type The Java type of the parameter
 	 * @param mode The parameter mode (in, out, inout)
+	 * @param <T> The parameterized Java type of the parameter.
 	 *
 	 * @return The parameter registration memento
+	 *
+	 * @throws NamedParametersNotSupportedException When the underlying database is known to not support
+	 * named procedure parameters.
 	 */
 	public <T> ParameterRegistration<T> registerParameter(String parameterName, Class<T> type, ParameterMode mode)
 			throws NamedParametersNotSupportedException;
@@ -103,6 +112,9 @@ public interface ProcedureCall extends BasicQueryContract, SynchronizeableQuery 
 	 * @param mode The parameter mode (in, out, inout)
 	 *
 	 * @return The parameter registration memento
+	 *
+	 * @throws NamedParametersNotSupportedException When the underlying database is known to not support
+	 * named procedure parameters.
 	 */
 	public ProcedureCall registerParameter0(String parameterName, Class type, ParameterMode mode)
 			throws NamedParametersNotSupportedException;
@@ -113,6 +125,9 @@ public interface ProcedureCall extends BasicQueryContract, SynchronizeableQuery 
 	 * @param name The parameter name
 	 *
 	 * @return The parameter registration memento
+	 *
+	 * @throws ParameterStrategyException If the ProcedureCall is defined using positional parameters
+	 * @throws NoSuchParameterException If no parameter with that name exists
 	 */
 	public ParameterRegistration getParameterRegistration(String name);
 
@@ -125,12 +140,21 @@ public interface ProcedureCall extends BasicQueryContract, SynchronizeableQuery 
 
 	/**
 	 * Retrieves access to outputs of this procedure call.  Can be called multiple times, returning the same
-	 * Output instance each time.
+	 * ProcedureOutputs instance each time.
 	 * <p/>
-	 * Note that the procedure will not actually be executed until the outputs are actually accessed.
+	 * If the procedure call has not actually be executed yet, it will be executed and then the ProcedureOutputs
+	 * will be returned.
 	 *
-	 * @return The outputs representation
+	 * @return The ProcedureOutputs representation
 	 */
-	public ProcedureResult getResult();
+	public ProcedureOutputs getOutputs();
 
+	/**
+	 * Extract the disconnected representation of this call.  Used in HEM to allow redefining a named query
+	 *
+	 * @param hints The hints to incorporate into the memento
+	 *
+	 * @return The memento
+	 */
+	public ProcedureCallMemento extractMemento(Map<String, Object> hints);
 }

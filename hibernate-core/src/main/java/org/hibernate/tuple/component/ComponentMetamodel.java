@@ -23,6 +23,7 @@
  *
  */
 package org.hibernate.tuple.component;
+
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Iterator;

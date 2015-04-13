@@ -48,7 +48,8 @@ public abstract class BatchingEntityLoaderBuilder {
 				return DynamicBatchingEntityLoaderBuilder.INSTANCE;
 			}
 			default: {
-				return LegacyBatchingEntityLoaderBuilder.INSTANCE;
+				return org.hibernate.loader.entity.plan.LegacyBatchingEntityLoaderBuilder.INSTANCE;
+//				return LegacyBatchingEntityLoaderBuilder.INSTANCE;
 			}
 		}
 	}
@@ -72,9 +73,17 @@ public abstract class BatchingEntityLoaderBuilder {
 			LoadQueryInfluencers influencers) {
 		if ( batchSize <= 1 ) {
 			// no batching
-			return new EntityLoader( persister, lockMode, factory, influencers );
+			return buildNonBatchingLoader( persister, lockMode, factory, influencers );
 		}
 		return buildBatchingLoader( persister, batchSize, lockMode, factory, influencers );
+	}
+
+	protected UniqueEntityLoader buildNonBatchingLoader(
+			OuterJoinLoadable persister,
+			LockMode lockMode,
+			SessionFactoryImplementor factory,
+			LoadQueryInfluencers influencers) {
+		return new EntityLoader( persister, lockMode, factory, influencers );
 	}
 
 	protected abstract UniqueEntityLoader buildBatchingLoader(
@@ -103,9 +112,17 @@ public abstract class BatchingEntityLoaderBuilder {
 			LoadQueryInfluencers influencers) {
 		if ( batchSize <= 1 ) {
 			// no batching
-			return new EntityLoader( persister, lockOptions, factory, influencers );
+			return buildNonBatchingLoader( persister, lockOptions, factory, influencers );
 		}
 		return buildBatchingLoader( persister, batchSize, lockOptions, factory, influencers );
+	}
+
+	protected UniqueEntityLoader buildNonBatchingLoader(
+			OuterJoinLoadable persister,
+			LockOptions lockOptions,
+			SessionFactoryImplementor factory,
+			LoadQueryInfluencers influencers) {
+		return new EntityLoader( persister, lockOptions, factory, influencers );
 	}
 
 	protected abstract UniqueEntityLoader buildBatchingLoader(

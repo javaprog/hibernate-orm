@@ -45,6 +45,7 @@ import org.hibernate.type.Type;
  * @author Gavin King
  * @author Steve Ebersole
  */
+@SuppressWarnings("unchecked")
 public final class ReflectHelper {
 
 	//TODO: this dependency is kinda Bad
@@ -295,16 +296,14 @@ public final class ReflectHelper {
 	 * @return The default constructor.
 	 * @throws PropertyNotFoundException Indicates there was not publicly accessible, no-arg constructor (todo : why PropertyNotFoundException???)
 	 */
-	public static Constructor getDefaultConstructor(Class clazz) throws PropertyNotFoundException {
+	public static <T> Constructor<T> getDefaultConstructor(Class<T> clazz) throws PropertyNotFoundException {
 		if ( isAbstractClass( clazz ) ) {
 			return null;
 		}
 
 		try {
-			Constructor constructor = clazz.getDeclaredConstructor( NO_PARAM_SIGNATURE );
-			if ( !isPublic( clazz, constructor ) ) {
-				constructor.setAccessible( true );
-			}
+			Constructor<T> constructor = clazz.getDeclaredConstructor( NO_PARAM_SIGNATURE );
+			constructor.setAccessible( true );
 			return constructor;
 		}
 		catch ( NoSuchMethodException nme ) {
@@ -362,9 +361,7 @@ public final class ReflectHelper {
 					}
 				}
 				if ( found ) {
-					if ( !isPublic( clazz, constructor ) ) {
-						constructor.setAccessible( true );
-					}
+					constructor.setAccessible( true );
 					return constructor;
 				}
 			}

@@ -30,8 +30,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.cache.spi.CacheKey;
 import org.hibernate.cache.spi.QueryCache;
@@ -45,6 +43,8 @@ import org.hibernate.internal.util.collections.CollectionHelper;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.pretty.MessageHelper;
+
+import org.jboss.logging.Logger;
 
 /**
  * @author Strong Liu <stliu@hibernate.org>
@@ -232,6 +232,9 @@ public class CacheImpl implements CacheImplementor {
 	@Override
 	public void evictDefaultQueryRegion() {
 		if ( sessionFactory.getSettings().isQueryCacheEnabled() ) {
+            if ( LOG.isDebugEnabled() ) {
+                LOG.debug( "Evicting default query region cache." );
+            }
 			sessionFactory.getQueryCache().clear();
 		}
 	}
@@ -247,6 +250,9 @@ public class CacheImpl implements CacheImplementor {
 			QueryCache namedQueryCache = queryCaches.get( regionName );
 			// TODO : cleanup entries in queryCaches + allCacheRegions ?
 			if ( namedQueryCache != null ) {
+                if ( LOG.isDebugEnabled() ) {
+                    LOG.debugf( "Evicting query cache, region: %s", regionName );
+                }
 				namedQueryCache.clear();
 			}
 		}
@@ -254,12 +260,16 @@ public class CacheImpl implements CacheImplementor {
 
 	@Override
 	public void evictQueryRegions() {
+		evictDefaultQueryRegion();
+		
 		if ( CollectionHelper.isEmpty( queryCaches ) ) {
 			return;
 		}
+        if ( LOG.isDebugEnabled() ) {
+            LOG.debug( "Evicting cache of all query regions." );
+        }
 		for ( QueryCache queryCache : queryCaches.values() ) {
 			queryCache.clear();
-			// TODO : cleanup entries in queryCaches + allCacheRegions ?
 		}
 	}
 
@@ -353,5 +363,14 @@ public class CacheImpl implements CacheImplementor {
 	@Override
 	public RegionFactory getRegionFactory() {
 		return regionFactory;
+	}
+	
+	@Override
+	public void evictAllRegions() {
+		evictCollectionRegions();
+		evictDefaultQueryRegion();
+		evictEntityRegions();
+		evictQueryRegions();
+		evictNaturalIdRegions();
 	}
 }

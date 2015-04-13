@@ -23,6 +23,14 @@
  */
 package org.hibernate.cfg.beanvalidation;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringTokenizer;
 import javax.validation.Validation;
 import javax.validation.ValidatorFactory;
 import javax.validation.constraints.Digits;
@@ -33,34 +41,27 @@ import javax.validation.constraints.Size;
 import javax.validation.metadata.BeanDescriptor;
 import javax.validation.metadata.ConstraintDescriptor;
 import javax.validation.metadata.PropertyDescriptor;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.StringTokenizer;
-
-import org.jboss.logging.Logger;
 
 import org.hibernate.AssertionFailure;
 import org.hibernate.MappingException;
 import org.hibernate.cfg.Environment;
 import org.hibernate.dialect.Dialect;
+import org.hibernate.engine.config.spi.ConfigurationService;
+import org.hibernate.engine.config.spi.StandardConverters;
 import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.event.service.spi.EventListenerRegistry;
 import org.hibernate.event.spi.EventType;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.internal.util.StringHelper;
-import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.mapping.Column;
 import org.hibernate.mapping.Component;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.mapping.Property;
+import org.hibernate.mapping.Selectable;
 import org.hibernate.mapping.SingleTableSubclass;
+
+import org.jboss.logging.Logger;
 
 /**
  * @author Emmanuel Bernard
@@ -90,10 +91,10 @@ class TypeSafeActivator {
 
 	@SuppressWarnings("UnusedDeclaration")
 	public static void activate(ActivationContext activationContext) {
-		final Properties properties = activationContext.getConfiguration().getProperties();
+		final ConfigurationService cfgService = activationContext.getServiceRegistry().getService( ConfigurationService.class );
 		final ValidatorFactory factory;
 		try {
-			factory = getValidatorFactory( properties );
+			factory = getValidatorFactory( cfgService.getSettings() );
 		}
 		catch (IntegrationException e) {
 			if ( activationContext.getValidationModes().contains( ValidationMode.CALLBACK ) ) {
@@ -119,15 +120,17 @@ class TypeSafeActivator {
 			return;
 		}
 
+		final ConfigurationService cfgService = activationContext.getServiceRegistry().getService( ConfigurationService.class );
+
 		// de-activate not-null tracking at the core level when Bean Validation is present unless the user explicitly
 		// asks for it
-		if ( activationContext.getConfiguration().getProperty( Environment.CHECK_NULLABILITY ) == null ) {
+		if ( cfgService.getSettings().get( Environment.CHECK_NULLABILITY ) == null ) {
 			activationContext.getSessionFactory().getSettings().setCheckNullability( false );
 		}
 
 		final BeanValidationEventListener listener = new BeanValidationEventListener(
 				validatorFactory,
-				activationContext.getConfiguration().getProperties()
+				cfgService.getSettings()
 		);
 
 		final EventListenerRegistry listenerRegistry = activationContext.getServiceRegistry()
@@ -139,13 +142,13 @@ class TypeSafeActivator {
 		listenerRegistry.appendListeners( EventType.PRE_UPDATE, listener );
 		listenerRegistry.appendListeners( EventType.PRE_DELETE, listener );
 
-		listener.initialize( activationContext.getConfiguration() );
+		listener.initialize( cfgService.getSettings() );
 	}
 
 	@SuppressWarnings({"unchecked", "UnusedParameters"})
 	private static void applyRelationalConstraints(ValidatorFactory factory, ActivationContext activationContext) {
-		final Properties properties = activationContext.getConfiguration().getProperties();
-		if ( ! ConfigurationHelper.getBoolean( BeanValidationIntegrator.APPLY_CONSTRAINTS, properties, true ) ){
+		final ConfigurationService cfgService = activationContext.getServiceRegistry().getService( ConfigurationService.class );
+		if ( !cfgService.getSetting( BeanValidationIntegrator.APPLY_CONSTRAINTS, StandardConverters.BOOLEAN, true  ) ) {
 			LOG.debug( "Skipping application of relational constraints from legacy Hibernate Validator" );
 			return;
 		}
@@ -156,16 +159,20 @@ class TypeSafeActivator {
 		}
 
 		applyRelationalConstraints(
-				activationContext.getConfiguration().createMappings().getClasses().values(),
-				properties,
+				factory,
+				activationContext.getMetadata().getEntityBindings(),
+				cfgService.getSettings(),
 				activationContext.getServiceRegistry().getService( JdbcServices.class ).getDialect()
 		);
 	}
 
 	@SuppressWarnings( {"UnusedDeclaration"})
-	public static void applyRelationalConstraints(Collection<PersistentClass> persistentClasses, Properties properties, Dialect dialect) {
-		ValidatorFactory factory = getValidatorFactory( properties );
-		Class<?>[] groupsArray = new GroupsPerOperation( properties ).get( GroupsPerOperation.Operation.DDL );
+	public static void applyRelationalConstraints(
+			ValidatorFactory factory,
+			Collection<PersistentClass> persistentClasses,
+			Map settings,
+			Dialect dialect) {
+		Class<?>[] groupsArray = new GroupsPerOperation( settings ).get( GroupsPerOperation.Operation.DDL );
 		Set<Class<?>> groups = new HashSet<Class<?>>( Arrays.asList( groupsArray ) );
 
 		for ( PersistentClass persistentClass : persistentClasses ) {
@@ -305,14 +312,23 @@ class TypeSafeActivator {
 	private static boolean applyNotNull(Property property, ConstraintDescriptor<?> descriptor) {
 		boolean hasNotNull = false;
 		if ( NotNull.class.equals( descriptor.getAnnotation().annotationType() ) ) {
+			// single table inheritance should not be forced to null due to shared state
 			if ( !( property.getPersistentClass() instanceof SingleTableSubclass ) ) {
-				//single table should not be forced to null
-				if ( !property.isComposite() ) { //composite should not add not-null on all columns
-					@SuppressWarnings( "unchecked" )
-					Iterator<Column> iter = property.getColumnIterator();
+				//composite should not add not-null on all columns
+				if ( !property.isComposite() ) {
+					final Iterator<Selectable> iter = property.getColumnIterator();
 					while ( iter.hasNext() ) {
-						iter.next().setNullable( false );
-						hasNotNull = true;
+						final Selectable selectable = iter.next();
+						if ( Column.class.isInstance( selectable ) ) {
+							Column.class.cast( selectable ).setNullable( false );
+						}
+						else {
+							LOG.debugf(
+									"@NotNull was applied to attribute [%s] which is defined (at least partially) " +
+											"by formula(s); formula portions will be skipped",
+									property.getName()
+							);
+						}
 					}
 				}
 			}

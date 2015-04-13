@@ -16,6 +16,15 @@ dependencies {
     testCompile ('mysql:mysql-connector-java:5.1.17')
 }
 
+mavenPom {
+    name = 'Hibernate/Infinispan Integration'
+    description = 'Integration for Infinispan into Hibernate as a second-level caching service'
+}
+
+def osgiDescription() {
+	return mavenPom.description
+}
+
 test {
    systemProperties['java.net.preferIPv4Stack'] = true
    systemProperties['jgroups.ping.timeout'] = 500
@@ -40,10 +49,3 @@ task sourcesTestJar(type: Jar, dependsOn:classes) {
 
 artifacts.archives packageTests
 artifacts.archives sourcesTestJar
-
-jar {
-    manifest {
-        instruction 'Bundle-Description', 'Hibernate ORM Infinispan'
-        instruction 'Bundle-SymbolicName', 'org.hibernate.infinispan'
-    }
-}

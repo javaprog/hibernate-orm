@@ -23,12 +23,13 @@
  *
  */
 package org.hibernate.hql.internal.ast.util;
-import antlr.ASTFactory;
-import antlr.collections.AST;
 
 import org.hibernate.hql.internal.NameGenerator;
 import org.hibernate.hql.internal.antlr.SqlTokenTypes;
 import org.hibernate.hql.internal.ast.tree.HqlSqlWalkerNode;
+
+import antlr.ASTFactory;
+import antlr.collections.AST;
 
 /**
  * Provides utility methods for dealing with arrays of SQL column names.
@@ -40,6 +41,7 @@ public final class ColumnHelper {
 	/**
 	 * @deprecated (tell clover to filter this out)
 	 */
+	@Deprecated
 	private ColumnHelper() {
 	}
 
@@ -51,7 +53,7 @@ public final class ColumnHelper {
 	/**
 	 * Generates the scalar column AST nodes for a given array of SQL columns
 	 */
-	public static void generateScalarColumns(HqlSqlWalkerNode node, String sqlColumns[], int i) {
+	public static void generateScalarColumns(HqlSqlWalkerNode node, String[] sqlColumns, int i) {
 		if ( sqlColumns.length == 1 ) {
 			generateSingleScalarColumn( node, i );
 		}

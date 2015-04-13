@@ -23,24 +23,27 @@
  */
 package org.hibernate.test.annotations.indexcoll;
 
+import org.hibernate.Hibernate;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.hibernate.dialect.H2Dialect;
+import org.hibernate.dialect.HSQLDialect;
+import org.hibernate.dialect.TeradataDialect;
+import org.hibernate.mapping.Collection;
+import org.hibernate.mapping.Column;
+import org.hibernate.testing.RequiresDialect;
+import org.hibernate.testing.SkipForDialect;
+import org.hibernate.testing.TestForIssue;
+import org.hibernate.testing.junit4.BaseNonConfigCoreFunctionalTestCase;
+import org.junit.Test;
+
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import org.junit.Test;
-
-import org.hibernate.Hibernate;
-import org.hibernate.Session;
-import org.hibernate.Transaction;
-import org.hibernate.dialect.H2Dialect;
-import org.hibernate.dialect.HSQLDialect;
-import org.hibernate.mapping.Collection;
-import org.hibernate.mapping.Column;
-import org.hibernate.testing.RequiresDialect;
-import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -53,7 +56,7 @@ import static org.junit.Assert.assertTrue;
  *
  * @author Emmanuel Bernard
  */
-public class IndexedCollectionTest extends BaseCoreFunctionalTestCase {
+public class IndexedCollectionTest extends BaseNonConfigCoreFunctionalTestCase {
 	@Test
 	public void testJPA2DefaultMapColumns() throws Exception {
 		isDefaultKeyColumnPresent( Atmosphere.class.getName(), "gasesDef", "_KEY" );
@@ -72,7 +75,7 @@ public class IndexedCollectionTest extends BaseCoreFunctionalTestCase {
 	}
 
 	private boolean isDefaultColumnPresent(String collectionOwner, String propertyName, String suffix) {
-		final Collection collection = configuration().getCollectionMapping( collectionOwner + "." + propertyName );
+		final Collection collection = metadata().getCollectionBinding( collectionOwner + "." + propertyName );
 		final Iterator columnIterator = collection.getCollectionTable().getColumnIterator();
 		boolean hasDefault = false;
 		while ( columnIterator.hasNext() ) {
@@ -375,6 +378,11 @@ public class IndexedCollectionTest extends BaseCoreFunctionalTestCase {
 	}
 
 	@Test
+	@SkipForDialect(
+			value = TeradataDialect.class,
+			jiraKey = "HHH-8190",
+			comment = "uses Teradata reserved word - title"
+	)
 	public void testMapKeyOnManyToMany() throws Exception {
 		Session s;
 		s = openSession();
@@ -404,6 +412,11 @@ public class IndexedCollectionTest extends BaseCoreFunctionalTestCase {
 	}
 
 	@Test
+	@SkipForDialect(
+			value = TeradataDialect.class,
+			jiraKey = "HHH-8190",
+			comment = "uses Teradata reserved word - title"
+	)
 	public void testMapKeyOnManyToManyOnId() throws Exception {
 		Session s;
 		s = openSession();
@@ -552,6 +565,95 @@ public class IndexedCollectionTest extends BaseCoreFunctionalTestCase {
 	}
 
 	@Test
+	@TestForIssue( jiraKey = "HHH-8879")
+	public void testMapKeyEmbeddableWithEntityKey() throws Exception {
+		Session s;
+		Transaction tx;
+		s = openSession();
+		tx = s.beginTransaction();
+		Currency currency1= new Currency();
+		Currency currency2= new Currency();
+		s.persist( currency1 );
+		s.persist( currency2 );
+		Integer id1 = currency1.getId();
+		Integer id2 = currency2.getId();
+		ExchangeRateKey cq = new ExchangeRateKey(20140101, currency1, currency2);
+
+		ExchangeRate m = new ExchangeRate();
+		m.setKey( cq );
+		s.persist( m );
+		ExchangeOffice wm = new ExchangeOffice();
+		s.persist( wm );
+
+		wm.getExchangeRates().put( cq, m );
+		m.setParent( wm );
+		Integer id = wm.getId();
+		s.flush();
+		tx.commit();
+		s.close();
+
+		s = openSession();
+		tx = s.beginTransaction();
+		wm = (ExchangeOffice) s.byId(ExchangeOffice.class).load(id);
+		assertNotNull(wm);
+		wm.getExchangeRates().size();
+		currency1 = (Currency) s.byId(Currency.class).load(id1);
+		assertNotNull(currency1);
+		currency2 = (Currency) s.byId(Currency.class).load(id2);
+		assertNotNull(currency2);
+		cq = new ExchangeRateKey(20140101, currency1, currency2);
+
+		m = wm.getExchangeRates().get( cq );
+		assertNotNull(m);
+		tx.commit();
+		s.close();
+
+	}
+
+	@Test
+	@TestForIssue( jiraKey = "HHH-8994")
+	public void testEmbeddableWithEntityKey() throws Exception {
+		Session s;
+		Transaction tx;
+		s = openSession();
+		tx = s.beginTransaction();
+		Currency currency1= new Currency();
+		Currency currency2= new Currency();
+		s.persist( currency1 );
+		s.persist( currency2 );
+		Integer id1 = currency1.getId();
+		Integer id2 = currency2.getId();
+		ExchangeRateKey cq = new ExchangeRateKey(20140101, currency1, currency2);
+
+		ExchangeOffice wm = new ExchangeOffice();
+		s.persist( wm );
+
+		final BigDecimal fee = BigDecimal.valueOf( 12, 2 );
+
+		wm.getExchangeRateFees().put( cq, fee );
+		Integer id = wm.getId();
+		s.flush();
+		tx.commit();
+		s.close();
+
+		s = openSession();
+		tx = s.beginTransaction();
+		wm = (ExchangeOffice) s.byId(ExchangeOffice.class).load(id);
+		assertNotNull(wm);
+		wm.getExchangeRateFees().size();
+		currency1 = (Currency) s.byId(Currency.class).load(id1);
+		assertNotNull(currency1);
+		currency2 = (Currency) s.byId(Currency.class).load(id2);
+		assertNotNull(currency2);
+		cq = new ExchangeRateKey(20140101, currency1, currency2);
+
+		assertEquals( fee, wm.getExchangeRateFees().get( cq ) );
+
+		tx.commit();
+		s.close();
+	}
+
+	@Test
 	public void testEntityKeyElementTarget() throws Exception {
 		Session s = openSession();
 		Transaction tx = s.beginTransaction();
@@ -659,7 +761,10 @@ public class IndexedCollectionTest extends BaseCoreFunctionalTestCase {
 				AlphabeticalDirectory.class,
 				GasKey.class,
 				Trainee.class,
-				Training.class
+				Training.class,
+				Currency.class,
+				ExchangeOffice.class,
+				ExchangeRate.class,
 		};
 	}
 }

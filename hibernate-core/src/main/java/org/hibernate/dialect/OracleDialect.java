@@ -22,9 +22,8 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.dialect;
-import java.sql.Types;
 
-import org.jboss.logging.Logger;
+import java.sql.Types;
 
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.sql.CaseFragment;
@@ -32,17 +31,25 @@ import org.hibernate.sql.DecodeCaseFragment;
 import org.hibernate.sql.JoinFragment;
 import org.hibernate.sql.OracleJoinFragment;
 
+import org.jboss.logging.Logger;
+
 /**
  * An SQL dialect for Oracle, compatible with Oracle 8.
  *
  * @deprecated Use Oracle8iDialect instead.
  * @author Gavin King
  */
+@SuppressWarnings("deprecation")
 @Deprecated
 public class OracleDialect extends Oracle9Dialect {
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger(
+			CoreMessageLogger.class,
+			OracleDialect.class.getName()
+	);
 
-	private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, OracleDialect.class.getName());
-
+	/**
+	 * Constructs a (DEPRECATED) Oracle9Dialect
+	 */
 	public OracleDialect() {
 		super();
 		LOG.deprecatedOracleDialect();
@@ -54,37 +61,38 @@ public class OracleDialect extends Oracle9Dialect {
 	}
 
 	@Override
-    public JoinFragment createOuterJoinFragment() {
+	public JoinFragment createOuterJoinFragment() {
 		return new OracleJoinFragment();
 	}
+
 	@Override
-    public CaseFragment createCaseFragment() {
+	public CaseFragment createCaseFragment() {
 		return new DecodeCaseFragment();
 	}
 
 	@Override
-    public String getLimitString(String sql, boolean hasOffset) {
+	public String getLimitString(String sql, boolean hasOffset) {
 
 		sql = sql.trim();
 		boolean isForUpdate = false;
-		if ( sql.toLowerCase().endsWith(" for update") ) {
+		if ( sql.toLowerCase().endsWith( " for update" ) ) {
 			sql = sql.substring( 0, sql.length()-11 );
 			isForUpdate = true;
 		}
 
-		StringBuilder pagingSelect = new StringBuilder( sql.length()+100 );
+		final StringBuilder pagingSelect = new StringBuilder( sql.length()+100 );
 		if (hasOffset) {
-			pagingSelect.append("select * from ( select row_.*, rownum rownum_ from ( ");
+			pagingSelect.append( "select * from ( select row_.*, rownum rownum_ from ( " );
 		}
 		else {
-			pagingSelect.append("select * from ( ");
+			pagingSelect.append( "select * from ( " );
 		}
-		pagingSelect.append(sql);
+		pagingSelect.append( sql );
 		if (hasOffset) {
-			pagingSelect.append(" ) row_ ) where rownum_ <= ? and rownum_ > ?");
+			pagingSelect.append( " ) row_ ) where rownum_ <= ? and rownum_ > ?" );
 		}
 		else {
-			pagingSelect.append(" ) where rownum <= ?");
+			pagingSelect.append( " ) where rownum <= ?" );
 		}
 
 		if ( isForUpdate ) {
@@ -95,7 +103,7 @@ public class OracleDialect extends Oracle9Dialect {
 	}
 
 	@Override
-    public String getSelectClauseNullString(int sqlType) {
+	public String getSelectClauseNullString(int sqlType) {
 		switch(sqlType) {
 			case Types.VARCHAR:
 			case Types.CHAR:
@@ -110,12 +118,12 @@ public class OracleDialect extends Oracle9Dialect {
 	}
 
 	@Override
-    public String getCurrentTimestampSelectString() {
+	public String getCurrentTimestampSelectString() {
 		return "select sysdate from dual";
 	}
 
 	@Override
-    public String getCurrentTimestampSQLFunctionName() {
+	public String getCurrentTimestampSQLFunctionName() {
 		return "sysdate";
 	}
 }

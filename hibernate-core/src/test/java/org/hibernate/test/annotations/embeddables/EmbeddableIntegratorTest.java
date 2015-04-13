@@ -23,25 +23,23 @@
  */
 package org.hibernate.test.annotations.embeddables;
 
-import static org.junit.Assert.assertEquals;
-
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import org.hibernate.JDBCException;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
-import org.hibernate.boot.registry.BootstrapServiceRegistryBuilder;
-import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
-import org.hibernate.boot.registry.internal.BootstrapServiceRegistryImpl;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.dialect.H2Dialect;
 import org.hibernate.exception.GenericJDBCException;
-import org.hibernate.service.ServiceRegistry;
+
 import org.hibernate.testing.RequiresDialect;
 import org.hibernate.testing.junit4.BaseUnitTestCase;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * @author Chris Pheby
@@ -52,67 +50,67 @@ public class EmbeddableIntegratorTest extends BaseUnitTestCase {
 	/**
 	 * Throws a mapping exception because DollarValue is not mapped
 	 */
-	@Test(expected=GenericJDBCException.class)
+	@Test(expected = JDBCException.class)
 	public void testWithoutIntegrator() {
-		
-		ServiceRegistry reg = new StandardServiceRegistryBuilder(new BootstrapServiceRegistryImpl())
-		.build();
-		
-		SessionFactory sf = new Configuration()
-		.addAnnotatedClass( Investor.class )
+		SessionFactory sf = new Configuration().addAnnotatedClass( Investor.class )
+				.setProperty( "hibernate.hbm2ddl.auto", "create-drop" )
+				.buildSessionFactory();
 
-		.buildSessionFactory(reg);
-		
-		Session sess = sf.openSession();
-		Investor myInv = getInvestor();
-		myInv.setId(1L);
-		
-		sess.save(myInv);
-		sess.flush();
-		sess.clear();
-		
-		Investor inv = (Investor) sess.get(Investor.class, 1L);
-		assertEquals(new BigDecimal("100"), inv.getInvestments().get(0).getAmount().getAmount());
-		
-		sess.close();
+		try {
+			Session sess = sf.openSession();
+			Investor myInv = getInvestor();
+			myInv.setId( 1L );
+
+			sess.save( myInv );
+			sess.flush();
+			sess.clear();
+
+			Investor inv = (Investor) sess.get( Investor.class, 1L );
+			assertEquals( new BigDecimal( "100" ), inv.getInvestments().get( 0 ).getAmount().getAmount() );
+
+			sess.close();
+		}
+		finally {
+			sf.close();
+		}
 	}
 
 	@Test
-	public void testWithIntegrator() {
-		ServiceRegistry reg = new StandardServiceRegistryBuilder(
-				new BootstrapServiceRegistryBuilder().with( new InvestorIntegrator() ).build()
-		).build();
-		
-		SessionFactory sf = new Configuration()
-		.addAnnotatedClass( Investor.class )
+	public void testWithTypeContributor() {
+		SessionFactory sf = new Configuration().addAnnotatedClass( Investor.class )
+				.registerTypeContributor( new InvestorTypeContributor() )
+				.setProperty( "hibernate.hbm2ddl.auto", "create-drop" )
+				.buildSessionFactory();
 
-		.setProperty("hibernate.hbm2ddl.auto", "create-drop")
-		.buildSessionFactory(reg);
-		
-		Session sess = sf.openSession();
-		Investor myInv = getInvestor();
-		myInv.setId(2L);
-		
-		sess.save(myInv);
-		sess.flush();
-		sess.clear();
-		
-		Investor inv = (Investor) sess.get(Investor.class, 2L);
-		assertEquals(new BigDecimal("100"), inv.getInvestments().get(0).getAmount().getAmount());
-		
-		sess.close();
+		try {
+			Session sess = sf.openSession();
+			Investor myInv = getInvestor();
+			myInv.setId( 2L );
+
+			sess.save( myInv );
+			sess.flush();
+			sess.clear();
+
+			Investor inv = (Investor) sess.get( Investor.class, 2L );
+			assertEquals( new BigDecimal( "100" ), inv.getInvestments().get( 0 ).getAmount().getAmount() );
+
+			sess.close();
+		}
+		finally {
+			sf.close();
+		}
 	}
-	
+
 	private Investor getInvestor() {
 		Investor i = new Investor();
 		List<Investment> investments = new ArrayList<Investment>();
 		Investment i1 = new Investment();
-		i1.setAmount(new DollarValue(new BigDecimal("100")));
-		i1.setDate(new MyDate(new Date()));
-		i1.setDescription("Test Investment");
-		investments.add(i1);
-		i.setInvestments(investments);
-		
+		i1.setAmount( new DollarValue( new BigDecimal( "100" ) ) );
+		i1.setDate( new MyDate( new Date() ) );
+		i1.setDescription( "Test Investment" );
+		investments.add( i1 );
+		i.setInvestments( investments );
+
 		return i;
 	}
 }

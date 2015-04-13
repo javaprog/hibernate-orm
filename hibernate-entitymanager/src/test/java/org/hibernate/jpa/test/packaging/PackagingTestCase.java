@@ -85,17 +85,28 @@ public abstract class PackagingTestCase extends BaseCoreFunctionalTestCase {
 		URL myUrl = originalClassLoader.getResource(
 				PackagingTestCase.class.getName().replace( '.', '/' ) + ".class"
 		);
-		int index;
-		if (myUrl.getFile().contains( "target" )) {
+
+		if ( myUrl == null ) {
+			fail( "Unable to setup packaging test : could not resolve 'known class' url" );
+		}
+
+		int index = -1;
+		if ( myUrl.getFile().contains( "target" ) ) {
 			// assume there's normally a /target
 			index = myUrl.getFile().lastIndexOf( "target" );
-		} else {
+		}
+		else if ( myUrl.getFile().contains( "bin" ) ) {
 			// if running in some IDEs, may be in /bin instead
 			index = myUrl.getFile().lastIndexOf( "bin" );
 		}
-		
-		if ( index == -1 ) {
-			fail( "Unable to setup packaging test" );
+		else if ( myUrl.getFile().contains( "out/test" ) ) {
+			// intellij... intellij sets up project outputs little different
+			int outIndex = myUrl.getFile().lastIndexOf( "out/test" );
+			index = myUrl.getFile().lastIndexOf( '/', outIndex+1 );
+		}
+
+		if ( index < 0 ) {
+			fail( "Unable to setup packaging test : could not interpret url" );
 		}
 
 		String baseDirPath = myUrl.getFile().substring( 0, index );
@@ -204,6 +215,10 @@ public abstract class PackagingTestCase extends BaseCoreFunctionalTestCase {
 	}
 
 	protected File buildExplicitPar() {
+		// explicitpar/persistence.xml references externaljar.jar so build that from here.
+		// this is the reason for tests failing after clean at least on my (Steve) local system
+		buildExternalJar();
+
 		String fileName = "explicitpar.par";
 		JavaArchive archive = ShrinkWrap.create( JavaArchive.class, fileName );
 		archive.addClasses(
@@ -342,8 +357,10 @@ public abstract class PackagingTestCase extends BaseCoreFunctionalTestCase {
 		// Build a large jar by adding a lorem ipsum file repeatedly.
 		for ( int i = 0; i < 100; i++ ) {
 			ArchivePath path = ArchivePaths.create( "META-INF/file" + i );
-			archive.addAsResource( new File( "src/test/resources/org/hibernate/jpa/test/packaging/loremipsum.txt" ),
-					path );
+			archive.addAsResource(
+					"org/hibernate/jpa/test/packaging/loremipsum.txt",
+					path
+			);
 		}
 
 		File testPackage = new File( packageTargetDir, fileName );

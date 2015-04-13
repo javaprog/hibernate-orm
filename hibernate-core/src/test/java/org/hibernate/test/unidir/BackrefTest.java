@@ -23,12 +23,12 @@
  */
 package org.hibernate.test.unidir;
 
-import org.junit.Test;
-
 import org.hibernate.Hibernate;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
+
 import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -49,17 +49,12 @@ public class BackrefTest extends BaseCoreFunctionalTestCase {
 		return new Class<?>[] { Parent1.class, Child1.class, Child2.class };
 	}
 
-	@Override
-	protected String getCacheConcurrencyStrategy() {
-		return null;
-	}
-
 	@Test
 	public void testBackRef() {
 		Session s = openSession();
 		Transaction t = s.beginTransaction();
-		Parent p = new Parent("Marc");
-		Parent p2 = new Parent("Nathalie");
+		Parent p = new Parent("Marc", 123456789);
+		Parent p2 = new Parent("Nathalie", 987654321 );
 		Child c = new Child("Elvira");
 		Child c2 = new Child("Blase");
 		p.getChildren().add(c);
@@ -97,7 +92,7 @@ public class BackrefTest extends BaseCoreFunctionalTestCase {
 		s.close();
 		s = openSession();
 		t = s.beginTransaction();
-		Parent p3 = new Parent("Marion");
+		Parent p3 = new Parent("Marion", 543216789);
 		p3.getChildren().add( new Child("Gavin") );
 		s.merge(p3);
 		t.commit();
@@ -115,7 +110,7 @@ public class BackrefTest extends BaseCoreFunctionalTestCase {
 	public void testBackRefToProxiedEntityOnMerge() {
 		Session s = openSession();
 		s.beginTransaction();
-		Parent me = new Parent( "Steve" );
+		Parent me = new Parent( "Steve", 192837465 );
 		me.getChildren().add( new Child( "Joe" ) );
   		s.persist( me );
 		s.getTransaction().commit();

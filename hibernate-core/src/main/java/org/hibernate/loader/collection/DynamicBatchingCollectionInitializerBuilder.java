@@ -43,6 +43,7 @@ import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.loader.JoinWalker;
 import org.hibernate.loader.Loader;
+import org.hibernate.loader.spi.AfterLoadAction;
 import org.hibernate.persister.collection.QueryableCollection;
 import org.hibernate.pretty.MessageHelper;
 import org.hibernate.type.Type;
@@ -253,8 +254,9 @@ public class DynamicBatchingCollectionInitializerBuilder extends BatchingCollect
 					Integer.MAX_VALUE;
 
 			final List<AfterLoadAction> afterLoadActions = Collections.emptyList();
-			final ResultSet rs = executeQueryStatement( sql, queryParameters, false, afterLoadActions, session );
-			final Statement st = rs.getStatement();
+			final SqlStatementWrapper wrapper = executeQueryStatement( sql, queryParameters, false, afterLoadActions, session );
+			final ResultSet rs = wrapper.getResultSet();
+			final Statement st = wrapper.getStatement();
 			try {
 				processResultSet( rs, queryParameters, session, true, null, maxRows, afterLoadActions );
 			}

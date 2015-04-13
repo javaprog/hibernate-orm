@@ -30,13 +30,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import antlr.collections.AST;
-
 import org.hibernate.QueryException;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.persister.entity.Queryable;
 import org.hibernate.type.ComponentType;
 import org.hibernate.type.Type;
+
+import antlr.collections.AST;
 
 /**
  * Represents an entity referenced in the INTO clause of an HQL
@@ -116,15 +116,19 @@ public class IntoClause extends HqlSqlWalkerNode implements DisplayableNode {
 
 	public void validateTypes(SelectClause selectClause) throws QueryException {
 		Type[] selectTypes = selectClause.getQueryReturnTypes();
-		if ( selectTypes.length != types.length ) {
+		if ( selectTypes.length + selectClause.getTotalParameterCount() != types.length ) {
 			throw new QueryException( "number of select types did not match those for insert" );
 		}
 
+		int parameterCount = 0; 
 		for ( int i = 0; i < types.length; i++ ) {
-			if ( !areCompatible( types[i], selectTypes[i] ) ) {
+			if( selectClause.getParameterPositions().contains(i) ) {
+				parameterCount++;
+			}
+			else if ( !areCompatible( types[i], selectTypes[i - parameterCount] ) ) {
 				throw new QueryException(
 				        "insertion type [" + types[i] + "] and selection type [" +
-				        selectTypes[i] + "] at position " + i + " are not compatible"
+				        selectTypes[i - parameterCount] + "] at position " + i + " are not compatible"
 				);
 			}
 		}

@@ -27,9 +27,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import org.dom4j.Node;
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.engine.spi.Mapping;
@@ -38,7 +35,11 @@ import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.internal.util.compare.EqualsHelper;
-import org.hibernate.metamodel.relational.Size;
+import org.hibernate.engine.jdbc.Size;
+
+import org.jboss.logging.Logger;
+
+import org.dom4j.Node;
 
 /**
  * Superclass of single-column nullable types.

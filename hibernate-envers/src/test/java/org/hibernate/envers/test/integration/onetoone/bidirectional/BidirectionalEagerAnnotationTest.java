@@ -25,13 +25,13 @@ package org.hibernate.envers.test.integration.onetoone.bidirectional;
 
 import javax.persistence.EntityManager;
 
-import org.junit.Test;
-
 import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.onetoone.BidirectionalEagerAnnotationRefEdOneToOne;
 import org.hibernate.envers.test.entities.onetoone.BidirectionalEagerAnnotationRefIngOneToOne;
+
 import org.hibernate.testing.TestForIssue;
+import org.junit.Test;
 
 import static org.junit.Assert.assertNotNull;
 

@@ -35,7 +35,7 @@ import org.hibernate.engine.spi.TypedValue;
  *
  * @author Steve Ebersole
  */
-public class NamedParameterSpecification extends AbstractExplicitParameterSpecification implements ParameterSpecification {
+public class NamedParameterSpecification extends AbstractExplicitParameterSpecification {
 	private final String name;
 
 	/**
@@ -60,6 +60,7 @@ public class NamedParameterSpecification extends AbstractExplicitParameterSpecif
 	 *
 	 * @return The number of sql bind positions "eaten" by this bind operation.
 	 */
+	@Override
 	public int bind(PreparedStatement statement, QueryParameters qp, SessionImplementor session, int position)
 	        throws SQLException {
 		TypedValue typedValue = qp.getNamedParameters().get( name );
@@ -67,9 +68,7 @@ public class NamedParameterSpecification extends AbstractExplicitParameterSpecif
 		return typedValue.getType().getColumnSpan( session.getFactory() );
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public String renderDisplayInfo() {
 		return "name=" + name + ", expectedType=" + getExpectedType();
 	}

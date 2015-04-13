@@ -24,7 +24,6 @@
 package org.hibernate.jpa.boot.spi;
 
 import java.util.Map;
-
 import javax.persistence.spi.PersistenceUnitInfo;
 
 import org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl;
@@ -37,6 +36,9 @@ import org.hibernate.jpa.boot.internal.PersistenceUnitInfoDescriptor;
  * @author Brett Meyer
  */
 public final class Bootstrap {
+	private Bootstrap() {
+	}
+
 	public static EntityManagerFactoryBuilder getEntityManagerFactoryBuilder(
 			PersistenceUnitDescriptor persistenceUnitDescriptor,
 			Map integration) {

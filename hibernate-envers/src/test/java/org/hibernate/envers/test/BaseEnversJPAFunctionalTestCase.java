@@ -23,38 +23,38 @@
  */
 package org.hibernate.envers.test;
 
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.transaction.SystemException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.transaction.SystemException;
 
-import org.jboss.logging.Logger;
-
-import org.hibernate.cfg.Configuration;
+import org.hibernate.boot.registry.internal.StandardServiceRegistryImpl;
+import org.hibernate.boot.spi.MetadataImplementor;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
-import org.hibernate.jpa.test.PersistenceUnitDescriptorAdapter;
 import org.hibernate.engine.transaction.internal.jta.JtaStatusHelper;
 import org.hibernate.envers.AuditReader;
 import org.hibernate.envers.AuditReaderFactory;
-import org.hibernate.envers.event.EnversIntegrator;
+import org.hibernate.envers.boot.internal.EnversIntegrator;
+import org.hibernate.envers.configuration.EnversSettings;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.jpa.AvailableSettings;
 import org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl;
 import org.hibernate.jpa.boot.spi.Bootstrap;
 import org.hibernate.jpa.boot.spi.PersistenceUnitDescriptor;
 import org.hibernate.jpa.internal.EntityManagerFactoryImpl;
-import org.hibernate.boot.registry.internal.StandardServiceRegistryImpl;
-
-import org.junit.After;
+import org.hibernate.jpa.test.PersistenceUnitDescriptorAdapter;
 
 import org.hibernate.testing.AfterClassOnce;
 import org.hibernate.testing.BeforeClassOnce;
 import org.hibernate.testing.jta.TestingJtaPlatformImpl;
 import org.hibernate.testing.junit4.Helper;
+import org.junit.After;
+
+import org.jboss.logging.Logger;
 
 /**
  * @author Strong Liu (stliu@hibernate.org)
@@ -84,12 +84,12 @@ public abstract class BaseEnversJPAFunctionalTestCase extends AbstractEnversTest
 		return serviceRegistry;
 	}
 
-	protected Configuration getCfg() {
-		return entityManagerFactoryBuilder.getHibernateConfiguration();
+	protected MetadataImplementor metadata() {
+		return entityManagerFactoryBuilder.getMetadata();
 	}
 
 	@BeforeClassOnce
-	@SuppressWarnings({ "UnusedDeclaration" })
+	@SuppressWarnings({"UnusedDeclaration"})
 	public void buildEntityManagerFactory() throws Exception {
 		log.trace( "Building EntityManagerFactory" );
 
@@ -118,7 +118,7 @@ public abstract class BaseEnversJPAFunctionalTestCase extends AbstractEnversTest
 			settings.put( org.hibernate.cfg.AvailableSettings.HBM2DDL_AUTO, "create-drop" );
 			final String secondSchemaName = createSecondSchema();
 			if ( StringHelper.isNotEmpty( secondSchemaName ) ) {
-				if ( !( getDialect() instanceof H2Dialect ) ) {
+				if ( !(getDialect() instanceof H2Dialect) ) {
 					throw new UnsupportedOperationException( "Only H2 dialect supports creation of second schema." );
 				}
 				Helper.createH2Schema( secondSchemaName, settings );
@@ -126,14 +126,14 @@ public abstract class BaseEnversJPAFunctionalTestCase extends AbstractEnversTest
 		}
 
 		if ( StringHelper.isNotEmpty( getAuditStrategy() ) ) {
-			settings.put( "org.hibernate.envers.audit_strategy", getAuditStrategy() );
+			settings.put( EnversSettings.AUDIT_STRATEGY, getAuditStrategy() );
 		}
 
-		if ( ! autoRegisterListeners() ) {
+		if ( !autoRegisterListeners() ) {
 			settings.put( EnversIntegrator.AUTO_REGISTER, "false" );
 		}
 
-		settings.put( "org.hibernate.envers.use_revision_entity_with_native_id", "false" );
+		settings.put( EnversSettings.USE_REVISION_ENTITY_WITH_NATIVE_ID, "false" );
 
 		settings.put( org.hibernate.cfg.AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS, "true" );
 		settings.put( org.hibernate.cfg.AvailableSettings.DIALECT, getDialect().getClass().getName() );
@@ -196,7 +196,7 @@ public abstract class BaseEnversJPAFunctionalTestCase extends AbstractEnversTest
 	}
 
 	public String[] getEjb3DD() {
-		return new String[] { };
+		return new String[] {};
 	}
 
 	protected void afterEntityManagerFactoryBuilt() {
@@ -208,6 +208,7 @@ public abstract class BaseEnversJPAFunctionalTestCase extends AbstractEnversTest
 
 	/**
 	 * Feature supported only by H2 dialect.
+	 *
 	 * @return Provide not empty name to create second schema.
 	 */
 	protected String createSecondSchema() {
@@ -219,14 +220,14 @@ public abstract class BaseEnversJPAFunctionalTestCase extends AbstractEnversTest
 	}
 
 	@AfterClassOnce
-	public void releaseEntityManagerFactory(){
+	public void releaseEntityManagerFactory() {
 		if ( entityManagerFactory != null && entityManagerFactory.isOpen() ) {
 			entityManagerFactory.close();
 		}
 	}
 
 	@After
-	@SuppressWarnings({ "UnusedDeclaration" })
+	@SuppressWarnings({"UnusedDeclaration"})
 	public void releaseUnclosedEntityManagers() {
 		releaseUnclosedEntityManager( this.em );
 		auditReader = null;
@@ -251,13 +252,13 @@ public abstract class BaseEnversJPAFunctionalTestCase extends AbstractEnversTest
 			catch (SystemException ignored) {
 			}
 		}
-		try{
+		try {
 			if ( em.getTransaction().isActive() ) {
 				em.getTransaction().rollback();
 				log.warn( "You left an open transaction! Fix your test case. For now, we are closing it for you." );
 			}
 		}
-		catch ( IllegalStateException e ) {
+		catch (IllegalStateException e) {
 		}
 		if ( em.isOpen() ) {
 			// as we open an EM before the test runs, it will still be open if the test uses a custom EM.
@@ -266,9 +267,11 @@ public abstract class BaseEnversJPAFunctionalTestCase extends AbstractEnversTest
 			log.warn( "The EntityManager is not closed. Closing it." );
 		}
 	}
-	protected EntityManager getEntityManager(){
+
+	protected EntityManager getEntityManager() {
 		return getOrCreateEntityManager();
 	}
+
 	protected EntityManager getOrCreateEntityManager() {
 		if ( em == null || !em.isOpen() ) {
 			em = entityManagerFactory.createEntityManager();
@@ -276,8 +279,8 @@ public abstract class BaseEnversJPAFunctionalTestCase extends AbstractEnversTest
 		return em;
 	}
 
-	protected AuditReader getAuditReader(){
-		if(auditReader!=null){
+	protected AuditReader getAuditReader() {
+		if ( auditReader != null ) {
 			return auditReader;
 		}
 		return auditReader = AuditReaderFactory.get( getOrCreateEntityManager() );

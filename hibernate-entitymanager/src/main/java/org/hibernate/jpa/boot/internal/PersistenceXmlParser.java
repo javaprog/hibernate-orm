@@ -23,6 +23,14 @@
  */
 package org.hibernate.jpa.boot.internal;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import javax.persistence.PersistenceException;
 import javax.persistence.spi.PersistenceUnitTransactionType;
 import javax.xml.XMLConstants;
@@ -34,16 +42,18 @@ import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.net.URLConnection;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+
+import org.hibernate.boot.registry.classloading.internal.ClassLoaderServiceImpl;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
+import org.hibernate.internal.util.StringHelper;
+import org.hibernate.jpa.AvailableSettings;
+import org.hibernate.boot.archive.internal.ArchiveHelper;
+import org.hibernate.jpa.internal.EntityManagerMessageLogger;
+import org.hibernate.jpa.internal.util.ConfigurationHelper;
+import org.hibernate.internal.util.xml.XsdException;
 
 import org.jboss.logging.Logger;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -52,15 +62,6 @@ import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
-
-import org.hibernate.jpa.AvailableSettings;
-import org.hibernate.jpa.internal.EntityManagerMessageLogger;
-import org.hibernate.jpa.packaging.internal.JarVisitorFactory;
-import org.hibernate.jpa.internal.util.ConfigurationHelper;
-import org.hibernate.internal.util.StringHelper;
-import org.hibernate.metamodel.source.XsdException;
-import org.hibernate.boot.registry.classloading.internal.ClassLoaderServiceImpl;
-import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 
 /**
  * Used by Hibernate to parse {@code persistence.xml} files in SE environments.
@@ -108,7 +109,7 @@ public class PersistenceXmlParser {
 	}
 
 	private List<ParsedPersistenceXmlDescriptor> parsePersistenceXml(URL xmlUrl, Map integration) {
-		// todo : if implementing a "xml binding service" this should be part of it, binding persistence.xml : HHH-6145
+		LOG.tracef( "Attempting to parse persistence.xml file : %s", xmlUrl.toExternalForm() );
 
 		final Document doc = loadUrl( xmlUrl );
 		final Element top = doc.getDocumentElement();
@@ -121,7 +122,7 @@ public class PersistenceXmlParser {
 				final Element element = (Element) children.item( i );
 				final String tag = element.getTagName();
 				if ( tag.equals( "persistence-unit" ) ) {
-					final URL puRootUrl = JarVisitorFactory.getJarURLFromURLEntry( xmlUrl, "/META-INF/persistence.xml" );
+					final URL puRootUrl = ArchiveHelper.getJarURLFromURLEntry( xmlUrl, "/META-INF/persistence.xml" );
 					ParsedPersistenceXmlDescriptor persistenceUnit = new ParsedPersistenceXmlDescriptor( puRootUrl );
 					bindPersistenceUnit( persistenceUnit, element );
 
@@ -214,10 +215,10 @@ public class PersistenceXmlParser {
 					persistenceUnit.addMappingFiles( extractContent( element ) );
 				}
 				else if ( tag.equals( "jar-file" ) ) {
-					persistenceUnit.addJarFileUrl( JarVisitorFactory.getURLFromPath( extractContent( element ) ) );
+					persistenceUnit.addJarFileUrl( ArchiveHelper.getURLFromPath( extractContent( element ) ) );
 				}
 				else if ( tag.equals( "exclude-unlisted-classes" ) ) {
-					persistenceUnit.setExcludeUnlistedClasses( true );
+					persistenceUnit.setExcludeUnlistedClasses( extractBooleanContent(element, true) );
 				}
 				else if ( tag.equals( "delimited-identifiers" ) ) {
 					persistenceUnit.setUseQuotedIdentifiers( true );
@@ -268,6 +269,14 @@ public class PersistenceXmlParser {
 			}
 		}
 		return result.toString().trim();
+	}
+
+	private static boolean extractBooleanContent(Element element, boolean defaultBool) {
+		String content = extractContent( element );
+		if (content != null && content.length() > 0) {
+			return Boolean.valueOf(content);
+		}
+		return defaultBool;
 	}
 
 	private static PersistenceUnitTransactionType parseTransactionType(String value) {

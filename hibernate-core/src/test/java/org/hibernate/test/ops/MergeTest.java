@@ -493,7 +493,7 @@ public class MergeTest extends AbstractOperationTestCase {
 
 		child = (NumberedNode) root.getChildren().iterator().next();
 		grandchild = (NumberedNode) child.getChildren().iterator().next();
-		grandchild.setDescription("the grand child");
+		grandchild.setDescription( "the grand child" );
 		NumberedNode grandchild2 = new NumberedNode("grandchild2");
 		child.addChild( grandchild2 );
 
@@ -503,7 +503,7 @@ public class MergeTest extends AbstractOperationTestCase {
 		tx.commit();
 		s.close();
 
-		assertInsertCount(1);
+		assertInsertCount( 1 );
 		assertUpdateCount(1);
 		clearCounts();
 
@@ -512,7 +512,7 @@ public class MergeTest extends AbstractOperationTestCase {
 		NumberedNode child2 = new NumberedNode("child2");
 		NumberedNode grandchild3 = new NumberedNode("grandchild3");
 		child2.addChild( grandchild3 );
-		root.addChild(child2);
+		root.addChild( child2 );
 
 		s = openSession();
 		tx = s.beginTransaction();
@@ -603,7 +603,6 @@ public class MergeTest extends AbstractOperationTestCase {
 		cleanup();
 	}
 
-	@SuppressWarnings( {"UnnecessaryBoxing"})
 	@Test
 	public void testMergeManaged() {
 		Session s = openSession();
@@ -616,19 +615,19 @@ public class MergeTest extends AbstractOperationTestCase {
 
 		tx = s.beginTransaction();
 		NumberedNode child = new NumberedNode("child");
-		root.addChild(child);
-		assertSame( root, s.merge(root) );
+		root.addChild( child );
+		assertSame( root, s.merge( root ) );
 		Object mergedChild = root.getChildren().iterator().next();
 		assertNotSame( mergedChild, child );
-		assertTrue( s.contains(mergedChild) );
+		assertTrue( s.contains( mergedChild ) );
 		assertFalse( s.contains(child) );
 		assertEquals( root.getChildren().size(), 1 );
 		assertTrue( root.getChildren().contains(mergedChild) );
 		//assertNotSame( mergedChild, s.merge(child) ); //yucky :(
 		tx.commit();
 
-		assertInsertCount(1);
-		assertUpdateCount(0);
+		assertInsertCount( 1 );
+		assertUpdateCount( 0 );
 
 		assertEquals( root.getChildren().size(), 1 );
 		assertTrue( root.getChildren().contains(mergedChild) );
@@ -646,14 +645,13 @@ public class MergeTest extends AbstractOperationTestCase {
 		cleanup();
 	}
 
-	@SuppressWarnings( {"UnnecessaryBoxing"})
 	@Test
 	public void testMergeManagedUninitializedCollection() {
 		Session s = openSession();
 		Transaction tx = s.beginTransaction();
 		NumberedNode root = new NumberedNode( "root" );
 		root.addChild( new NumberedNode( "child" ) );
-		s.persist(root);
+		s.persist( root );
 		tx.commit();
 		s.close();
 
@@ -673,14 +671,14 @@ public class MergeTest extends AbstractOperationTestCase {
 		assertFalse( Hibernate.isInitialized( managedChildren ) );
 		tx.commit();
 
-		assertInsertCount(0);
-		assertUpdateCount(0);
-		assertDeleteCount(0);
+		assertInsertCount( 0 );
+		assertUpdateCount( 0 );
+		assertDeleteCount( 0 );
 
 		tx = s.beginTransaction();
 		assertEquals(
 				Long.valueOf( 2 ),
-				s.createCriteria(NumberedNode.class)
+				s.createCriteria( NumberedNode.class )
 						.setProjection( Projections.rowCount() )
 						.uniqueResult()
 		);
@@ -691,7 +689,6 @@ public class MergeTest extends AbstractOperationTestCase {
 		cleanup();
 	}
 
-	@SuppressWarnings( {"UnnecessaryBoxing"})
 	@Test
 	public void testMergeManagedInitializedCollection() {
 		Session s = openSession();
@@ -745,11 +742,11 @@ public class MergeTest extends AbstractOperationTestCase {
 		Employer jboss = new Employer();
 		Employee gavin = new Employee();
 		jboss.setEmployees( new ArrayList() );
-		jboss.getEmployees().add(gavin);
-		s.merge(jboss);
+		jboss.getEmployees().add( gavin );
+		s.merge( jboss );
 		s.flush();
 		jboss = (Employer) s.createQuery("from Employer e join fetch e.employees").uniqueResult();
-		assertTrue( Hibernate.isInitialized( jboss.getEmployees() )  );
+		assertTrue( Hibernate.isInitialized( jboss.getEmployees() ) );
 		assertEquals( 1, jboss.getEmployees().size() );
 		s.clear();
 		s.merge( jboss.getEmployees().iterator().next() );
@@ -759,7 +756,6 @@ public class MergeTest extends AbstractOperationTestCase {
 		cleanup();
 	}
 
-	@SuppressWarnings( {"UnnecessaryBoxing"})
 	@Test
 	public void testDeleteAndMerge() throws Exception {
 		Session s = openSession();

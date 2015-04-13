@@ -23,22 +23,19 @@
  */
 package org.hibernate.testing.junit4;
 
-import static org.junit.Assert.fail;
-
 import java.io.InputStream;
-import java.sql.Blob;
-import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import javax.persistence.SharedCacheMode;
 
 import org.hibernate.HibernateException;
 import org.hibernate.Interceptor;
 import org.hibernate.Session;
+import org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl;
 import org.hibernate.boot.registry.BootstrapServiceRegistry;
 import org.hibernate.boot.registry.BootstrapServiceRegistryBuilder;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
@@ -46,22 +43,15 @@ import org.hibernate.boot.registry.internal.StandardServiceRegistryImpl;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
-import org.hibernate.cfg.Mappings;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.dialect.H2Dialect;
-import org.hibernate.engine.config.spi.ConfigurationService;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.jdbc.AbstractReturningWork;
 import org.hibernate.jdbc.Work;
-import org.hibernate.mapping.Collection;
-import org.hibernate.mapping.PersistentClass;
-import org.hibernate.mapping.Property;
-import org.hibernate.mapping.SimpleValue;
-import org.hibernate.metamodel.MetadataSources;
-import org.hibernate.metamodel.source.MetadataImplementor;
+
 import org.hibernate.testing.AfterClassOnce;
 import org.hibernate.testing.BeforeClassOnce;
 import org.hibernate.testing.OnExpectedFailure;
@@ -71,6 +61,8 @@ import org.hibernate.testing.cache.CachingRegionFactory;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.junit.Assert.fail;
+
 /**
  * Applies functional testing logic for core Hibernate testing on top of {@link BaseUnitTestCase}
  *
@@ -79,11 +71,9 @@ import org.junit.Before;
 @SuppressWarnings( {"deprecation"} )
 public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 	public static final String VALIDATE_DATA_CLEANUP = "hibernate.test.validateDataCleanup";
-	public static final String USE_NEW_METADATA_MAPPINGS = "hibernate.test.new_metadata_mappings";
 
 	public static final Dialect DIALECT = Dialect.getDialect();
 
-	private boolean isMetadataUsed;
 	private Configuration configuration;
 	private StandardServiceRegistryImpl serviceRegistry;
 	private SessionFactoryImplementor sessionFactory;
@@ -126,26 +116,9 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 		configuration = constructAndConfigureConfiguration();
 		BootstrapServiceRegistry bootRegistry = buildBootstrapServiceRegistry();
 		serviceRegistry = buildServiceRegistry( bootRegistry, configuration );
-		isMetadataUsed = serviceRegistry.getService( ConfigurationService.class ).getSetting(
-				USE_NEW_METADATA_MAPPINGS,
-				new ConfigurationService.Converter<Boolean>() {
-					@Override
-					public Boolean convert(Object value) {
-						return Boolean.parseBoolean( ( String ) value );
-					}
-				},
-				false
-		);
-		if ( isMetadataUsed ) {
-			MetadataImplementor metadataImplementor = buildMetadata( bootRegistry, serviceRegistry );
-			afterConstructAndConfigureMetadata( metadataImplementor );
-			sessionFactory = ( SessionFactoryImplementor ) metadataImplementor.buildSessionFactory();
-		}
-		else {
-			// this is done here because Configuration does not currently support 4.0 xsd
-			afterConstructAndConfigureConfiguration( configuration );
-			sessionFactory = ( SessionFactoryImplementor ) configuration.buildSessionFactory( serviceRegistry );
-		}
+		// this is done here because Configuration does not currently support 4.0 xsd
+		afterConstructAndConfigureConfiguration( configuration );
+		sessionFactory = ( SessionFactoryImplementor ) configuration.buildSessionFactory( serviceRegistry );
 		afterSessionFactoryBuilt();
 	}
 
@@ -153,30 +126,26 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 		if ( sessionFactory == null ) {
 			return;
 		}
+		try {
+			sessionFactory.close();
+			sessionFactory = null;
+			configuration = null;
+			serviceRegistry.destroy();
+			serviceRegistry = null;
+		}
+		catch (Exception ignore) {
+		}
+
 		buildSessionFactory();
 	}
 
-
-	protected void afterConstructAndConfigureMetadata(MetadataImplementor metadataImplementor) {
-
-	}
-
-	private MetadataImplementor buildMetadata(
-			BootstrapServiceRegistry bootRegistry,
-			StandardServiceRegistryImpl serviceRegistry) {
-		MetadataSources sources = new MetadataSources( bootRegistry );
-		addMappings( sources );
-		return (MetadataImplementor) sources.getMetadataBuilder( serviceRegistry ).build();
-	}
-
-	// TODO: is this still needed?
 	protected Configuration buildConfiguration() {
 		Configuration cfg = constructAndConfigureConfiguration();
 		afterConstructAndConfigureConfiguration( cfg );
 		return cfg;
 	}
 
-	private Configuration constructAndConfigureConfiguration() {
+	protected Configuration constructAndConfigureConfiguration() {
 		Configuration cfg = constructConfiguration();
 		configure( cfg );
 		return cfg;
@@ -184,14 +153,13 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 
 	private void afterConstructAndConfigureConfiguration(Configuration cfg) {
 		addMappings( cfg );
-		cfg.buildMappings();
 		applyCacheSettings( cfg );
 		afterConfigurationBuilt( cfg );
 	}
 
 	protected Configuration constructConfiguration() {
-		Configuration configuration = new Configuration()
-				.setProperty(Environment.CACHE_REGION_FACTORY, CachingRegionFactory.class.getName()  );
+		Configuration configuration = new Configuration();
+		configuration.setProperty( AvailableSettings.CACHE_REGION_FACTORY, CachingRegionFactory.class.getName() );
 		configuration.setProperty( AvailableSettings.USE_NEW_ID_GENERATOR_MAPPINGS, "true" );
 		if ( createSchema() ) {
 			configuration.setProperty( Environment.HBM2DDL_AUTO, "create-drop" );
@@ -203,6 +171,7 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 				Helper.createH2Schema( secondSchemaName, configuration );
 			}
 		}
+		configuration.setImplicitNamingStrategy( ImplicitNamingStrategyLegacyJpaImpl.INSTANCE );
 		configuration.setProperty( Environment.DIALECT, getDialect().getClass().getName() );
 		return configuration;
 	}
@@ -241,36 +210,6 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 		}
 	}
 
-	protected void addMappings(MetadataSources sources) {
-		String[] mappings = getMappings();
-		if ( mappings != null ) {
-			for ( String mapping : mappings ) {
-				sources.addResource(
-						getBaseForMappings() + mapping
-				);
-			}
-		}
-		Class<?>[] annotatedClasses = getAnnotatedClasses();
-		if ( annotatedClasses != null ) {
-			for ( Class<?> annotatedClass : annotatedClasses ) {
-				sources.addAnnotatedClass( annotatedClass );
-			}
-		}
-		String[] annotatedPackages = getAnnotatedPackages();
-		if ( annotatedPackages != null ) {
-			for ( String annotatedPackage : annotatedPackages ) {
-				sources.addPackage( annotatedPackage );
-			}
-		}
-		String[] xmlFiles = getXmlFiles();
-		if ( xmlFiles != null ) {
-			for ( String xmlFile : xmlFiles ) {
-				InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream( xmlFile );
-				sources.addInputStream( is );
-			}
-		}
-	}
-
 	protected static final String[] NO_MAPPINGS = new String[0];
 
 	protected String[] getMappings() {
@@ -298,37 +237,9 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 
 	protected void applyCacheSettings(Configuration configuration) {
 		if ( getCacheConcurrencyStrategy() != null ) {
-			Iterator itr = configuration.getClassMappings();
-			while ( itr.hasNext() ) {
-				PersistentClass clazz = (PersistentClass) itr.next();
-				Iterator props = clazz.getPropertyClosureIterator();
-				boolean hasLob = false;
-				while ( props.hasNext() ) {
-					Property prop = (Property) props.next();
-					if ( prop.getValue().isSimpleValue() ) {
-						String type = ( (SimpleValue) prop.getValue() ).getTypeName();
-						if ( "blob".equals(type) || "clob".equals(type) ) {
-							hasLob = true;
-						}
-						if ( Blob.class.getName().equals(type) || Clob.class.getName().equals(type) ) {
-							hasLob = true;
-						}
-					}
-				}
-				if ( !hasLob && !clazz.isInherited() && overrideCacheStrategy() ) {
-					configuration.setCacheConcurrencyStrategy( clazz.getEntityName(), getCacheConcurrencyStrategy() );
-				}
-			}
-			itr = configuration.getCollectionMappings();
-			while ( itr.hasNext() ) {
-				Collection coll = (Collection) itr.next();
-				configuration.setCollectionCacheConcurrencyStrategy( coll.getRole(), getCacheConcurrencyStrategy() );
-			}
+			configuration.setProperty( AvailableSettings.DEFAULT_CACHE_CONCURRENCY_STRATEGY, getCacheConcurrencyStrategy() );
+			configuration.setSharedCacheMode( SharedCacheMode.ALL );
 		}
-	}
-
-	protected boolean overrideCacheStrategy() {
-		return true;
 	}
 
 	protected String getCacheConcurrencyStrategy() {
@@ -336,10 +247,6 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 	}
 
 	protected void afterConfigurationBuilt(Configuration configuration) {
-		afterConfigurationBuilt( configuration.createMappings(), getDialect() );
-	}
-
-	protected void afterConfigurationBuilt(Mappings mappings, Dialect dialect) {
 	}
 
 	protected BootstrapServiceRegistry buildBootstrapServiceRegistry() {
@@ -357,7 +264,11 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 		Environment.verifyProperties( properties );
 		ConfigurationHelper.resolvePlaceHolders( properties );
 
-		StandardServiceRegistryBuilder registryBuilder = new StandardServiceRegistryBuilder( bootRegistry ).applySettings( properties );
+		StandardServiceRegistryBuilder cfgRegistryBuilder = configuration.getStandardServiceRegistryBuilder();
+
+		StandardServiceRegistryBuilder registryBuilder = new StandardServiceRegistryBuilder( bootRegistry, cfgRegistryBuilder.getAggregatedCfgXml() )
+				.applySettings( properties );
+
 		prepareBasicRegistryBuilder( registryBuilder );
 		return (StandardServiceRegistryImpl) registryBuilder.build();
 	}
@@ -386,17 +297,23 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 
 	@AfterClassOnce
 	@SuppressWarnings( {"UnusedDeclaration"})
-	private void releaseSessionFactory() {
+	protected void releaseSessionFactory() {
 		if ( sessionFactory == null ) {
 			return;
 		}
 		sessionFactory.close();
 		sessionFactory = null;
 		configuration = null;
-        if(serviceRegistry == null){
-            return;
-        }
-        serviceRegistry.destroy();
+        if ( serviceRegistry != null ) {
+			if ( serviceRegistry.isActive() ) {
+				try {
+					serviceRegistry.destroy();
+				}
+				catch (Exception ignore) {
+				}
+				fail( "StandardServiceRegistry was not closed down as expected" );
+			}
+		}
         serviceRegistry=null;
 	}
 
@@ -435,11 +352,7 @@ public abstract class BaseCoreFunctionalTestCase extends BaseUnitTestCase {
 
 	protected void cleanupCache() {
 		if ( sessionFactory != null ) {
-			sessionFactory.getCache().evictCollectionRegions();
-			sessionFactory.getCache().evictDefaultQueryRegion();
-			sessionFactory.getCache().evictEntityRegions();
-			sessionFactory.getCache().evictQueryRegions();
-			sessionFactory.getCache().evictNaturalIdRegions();
+			sessionFactory.getCache().evictAllRegions();
 		}
 	}
 	

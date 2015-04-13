@@ -22,8 +22,9 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.cfg.beanvalidation;
+
 import java.util.HashSet;
-import java.util.Properties;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.validation.ConstraintViolation;
@@ -33,10 +34,7 @@ import javax.validation.Validation;
 import javax.validation.Validator;
 import javax.validation.ValidatorFactory;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.EntityMode;
-import org.hibernate.cfg.Configuration;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.event.spi.PreDeleteEvent;
 import org.hibernate.event.spi.PreDeleteEventListener;
@@ -46,6 +44,8 @@ import org.hibernate.event.spi.PreUpdateEvent;
 import org.hibernate.event.spi.PreUpdateEventListener;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.entity.EntityPersister;
+
+import org.jboss.logging.Logger;
 
 /**
  * Event listener used to enable Bean Validation for insert/update/delete events.
@@ -76,17 +76,16 @@ public class BeanValidationEventListener
 	 * Constructor used in an environment where validator factory is injected (JPA2).
 	 *
 	 * @param factory The {@code ValidatorFactory} to use to create {@code Validator} instance(s)
-	 * @param properties Configued properties
+	 * @param settings Configued properties
 	 */
-	public BeanValidationEventListener(ValidatorFactory factory, Properties properties) {
-		init( factory, properties );
+	public BeanValidationEventListener(ValidatorFactory factory, Map settings) {
+		init( factory, settings );
 	}
 
-	public void initialize(Configuration cfg) {
+	public void initialize(Map settings) {
 		if ( !initialized ) {
 			ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
-			Properties props = cfg.getProperties();
-			init( factory, props );
+			init( factory, settings );
 		}
 	}
 
@@ -114,9 +113,9 @@ public class BeanValidationEventListener
 		return false;
 	}
 
-	private void init(ValidatorFactory factory, Properties properties) {
+	private void init(ValidatorFactory factory, Map settings) {
 		this.factory = factory;
-		groupsPerOperation = new GroupsPerOperation( properties );
+		groupsPerOperation = new GroupsPerOperation( settings );
 		initialized = true;
 	}
 

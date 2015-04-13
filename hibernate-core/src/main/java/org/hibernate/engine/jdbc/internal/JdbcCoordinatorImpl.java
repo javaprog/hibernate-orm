@@ -30,6 +30,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -56,8 +57,8 @@ import org.hibernate.engine.transaction.spi.TransactionEnvironment;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.jdbc.WorkExecutor;
 import org.hibernate.jdbc.WorkExecutorVisitable;
+
 import org.jboss.logging.Logger;
-import org.jboss.logging.Logger.Level;
 
 /**
  * Standard Hibernate implementation of {@link JdbcCoordinator}
@@ -66,10 +67,12 @@ import org.jboss.logging.Logger.Level;
  *
  * @author Steve Ebersole
  * @author Brett Meyer
+ * @author Sanne Grinovero
  */
 public class JdbcCoordinatorImpl implements JdbcCoordinator {
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(
-			CoreMessageLogger.class, JdbcCoordinatorImpl.class.getName()
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger(
+			CoreMessageLogger.class,
+			JdbcCoordinatorImpl.class.getName()
 	);
 
 	private transient TransactionCoordinator transactionCoordinator;
@@ -79,9 +82,17 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 
 	private transient long transactionTimeOutInstant = -1;
 
+	/**
+	 * This is a marker value to insert instead of null values for when a Statement gets registered in xref
+	 * but has no associated ResultSets registered. This is useful to efficiently check against duplicate
+	 * registration but you'll have to check against instance equality rather than null before attempting
+	 * to add elements to this set.
+	 */
+	private static final Set<ResultSet> EMPTY_RESULTSET = Collections.emptySet();
+
 	private final HashMap<Statement,Set<ResultSet>> xref = new HashMap<Statement,Set<ResultSet>>();
 	private final Set<ResultSet> unassociatedResultSets = new HashSet<ResultSet>();
-	private final SqlExceptionHelper exceptionHelper;
+	private final transient SqlExceptionHelper exceptionHelper;
 
 	private Statement lastQuery;
 
@@ -90,6 +101,12 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 	 */
 	private boolean releasesEnabled = true;
 
+	/**
+	 * Constructs a JdbcCoordinatorImpl
+	 *
+	 * @param userSuppliedConnection The user supplied connection (may be null)
+	 * @param transactionCoordinator The transaction coordinator
+	 */
 	public JdbcCoordinatorImpl(
 			Connection userSuppliedConnection,
 			TransactionCoordinator transactionCoordinator) {
@@ -103,6 +120,12 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 		this.exceptionHelper = logicalConnection.getJdbcServices().getSqlExceptionHelper();
 	}
 
+	/**
+	 * Constructs a JdbcCoordinatorImpl
+	 *
+	 * @param logicalConnection The logical JDBC connection
+	 * @param transactionCoordinator The transaction coordinator
+	 */
 	public JdbcCoordinatorImpl(
 			LogicalConnectionImpl logicalConnection,
 			TransactionCoordinator transactionCoordinator) {
@@ -138,12 +161,17 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 		return sessionFactory().getServiceRegistry().getService( BatchBuilder.class );
 	}
 
+	/**
+	 * Access to the SqlExceptionHelper
+	 *
+	 * @return The SqlExceptionHelper
+	 */
 	public SqlExceptionHelper sqlExceptionHelper() {
-		return transactionEnvironment().getJdbcServices().getSqlExceptionHelper();
+		return exceptionHelper;
 	}
 
 
-	private int flushDepth = 0;
+	private int flushDepth;
 
 	@Override
 	public void flushBeginning() {
@@ -196,7 +224,8 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 	public void executeBatch() {
 		if ( currentBatch != null ) {
 			currentBatch.execute();
-			currentBatch.release(); // needed?
+			// needed?
+			currentBatch.release();
 		}
 	}
 
@@ -279,9 +308,9 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 
 	@Override
 	public <T> T coordinateWork(WorkExecutorVisitable<T> work) {
-		Connection connection = getLogicalConnection().getConnection();
+		final Connection connection = getLogicalConnection().getConnection();
 		try {
-			T result = work.accept( new WorkExecutor<T>(), connection );
+			final T result = work.accept( new WorkExecutor<T>(), connection );
 			afterStatementExecution();
 			return result;
 		}
@@ -297,6 +326,13 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 				: ! hasRegisteredResources();
 	}
 
+	/**
+	 * JDK serialization hook
+	 *
+	 * @param oos The stream into which to write our state
+	 *
+	 * @throws IOException Trouble accessing the stream
+	 */
 	public void serialize(ObjectOutputStream oos) throws IOException {
 		if ( ! isReadyForSerialization() ) {
 			throw new HibernateException( "Cannot serialize Session while connected" );
@@ -304,12 +340,28 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 		logicalConnection.serialize( oos );
 	}
 
+	/**
+	 * JDK deserialization hook
+	 *
+	 * @param ois The stream into which to write our state
+	 * @param transactionContext The transaction context which owns the JdbcCoordinatorImpl to be deserialized.
+	 *
+	 * @return The deserialized JdbcCoordinatorImpl
+	 *
+	 * @throws IOException Trouble accessing the stream
+	 * @throws ClassNotFoundException Trouble reading the stream
+	 */
 	public static JdbcCoordinatorImpl deserialize(
 			ObjectInputStream ois,
 			TransactionContext transactionContext) throws IOException, ClassNotFoundException {
 		return new JdbcCoordinatorImpl( LogicalConnectionImpl.deserialize( ois, transactionContext ) );
- 	}
+	}
 
+	/**
+	 * Callback after deserialization from Session is done
+	 *
+	 * @param transactionCoordinator The transaction coordinator
+	 */
 	public void afterDeserialize(TransactionCoordinatorImpl transactionCoordinator) {
 		this.transactionCoordinator = transactionCoordinator;
 	}
@@ -317,10 +369,15 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 	@Override
 	public void register(Statement statement) {
 		LOG.tracev( "Registering statement [{0}]", statement );
-		if ( xref.containsKey( statement ) ) {
+		// Benchmarking has shown this to be a big hotspot.  Originally, most usages would call both
+		// #containsKey and #put.  Instead, we optimize for the most common path (no previous Statement was
+		// registered) by calling #put only once, but still handling the unlikely conflict and resulting exception.
+		final Set<ResultSet> previousValue = xref.put( statement, EMPTY_RESULTSET );
+		if ( previousValue != null ) {
+			// Put the previous value back to undo the put
+			xref.put( statement, previousValue );
 			throw new HibernateException( "statement already registered with JDBCContainer" );
 		}
-		xref.put( statement, null );
 	}
 
 	@Override
@@ -328,7 +385,7 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 	public void registerLastQuery(Statement statement) {
 		LOG.tracev( "Registering last query statement [{0}]", statement );
 		if ( statement instanceof JdbcWrapper ) {
-			JdbcWrapper<Statement> wrapper = ( JdbcWrapper<Statement> ) statement;
+			final JdbcWrapper<Statement> wrapper = (JdbcWrapper<Statement>) statement;
 			registerLastQuery( wrapper.getWrappedObject() );
 			return;
 		}
@@ -343,10 +400,7 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 			}
 		}
 		catch (SQLException sqle) {
-			throw exceptionHelper.convert(
-			        sqle,
-			        "Cannot cancel query"
-				);
+			throw exceptionHelper.convert( sqle, "Cannot cancel query" );
 		}
 		finally {
 			lastQuery = null;
@@ -356,7 +410,7 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 	@Override
 	public void release(Statement statement) {
 		LOG.tracev( "Releasing statement [{0}]", statement );
-		Set<ResultSet> resultSets = xref.get( statement );
+		final Set<ResultSet> resultSets = xref.get( statement );
 		if ( resultSets != null ) {
 			for ( ResultSet resultSet : resultSets ) {
 				close( resultSet );
@@ -370,21 +424,22 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 	}
 
 	@Override
-	public void register(ResultSet resultSet) {
-		LOG.tracev( "Registering result set [{0}]", resultSet );
-		Statement statement;
-		try {
-			statement = resultSet.getStatement();
-		}
-		catch ( SQLException e ) {
-			throw exceptionHelper.convert( e, "unable to access statement from resultset" );
+	public void register(ResultSet resultSet, Statement statement) {
+		if ( statement == null ) {
+			try {
+				statement = resultSet.getStatement();
+			}
+			catch ( SQLException e ) {
+				throw exceptionHelper.convert( e, "unable to access statement from resultset" );
+			}
 		}
 		if ( statement != null ) {
-			if ( LOG.isEnabled( Level.WARN ) && !xref.containsKey( statement ) ) {
-				LOG.unregisteredStatement();
-			}
+			LOG.tracev( "Registering result set [{0}]", resultSet );
 			Set<ResultSet> resultSets = xref.get( statement );
 			if ( resultSets == null ) {
+				LOG.unregisteredStatement();
+			}
+			if ( resultSets == null || resultSets == EMPTY_RESULTSET ) {
 				resultSets = new HashSet<ResultSet>();
 				xref.put( statement, resultSets );
 			}
@@ -396,21 +451,22 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 	}
 
 	@Override
-	public void release(ResultSet resultSet) {
+	public void release(ResultSet resultSet, Statement statement) {
 		LOG.tracev( "Releasing result set [{0}]", resultSet );
-		Statement statement;
-		try {
-			statement = resultSet.getStatement();
-		}
-		catch ( SQLException e ) {
-			throw exceptionHelper.convert( e, "unable to access statement from resultset" );
+		if ( statement == null ) {
+			try {
+				statement = resultSet.getStatement();
+			}
+			catch ( SQLException e ) {
+				throw exceptionHelper.convert( e, "unable to access statement from resultset" );
+			}
 		}
 		if ( statement != null ) {
-			if ( LOG.isEnabled( Level.WARN ) && !xref.containsKey( statement ) ) {
+			final Set<ResultSet> resultSets = xref.get( statement );
+			if ( resultSets == null ) {
 				LOG.unregisteredStatement();
 			}
-			Set<ResultSet> resultSets = xref.get( statement );
-			if ( resultSets != null ) {
+			else {
 				resultSets.remove( resultSet );
 				if ( resultSets.isEmpty() ) {
 					xref.remove( statement );
@@ -418,7 +474,7 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 			}
 		}
 		else {
-			boolean removed = unassociatedResultSets.remove( resultSet );
+			final boolean removed = unassociatedResultSets.remove( resultSet );
 			if ( !removed ) {
 				LOG.unregisteredResultSetWithoutStatement();
 			}
@@ -449,9 +505,7 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 
 	private void cleanup() {
 		for ( Map.Entry<Statement,Set<ResultSet>> entry : xref.entrySet() ) {
-			if ( entry.getValue() != null ) {
-				closeAll( entry.getValue() );
-			}
+			closeAll( entry.getValue() );
 			close( entry.getKey() );
 		}
 		xref.clear();
@@ -469,9 +523,13 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 	@SuppressWarnings({ "unchecked" })
 	protected void close(Statement statement) {
 		LOG.tracev( "Closing prepared statement [{0}]", statement );
+		
+		// Important for Statement caching -- some DBs (especially Sybase) log warnings on every Statement under
+		// certain situations.
+		sqlExceptionHelper().logAndClearWarnings( statement );
 
 		if ( statement instanceof InvalidatableWrapper ) {
-			InvalidatableWrapper<Statement> wrapper = ( InvalidatableWrapper<Statement> ) statement;
+			final InvalidatableWrapper<Statement> wrapper = (InvalidatableWrapper<Statement>) statement;
 			close( wrapper.getWrappedObject() );
 			wrapper.invalidate();
 			return;
@@ -493,7 +551,8 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 				if ( LOG.isDebugEnabled() ) {
 					LOG.debugf( "Exception clearing maxRows/queryTimeout [%s]", sqle.getMessage() );
 				}
-				return; // EARLY EXIT!!!
+				// EARLY EXIT!!!
+				return;
 			}
 			statement.close();
 			if ( lastQuery == statement ) {
@@ -514,7 +573,7 @@ public class JdbcCoordinatorImpl implements JdbcCoordinator {
 		LOG.tracev( "Closing result set [{0}]", resultSet );
 
 		if ( resultSet instanceof InvalidatableWrapper ) {
-			InvalidatableWrapper<ResultSet> wrapper = (InvalidatableWrapper<ResultSet>) resultSet;
+			final InvalidatableWrapper<ResultSet> wrapper = (InvalidatableWrapper<ResultSet>) resultSet;
 			close( wrapper.getWrappedObject() );
 			wrapper.invalidate();
 			return;

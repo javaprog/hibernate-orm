@@ -24,6 +24,7 @@
 package org.hibernate.loader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -91,6 +92,9 @@ public class JoinWalker {
 
 	}
 
+	public List getAssociations() {
+		return Collections.unmodifiableList( associations );
+	}
 
 	public String[] getCollectionSuffixes() {
 		return collectionSuffixes;
@@ -788,7 +792,7 @@ public class JoinWalker {
 	protected boolean isDuplicateAssociation(final String lhsTable, final String[] lhsColumnNames, final AssociationType type) {
 		final String foreignKeyTable;
 		final String[] foreignKeyColumns;
-		if ( type.getForeignKeyDirection()==ForeignKeyDirection.FOREIGN_KEY_FROM_PARENT ) {
+		if ( type.getForeignKeyDirection()==ForeignKeyDirection.FROM_PARENT ) {
 			foreignKeyTable = lhsTable;
 			foreignKeyColumns = lhsColumnNames;
 		}
@@ -1108,7 +1112,11 @@ public class JoinWalker {
 					buf.append(", ").append(selectFragment);
 				}
 				if ( joinable.consumesEntityAlias() ) entityAliasCount++;
-				if ( joinable.consumesCollectionAlias() && join.getJoinType()==JoinType.LEFT_OUTER_JOIN ) collectionAliasCount++;
+				if ( joinable.consumesCollectionAlias() &&
+						join.getJoinType()==JoinType.LEFT_OUTER_JOIN &&
+						!join.hasRestriction() ) {
+					collectionAliasCount++;
+				}
 			}
 			return buf.toString();
 		}

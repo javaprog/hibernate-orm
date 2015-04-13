@@ -23,6 +23,7 @@
  */
 package org.hibernate.test.hql;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -138,7 +139,7 @@ public abstract class QueryTranslatorTestCase extends BaseCoreFunctionalTestCase
 		try {
 			System.out.println("Compiling with classic QueryTranslator...");
 			QueryTranslatorFactory classic = new ClassicQueryTranslatorFactory();
-			oldQueryTranslator = classic.createQueryTranslator( hql, hql, Collections.EMPTY_MAP, factory );
+			oldQueryTranslator = classic.createQueryTranslator( hql, hql, Collections.EMPTY_MAP, factory, null );
 			oldQueryTranslator.compile( replacements, scalar );
 		}
 		catch ( QueryException e ) {
@@ -186,7 +187,7 @@ public abstract class QueryTranslatorTestCase extends BaseCoreFunctionalTestCase
 
 	private QueryTranslatorImpl createNewQueryTranslator(String hql, Map replacements, boolean scalar, SessionFactoryImplementor factory) {
 		QueryTranslatorFactory ast = new ASTQueryTranslatorFactory();
-		QueryTranslatorImpl newQueryTranslator = ( QueryTranslatorImpl ) ast.createQueryTranslator( hql, hql, Collections.EMPTY_MAP, factory );
+		QueryTranslatorImpl newQueryTranslator = ( QueryTranslatorImpl ) ast.createQueryTranslator( hql, hql, Collections.EMPTY_MAP, factory, null );
 		newQueryTranslator.compile( replacements, scalar );
 		return newQueryTranslator;
 	}
@@ -227,8 +228,8 @@ public abstract class QueryTranslatorTestCase extends BaseCoreFunctionalTestCase
 
 	private void checkQuerySpaces(QueryTranslator oldQueryTranslator, QueryTranslator newQueryTranslator) {
 		// Check the query spaces for a regression.
-		Set oldQuerySpaces = oldQueryTranslator.getQuerySpaces();
-		Set querySpaces = newQueryTranslator.getQuerySpaces();
+		Set<Serializable> oldQuerySpaces = oldQueryTranslator.getQuerySpaces();
+		Set<Serializable> querySpaces = newQueryTranslator.getQuerySpaces();
 		assertEquals( "Query spaces is not the right size!", oldQuerySpaces.size(), querySpaces.size() );
 		for ( Object o : oldQuerySpaces ) {
 			assertTrue( "New query space does not contain " + o + "!", querySpaces.contains( o ) );
@@ -242,7 +243,7 @@ public abstract class QueryTranslatorTestCase extends BaseCoreFunctionalTestCase
 		SessionFactoryImplementor factory = sessionFactory();
 		try {
 			QueryTranslatorFactory ast = new ASTQueryTranslatorFactory();
-			newQueryTranslator = ast.createQueryTranslator( hql, hql, Collections.EMPTY_MAP, factory );
+			newQueryTranslator = ast.createQueryTranslator( hql, hql, Collections.EMPTY_MAP, factory, null );
 			newQueryTranslator.compile( replacements, scalar );
 		}
 		catch ( QueryException e ) {
@@ -280,7 +281,6 @@ public abstract class QueryTranslatorTestCase extends BaseCoreFunctionalTestCase
 	}
 
 	
-	@SuppressWarnings( {"UnnecessaryBoxing", "UnnecessaryUnboxing"})
 	private Map getTokens(String sql) {
 		Map<String,Integer> result = new TreeMap<String,Integer>();
 		if ( sql == null ) {

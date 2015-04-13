@@ -29,12 +29,12 @@ import java.lang.reflect.Method;
 
 import javassist.util.proxy.MethodFilter;
 import javassist.util.proxy.MethodHandler;
+import javassist.util.proxy.Proxy;
 import javassist.util.proxy.ProxyFactory;
-import javassist.util.proxy.ProxyObject;
-import org.jboss.logging.Logger;
 
 import org.hibernate.HibernateException;
 import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.internal.CoreLogging;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ReflectHelper;
 import org.hibernate.proxy.HibernateProxy;
@@ -47,8 +47,7 @@ import org.hibernate.type.CompositeType;
  * @author Muga Nishizawa
  */
 public class JavassistLazyInitializer extends BasicLazyInitializer implements MethodHandler {
-
-	private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, JavassistLazyInitializer.class.getName());
+	private static final CoreMessageLogger LOG = CoreLogging.messageLogger( JavassistLazyInitializer.class );
 
 	private static final MethodFilter FINALIZE_FILTER = new MethodFilter() {
 		public boolean isHandled(Method m) {
@@ -58,7 +57,7 @@ public class JavassistLazyInitializer extends BasicLazyInitializer implements Me
 	};
 
 	private Class[] interfaces;
-	private boolean constructed = false;
+	private boolean constructed;
 
 	private JavassistLazyInitializer(
 			final String entityName,
@@ -102,7 +101,7 @@ public class JavassistLazyInitializer extends BasicLazyInitializer implements Me
 			factory.setFilter( FINALIZE_FILTER );
 			Class cl = factory.createClass();
 			final HibernateProxy proxy = ( HibernateProxy ) cl.newInstance();
-			( ( ProxyObject ) proxy ).setHandler( instance );
+			( ( Proxy ) proxy ).setHandler( instance );
 			instance.constructed = true;
 			return proxy;
 		}
@@ -145,7 +144,7 @@ public class JavassistLazyInitializer extends BasicLazyInitializer implements Me
 					+ persistentClass.getName(), e
 			);
 		}
-		( ( ProxyObject ) proxy ).setHandler( instance );
+		( ( Proxy ) proxy ).setHandler( instance );
 		instance.constructed = true;
 		return proxy;
 	}
@@ -168,6 +167,7 @@ public class JavassistLazyInitializer extends BasicLazyInitializer implements Me
 		}
 	}
 
+	@Override
 	public Object invoke(
 			final Object proxy,
 			final Method thisMethod,
@@ -187,17 +187,28 @@ public class JavassistLazyInitializer extends BasicLazyInitializer implements Me
 				try {
 					if ( ReflectHelper.isPublic( persistentClass, thisMethod ) ) {
 						if ( !thisMethod.getDeclaringClass().isInstance( target ) ) {
-							throw new ClassCastException( target.getClass().getName() );
+							throw new ClassCastException(
+									target.getClass().getName()
+									+ " incompatible with "
+									+ thisMethod.getDeclaringClass().getName()
+							);
 						}
 						returnValue = thisMethod.invoke( target, args );
 					}
 					else {
-						if ( !thisMethod.isAccessible() ) {
-							thisMethod.setAccessible( true );
-						}
+						thisMethod.setAccessible( true );
 						returnValue = thisMethod.invoke( target, args );
 					}
-					return returnValue == target ? proxy : returnValue;
+					
+					if ( returnValue == target ) {
+						if ( returnValue.getClass().isInstance(proxy) ) {
+							return proxy;
+						}
+						else {
+							LOG.narrowingProxy( returnValue.getClass() );
+						}
+					}
+					return returnValue;
 				}
 				catch ( InvocationTargetException ite ) {
 					throw ite.getTargetException();

@@ -25,13 +25,13 @@ package org.hibernate.envers.test.integration.onetoone.bidirectional;
 
 import javax.persistence.EntityManager;
 
-import org.junit.Test;
-
 import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.onetoone.BidirectionalEagerHbmRefEdPK;
 import org.hibernate.envers.test.entities.onetoone.BidirectionalEagerHbmRefIngPK;
+
 import org.hibernate.testing.TestForIssue;
+import org.junit.Test;
 
 import static org.junit.Assert.assertNotNull;
 
@@ -44,7 +44,7 @@ public class BidirectionalEagerHbmTest extends BaseEnversJPAFunctionalTestCase {
 
 	@Override
 	protected String[] getMappings() {
-		return new String[] { "mappings/oneToOne/bidirectional/eagerLoading.hbm.xml" };
+		return new String[] {"mappings/oneToOne/bidirectional/eagerLoading.hbm.xml"};
 	}
 
 	@Test

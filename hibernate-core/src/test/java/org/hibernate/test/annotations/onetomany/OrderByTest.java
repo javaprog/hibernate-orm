@@ -364,6 +364,164 @@ public class OrderByTest extends BaseCoreFunctionalTestCase {
 		catch ( SQLException e ) {
 			fail(e.getMessage());
 		}
+		finally {
+			s.getTransaction().rollback();
+			s.close();
+		}
+	}
+	
+	@Test
+	@TestForIssue( jiraKey = "HHH-8083" )
+	public void testInverseIndexCascaded() {
+		final Session s = openSession();
+		s.getTransaction().begin();
+
+		Forum forum = new Forum();
+		forum.setName( "forum1" );
+		forum = (Forum) s.merge( forum );
+
+		s.flush();
+		s.clear();
+		sessionFactory().getCache().evictEntityRegions();
+
+		forum = (Forum) s.get( Forum.class, forum.getId() );
+
+		final Post post = new Post();
+		post.setName( "post1" );
+		post.setForum( forum );
+		forum.getPosts().add( post );
+
+		final User user = new User();
+		user.setName( "john" );
+		user.setForum( forum );
+		forum.getUsers().add( user );
+
+		forum = (Forum) s.merge( forum );
+
+		s.flush();
+		s.clear();
+		sessionFactory().getCache().evictEntityRegions();
+
+		forum = (Forum) s.get( Forum.class, forum.getId() );
+
+		final Post post2 = new Post();
+		post2.setName( "post2" );
+		post2.setForum( forum );
+		forum.getPosts().add( post2 );
+
+		forum = (Forum) s.merge( forum );
+
+		s.flush();
+		s.clear();
+		sessionFactory().getCache().evictEntityRegions();
+
+		forum = (Forum) s.get( Forum.class, forum.getId() );
+
+		assertEquals( 2, forum.getPosts().size() );
+		assertEquals( "post1", forum.getPosts().get( 0 ).getName() );
+		assertEquals( "post2", forum.getPosts().get( 1 ).getName() );
+		assertEquals( 1, forum.getUsers().size() );
+		assertEquals( "john", forum.getUsers().get( 0 ).getName() );
+	}
+  
+	@Test
+	@TestForIssue(jiraKey = "HHH-8794")
+	public void testOrderByNoElement() {
+
+		final Session s = openSession();
+		s.getTransaction().begin();
+
+		Employee employee = new Employee( 1 );
+
+		Computer computer = new Computer( 1 );
+		computer.setComputerName( "Bob's computer" );
+		computer.setEmployee( employee );
+
+		Computer computer2 = new Computer( 2 );
+		computer2.setComputerName( "Alice's computer" );
+		computer2.setEmployee( employee );
+
+		s.save( employee );
+		s.save( computer2 );
+		s.save( computer );
+
+		s.flush();
+		s.clear();
+		sessionFactory().getCache().evictEntityRegions();
+
+		employee = (Employee) s.get( Employee.class, employee.getId() );
+
+		assertEquals( 2, employee.getAssets().size() );
+		assertEquals( 1, employee.getAssets().get( 0 ).getIdAsset().intValue() );
+		assertEquals( 2, employee.getAssets().get( 1 ).getIdAsset().intValue() );
+	}
+
+	@Test
+	@TestForIssue( jiraKey = "HHH-9002" )
+	public void testOrderByOneToManyWithJoinTable() {
+		A a = new A();
+		a.setName( "a" );
+		B b1 = new B();
+		b1.setName( "b1" );
+		B b2 = new B();
+		b2.setName( "b2" );
+		C c11 = new C();
+		c11.setName( "c11" );
+		C c12 = new C();
+		c12.setName( "c12" );
+		C c21 = new C();
+		c21.setName( "c21" );
+		C c22 = new C();
+		c22.setName( "c22" );
+
+		a.getBs().add( b1 );
+		a.getBs().add( b2 );
+		b1.getCs().add( c11 );
+		b1.getCs().add( c12 );
+		b2.getCs().add( c21 );
+		b2.getCs().add( c22 );
+
+		Session s = openSession();
+		s.getTransaction().begin();
+		s.persist( a );
+		s.getTransaction().commit();
+		s.close();
+
+		s = openSession();
+		s.getTransaction().begin();
+
+		b1 =  (B) s.get( B.class, b1.getId() );
+		assertEquals( "b1", b1.getName() );
+		List<C> cs = b1.getCs();
+		assertEquals( 2, cs.size() );
+		assertEquals( "c11", cs.get( 0 ).getName() );
+		assertEquals( "c12", cs.get( 1 ).getName() );
+
+		s.getTransaction().commit();
+		s.close();
+
+		s = openSession();
+		s.getTransaction().begin();
+
+		a = (A) s.get( A.class, a.getId() );
+		assertEquals( "a", a.getName() );
+		assertEquals( 2, a.getBs().size() );
+		List<B> bs = a.getBs();
+		assertEquals( "b1", bs.get( 0 ).getName() );
+		assertEquals( "b2", bs.get( 1 ).getName() );
+		List<C> b1cs = bs.get( 0 ).getCs();
+		assertEquals( 2, b1cs.size() );
+		assertEquals( "c11", b1cs.get( 0 ).getName() );
+		assertEquals( "c12", b1cs.get( 1 ).getName() );
+		List<C> b2cs = bs.get( 1 ).getCs();
+		assertEquals( 2, b2cs.size() );
+		assertEquals( "c21", b2cs.get( 0 ).getName() );
+		assertEquals( "c22", b2cs.get( 1 ).getName() );
+
+		s.delete( a );
+
+		s.getTransaction().commit();
+		s.close();
 	}
 
 	@Override
@@ -371,7 +529,10 @@ public class OrderByTest extends BaseCoreFunctionalTestCase {
 		return new Class[] {
 				Order.class, OrderItem.class, Zoo.class, Tiger.class,
 				Monkey.class, Visitor.class, Box.class, Item.class,
-				BankAccount.class, Transaction.class
+				BankAccount.class, Transaction.class,
+				Comment.class, Forum.class, Post.class, User.class,
+				Asset.class, Computer.class, Employee.class,
+				A.class, B.class, C.class
 		};
 	}
 }

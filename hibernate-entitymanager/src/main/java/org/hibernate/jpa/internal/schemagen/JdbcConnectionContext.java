@@ -23,11 +23,15 @@
  */
 package org.hibernate.jpa.internal.schemagen;
 
-import javax.persistence.PersistenceException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import javax.persistence.PersistenceException;
 
-import org.hibernate.engine.jdbc.spi.JdbcConnectionAccess;
+import org.hibernate.engine.jdbc.connections.spi.JdbcConnectionAccess;
+import org.hibernate.engine.jdbc.internal.DDLFormatterImpl;
+import org.hibernate.engine.jdbc.spi.SqlStatementLogger;
+
+import org.jboss.logging.Logger;
 
 /**
  * Defines access to a JDBC Connection for use in Schema generation
@@ -35,11 +39,16 @@ import org.hibernate.engine.jdbc.spi.JdbcConnectionAccess;
  * @author Steve Ebersole
  */
 class JdbcConnectionContext {
+	private static final Logger log = Logger.getLogger( JdbcConnectionContext.class );
+
 	private final JdbcConnectionAccess jdbcConnectionAccess;
+	private final SqlStatementLogger sqlStatementLogger;
+
 	private Connection jdbcConnection;
 
-	JdbcConnectionContext(JdbcConnectionAccess jdbcConnectionAccess) {
+	JdbcConnectionContext(JdbcConnectionAccess jdbcConnectionAccess, SqlStatementLogger sqlStatementLogger) {
 		this.jdbcConnectionAccess = jdbcConnectionAccess;
+		this.sqlStatementLogger = sqlStatementLogger;
 	}
 
 	public Connection getJdbcConnection() {
@@ -57,11 +66,24 @@ class JdbcConnectionContext {
 	public void release() {
 		if ( jdbcConnection != null ) {
 			try {
+				if ( ! jdbcConnection.getAutoCommit() ) {
+					jdbcConnection.commit();
+				}
+			}
+			catch (SQLException e) {
+				log.debug( "Unable to commit JDBC transaction used for JPA schema export; may or may not be a problem" );
+			}
+
+			try {
 				jdbcConnectionAccess.releaseConnection( jdbcConnection );
 			}
 			catch (SQLException e) {
 				throw new PersistenceException( "Unable to release JDBC Connection", e );
 			}
 		}
+	}
+
+	public void logSqlStatement(String sqlStatement) {
+		sqlStatementLogger.logStatement( sqlStatement, DDLFormatterImpl.INSTANCE );
 	}
 }

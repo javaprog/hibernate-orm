@@ -1,8 +1,10 @@
 /*
- * Copyright (c) 2009, Red Hat Middleware LLC or third-party contributors as
+ * Hibernate, Relational Persistence for Idiomatic Java
+ *
+ * Copyright (c) 2013, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
- * distributed under license by Red Hat Middleware LLC.
+ * distributed under license by Red Hat Inc.
  *
  * This copyrighted material is made available to anyone wishing to use, modify,
  * copy, or redistribute it subject to the terms and conditions of the GNU
@@ -35,17 +37,17 @@ import javax.persistence.metamodel.IdentifiableType;
 import javax.persistence.metamodel.MappedSuperclassType;
 import javax.persistence.metamodel.SingularAttribute;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.annotations.common.AssertionFailure;
-import org.hibernate.jpa.internal.EntityManagerMessageLogger;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.internal.util.collections.CollectionHelper;
+import org.hibernate.jpa.internal.EntityManagerMessageLogger;
 import org.hibernate.mapping.Component;
 import org.hibernate.mapping.KeyValue;
 import org.hibernate.mapping.MappedSuperclass;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.mapping.Property;
+
+import org.jboss.logging.Logger;
 
 /**
  * Defines a context for storing information during the building of the {@link MetamodelImpl}.
@@ -66,7 +68,8 @@ class MetadataContext {
                                                                            MetadataContext.class.getName());
 
 	private final SessionFactoryImplementor sessionFactory;
-    private final boolean ignoreUnsupported;
+	private Set<MappedSuperclass> knownMappedSuperclasses;
+	private final boolean ignoreUnsupported;
 	private final AttributeFactory attributeFactory = new AttributeFactory( this );
 
 	private Map<Class<?>,EntityTypeImpl<?>> entityTypes
@@ -90,9 +93,13 @@ class MetadataContext {
 	private Map<MappedSuperclassTypeImpl<?>, PersistentClass> mappedSuperClassTypeToPersistentClass
 			= new HashMap<MappedSuperclassTypeImpl<?>, PersistentClass>();
 
-	public MetadataContext(SessionFactoryImplementor sessionFactory, boolean ignoreUnsupported) {
+	public MetadataContext(
+			SessionFactoryImplementor sessionFactory,
+			Set<MappedSuperclass> mappedSuperclasses,
+			boolean ignoreUnsupported) {
 		this.sessionFactory = sessionFactory;
-        this.ignoreUnsupported = ignoreUnsupported;
+		this.knownMappedSuperclasses = mappedSuperclasses;
+		this.ignoreUnsupported = ignoreUnsupported;
 	}
 
 	/*package*/ SessionFactoryImplementor getSessionFactory() {
@@ -143,11 +150,14 @@ class MetadataContext {
 		embeddables.put( embeddableType.getJavaType(), embeddableType );
 	}
 
-	/*package*/ void registerMappedSuperclassType(MappedSuperclass mappedSuperclass,
-												  MappedSuperclassTypeImpl<?> mappedSuperclassType) {
+	/*package*/ void registerMappedSuperclassType(
+			MappedSuperclass mappedSuperclass,
+			MappedSuperclassTypeImpl<?> mappedSuperclassType) {
 		mappedSuperclassByMappedSuperclassMapping.put( mappedSuperclass, mappedSuperclassType );
 		orderedMappings.add( mappedSuperclass );
 		mappedSuperClassTypeToPersistentClass.put( mappedSuperclassType, getEntityWorkedOn() );
+
+		knownMappedSuperclasses.remove( mappedSuperclass );
 	}
 
 	/**
@@ -183,9 +193,14 @@ class MetadataContext {
 		return entityTypesByEntityName.get( entityName );
 	}
 
-	@SuppressWarnings({ "unchecked" })
+    public Map<String, EntityTypeImpl<?>> getEntityTypesByEntityName() {
+        return Collections.unmodifiableMap( entityTypesByEntityName );
+    }
+
+    @SuppressWarnings({ "unchecked" })
 	public void wrapUp() {
         LOG.trace("Wrapping up metadata context...");
+
 		//we need to process types from superclasses to subclasses
 		for (Object mapping : orderedMappings) {
 			if ( PersistentClass.class.isAssignableFrom( mapping.getClass() ) ) {
@@ -344,6 +359,10 @@ class MetadataContext {
 
 	private <X> void populateStaticMetamodel(AbstractManagedType<X> managedType) {
 		final Class<X> managedTypeClass = managedType.getJavaType();
+		if ( managedTypeClass == null ) {
+			// should indicate MAP entity mode, skip...
+			return;
+		}
 		final String metamodelClassName = managedTypeClass.getName() + "_";
 		try {
 			final Class metamodelClass = Class.forName( metamodelClassName, true, managedTypeClass.getClassLoader() );
@@ -383,8 +402,8 @@ class MetadataContext {
 			}
 
 			// handle id-class mappings specially
-			if ( ! entityType.hasSingleIdAttribute() ) {
-				final Set<SingularAttribute<? super X, ?>> attributes = entityType.getIdClassAttributes();
+			if ( entityType.hasIdClass() ) {
+				final Set<SingularAttribute<? super X, ?>> attributes = entityType.getIdClassAttributesSafely();
 				if ( attributes != null ) {
 					for ( SingularAttribute<? super X, ?> attribute : attributes ) {
 						registerAttribute( metamodelClass, attribute );
@@ -409,10 +428,8 @@ class MetadataContext {
 					? metamodelClass.getField( name )
 					: metamodelClass.getDeclaredField( name );
 			try {
-				if ( ! field.isAccessible() ) {
-					// should be public anyway, but to be sure...
-					field.setAccessible( true );
-				}
+				// should be public anyway, but to be sure...
+				field.setAccessible( true );
 				field.set( null, attribute );
 			}
 			catch ( IllegalAccessException e ) {
@@ -479,5 +496,9 @@ class MetadataContext {
 					+ mappedSuperclassType.getJavaType() );
 		}
 		return persistentClass;
+	}
+
+	public Set<MappedSuperclass> getUnusedMappedSuperclasses() {
+		return new HashSet<MappedSuperclass>( knownMappedSuperclasses );
 	}
 }

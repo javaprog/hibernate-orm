@@ -1,3 +1,26 @@
+/*
+ * Hibernate, Relational Persistence for Idiomatic Java
+ *
+ * Copyright (c) 2013, Red Hat Inc. or third-party contributors as
+ * indicated by the @author tags or express copyright attribution
+ * statements applied by the authors.  All third-party contributions are
+ * distributed under license by Red Hat Inc.
+ *
+ * This copyrighted material is made available to anyone wishing to use, modify,
+ * copy, or redistribute it subject to the terms and conditions of the GNU
+ * Lesser General Public License, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this distribution; if not, write to:
+ * Free Software Foundation, Inc.
+ * 51 Franklin Street, Fifth Floor
+ * Boston, MA  02110-1301  USA
+ */
 package org.hibernate.dialect.pagination;
 
 import java.sql.PreparedStatement;
@@ -24,11 +47,14 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 
 	private static final Pattern ALIAS_PATTERN = Pattern.compile( "(?i)\\sas\\s(.)+$" );
 
-	private boolean topAdded = false; // Flag indicating whether TOP(?) expression has been added to the original query.
-	private boolean hasOffset = true; // True if offset greater than 0.
+	// Flag indicating whether TOP(?) expression has been added to the original query.
+	private boolean topAdded;
 
-	public SQLServer2005LimitHandler(String sql, RowSelection selection) {
-		super( sql, selection );
+	/**
+	 * Constructs a SQLServer2005LimitHandler
+	 */
+	public SQLServer2005LimitHandler() {
+		// NOP
 	}
 
 	@Override
@@ -71,13 +97,13 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 	 * SELECT alias_list FROM query WHERE __hibernate_row_nr__ >= offset AND __hibernate_row_nr__ < offset + last
 	 * </pre>
 	 *
-	 * When offset equals {@literal 0}, only {@literal TOP(?)} expression is added to the original query.
+	 * When offset equals {@literal 0}, only <code>TOP(?)</code> expression is added to the original query.
 	 *
 	 * @return A new SQL statement with the LIMIT clause applied.
 	 */
 	@Override
-	public String getProcessedSql() {
-		StringBuilder sb = new StringBuilder( sql );
+	public String processSql(String sql, RowSelection selection) {
+		final StringBuilder sb = new StringBuilder( sql );
 		if ( sb.charAt( sb.length() - 1 ) == ';' ) {
 			sb.setLength( sb.length() - 1 );
 		}
@@ -85,7 +111,7 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 		if ( LimitHelper.hasFirstRow( selection ) ) {
 			final String selectClause = fillAliasInSelectClause( sb );
 
-			int orderByIndex = shallowIndexOfWord( sb, ORDER_BY, 0 );
+			final int orderByIndex = shallowIndexOfWord( sb, ORDER_BY, 0 );
 			if ( orderByIndex > 0 ) {
 				// ORDER BY requires using TOP.
 				addTopExpression( sb );
@@ -98,7 +124,6 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 			sb.append( "WHERE __hibernate_row_nr__ >= ? AND __hibernate_row_nr__ < ?" );
 		}
 		else {
-			hasOffset = false;
 			addTopExpression( sb );
 		}
 
@@ -106,17 +131,18 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 	}
 
 	@Override
-	public int bindLimitParametersAtStartOfQuery(PreparedStatement statement, int index) throws SQLException {
+	public int bindLimitParametersAtStartOfQuery(RowSelection selection, PreparedStatement statement, int index) throws SQLException {
 		if ( topAdded ) {
-			statement.setInt( index, getMaxOrLimit() - 1 ); // Binding TOP(?).
+			// Binding TOP(?)
+			statement.setInt( index, getMaxOrLimit( selection ) - 1 );
 			return 1;
 		}
 		return 0;
 	}
 
 	@Override
-	public int bindLimitParametersAtEndOfQuery(PreparedStatement statement, int index) throws SQLException {
-		return hasOffset ? super.bindLimitParametersAtEndOfQuery( statement, index ) : 0;
+	public int bindLimitParametersAtEndOfQuery(RowSelection selection, PreparedStatement statement, int index) throws SQLException {
+		return LimitHelper.hasFirstRow( selection ) ? super.bindLimitParametersAtEndOfQuery( selection, statement, index ) : 0;
 	}
 
 	/**
@@ -144,7 +170,7 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 				break;
 			}
 			if ( nextComa != -1 ) {
-				String expression = sb.substring( prevComa, nextComa );
+				final String expression = sb.substring( prevComa, nextComa );
 				if ( selectsMultipleColumns( expression ) ) {
 					selectsMultipleColumns = true;
 				}
@@ -154,8 +180,10 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 						// Inserting alias. It is unlikely that we would have to add alias, but just in case.
 						alias = StringHelper.generateAlias( "page", unique );
 						sb.insert( nextComa, " as " + alias );
+						final int aliasExprLength = ( " as " + alias ).length();
 						++unique;
-						nextComa += ( " as " + alias ).length();
+						nextComa += aliasExprLength;
+						endPos += aliasExprLength;
 					}
 					aliases.add( alias );
 				}
@@ -163,8 +191,9 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 			}
 		}
 		// Processing last column.
-		endPos = shallowIndexOfWord( sb, FROM, startPos ); // Refreshing end position, because we might have inserted new alias.
-		String expression = sb.substring( prevComa, endPos );
+		// Refreshing end position, because we might have inserted new alias.
+		endPos = shallowIndexOfWord( sb, FROM, startPos );
+		final String expression = sb.substring( prevComa, endPos );
 		if ( selectsMultipleColumns( expression ) ) {
 			selectsMultipleColumns = true;
 		}
@@ -201,7 +230,7 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 	 * @return Column alias.
 	 */
 	private String getAlias(String expression) {
-		Matcher matcher = ALIAS_PATTERN.matcher( expression );
+		final Matcher matcher = ALIAS_PATTERN.matcher( expression );
 		if ( matcher.find() ) {
 			// Taking advantage of Java regular expressions greedy behavior while extracting the last AS keyword.
 			// Note that AS keyword can appear in CAST operator, e.g. 'cast(tab1.col1 as varchar(255)) as col1'.
@@ -222,7 +251,7 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 
 	/**
 	 * Adds {@code TOP} expression. Parameter value is bind in
-	 * {@link #bindLimitParametersAtStartOfQuery(PreparedStatement, int)} method.
+	 * {@link #bindLimitParametersAtStartOfQuery(RowSelection, PreparedStatement, int)} method.
 	 *
 	 * @param sql SQL query.
 	 */
@@ -252,7 +281,8 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 	 */
 	private static int shallowIndexOfWord(final StringBuilder sb, final String search, int fromIndex) {
 		final int index = shallowIndexOf( sb, ' ' + search + ' ', fromIndex );
-		return index != -1 ? ( index + 1 ) : -1; // In case of match adding one because of space placed in front of search term.
+		// In case of match adding one because of space placed in front of search term.
+		return index != -1 ? ( index + 1 ) : -1;
 	}
 
 	/**
@@ -265,15 +295,18 @@ public class SQLServer2005LimitHandler extends AbstractLimitHandler {
 	 * @return Position of the first match, or {@literal -1} if not found.
 	 */
 	private static int shallowIndexOf(StringBuilder sb, String search, int fromIndex) {
-		final String lowercase = sb.toString().toLowerCase(); // case-insensitive match
+		// case-insensitive match
+		final String lowercase = sb.toString().toLowerCase();
 		final int len = lowercase.length();
 		final int searchlen = search.length();
-		int pos = -1, depth = 0, cur = fromIndex;
+		int pos = -1;
+		int depth = 0;
+		int cur = fromIndex;
 		do {
 			pos = lowercase.indexOf( search, cur );
 			if ( pos != -1 ) {
 				for ( int iter = cur; iter < pos; iter++ ) {
-					char c = sb.charAt( iter );
+					final char c = sb.charAt( iter );
 					if ( c == '(' ) {
 						depth = depth + 1;
 					}

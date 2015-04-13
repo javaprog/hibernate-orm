@@ -1,6 +1,11 @@
 //$Id: FumTest.java 10977 2006-12-12 23:28:04Z steve.ebersole@jboss.com $
 package org.hibernate.test.legacy;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -9,8 +14,8 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
-import java.util.GregorianCalendar;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -18,8 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-
-import org.junit.Test;
 
 import org.hibernate.Criteria;
 import org.hibernate.FetchMode;
@@ -32,6 +35,7 @@ import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.hibernate.criterion.MatchMode;
 import org.hibernate.criterion.Restrictions;
+import org.hibernate.dialect.AbstractHANADialect;
 import org.hibernate.dialect.HSQLDialect;
 import org.hibernate.dialect.MckoiDialect;
 import org.hibernate.dialect.MySQLDialect;
@@ -40,16 +44,12 @@ import org.hibernate.dialect.SybaseASE15Dialect;
 import org.hibernate.dialect.TimesTenDialect;
 import org.hibernate.testing.SkipForDialect;
 import org.hibernate.transform.Transformers;
-import org.hibernate.type.DateType;
+import org.hibernate.type.CalendarType;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.StandardBasicTypes;
 import org.hibernate.type.StringType;
 import org.hibernate.type.Type;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import org.junit.Test;
 
 public class FumTest extends LegacyTestCase {
 	private static short fumKeyShort = 1;
@@ -310,18 +310,6 @@ public class FumTest extends LegacyTestCase {
 
 	private static FumCompositeID fumKey(String str, boolean aCompositeQueryTest) {
 		FumCompositeID id = new FumCompositeID();
-		if ( getDialect() instanceof MckoiDialect ) {
-			GregorianCalendar now = new GregorianCalendar();
-			GregorianCalendar cal = new GregorianCalendar(
-				now.get(java.util.Calendar.YEAR),
-				now.get(java.util.Calendar.MONTH),
-				now.get(java.util.Calendar.DATE)
-			);
-			id.setDate( cal.getTime() );
-		}
-		else {
-			id.setDate( new Date() );
-		}
 		id.setString( str );
 
 		if (aCompositeQueryTest) {
@@ -338,19 +326,27 @@ public class FumTest extends LegacyTestCase {
 	public void testCompositeID() throws Exception {
 		Session s = openSession();
 		Transaction txn = s.beginTransaction();
-		Fum fum = new Fum( fumKey("fum") );
+		FumCompositeID fumKey = fumKey("fum");
+		Fum fum = new Fum( fumKey );
 		fum.setFum("fee fi fo");
 		s.save(fum);
-		assertTrue( "load by composite key", fum==s.load( Fum.class, fumKey("fum") ) );
+		assertTrue( "load by composite key", fum==s.load( Fum.class, fumKey ) );
 		txn.commit();
 		s.close();
 
 		s = openSession();
 		txn = s.beginTransaction();
-		fum = (Fum) s.load( Fum.class, fumKey("fum"), LockMode.UPGRADE );
+		if ( getDialect() instanceof AbstractHANADialect ){
+			// HANA currently requires specifying table name by 'FOR UPDATE of t1.c1' if there are more than one tables/views/subqueries in the FROM clause
+			fum = (Fum) s.load( Fum.class, fumKey );
+		} else {
+			fum = (Fum) s.load( Fum.class, fumKey, LockMode.UPGRADE );
+		}
+
 		assertTrue( "load by composite key", fum!=null );
 
-		Fum fum2 = new Fum( fumKey("fi") );
+		FumCompositeID fumKey2 = fumKey("fi");
+		Fum fum2 = new Fum( fumKey2 );
 		fum2.setFum("fee fo fi");
 		fum.setFo(fum2);
 		s.save(fum2);
@@ -385,7 +381,8 @@ public class FumTest extends LegacyTestCase {
 	public void testCompositeIDOneToOne() throws Exception {
 		Session s = openSession();
 		Transaction txn = s.beginTransaction();
-		Fum fum = new Fum( fumKey("fum") );
+		FumCompositeID fumKey = fumKey("fum");
+		Fum fum = new Fum( fumKey );
 		fum.setFum("fee fi fo");
 		//s.save(fum);
 		Fumm fumm = new Fumm();
@@ -396,7 +393,7 @@ public class FumTest extends LegacyTestCase {
 
 		s = openSession();
 		txn = s.beginTransaction();
-		fumm = (Fumm) s.load( Fumm.class, fumKey("fum") );
+		fumm = (Fumm) s.load( Fumm.class, fumKey );
 		//s.delete( fumm.getFum() );
 		s.delete(fumm);
 		txn.commit();
@@ -431,40 +428,33 @@ public class FumTest extends LegacyTestCase {
 		fum = (Fum)vList.get(0);
 		assertTrue( "find by composite key query (check fo object)", fum.getId().getString().equals("fo") );
 
-		// Try to find the Fum object "fi" that we inserted searching by the date in the id
+		// Try to find the Fum object "fi" that we inserted
 		vList = s.createQuery( "from Fum fum where fum.id.short = ?" )
 				.setParameter( 0, new Short(fiShort), StandardBasicTypes.SHORT )
 				.list();
 		assertEquals( "find by composite key query (find fi object)", 1, vList.size() );
 		fi = (Fum)vList.get(0);
 		assertEquals( "find by composite key query (check fi object)", "fi", fi.getId().getString() );
-
-		// Make sure we can return all of the objects by searching by the date id
-		vList = s.createQuery( "from Fum fum where fum.id.date <= ? and not fum.fum='FRIEND'" )
-				.setParameter( 0, new Date(), StandardBasicTypes.DATE )
-				.list();
-		assertEquals( "find by composite key query with arguments", 4, vList.size() );
 		s.getTransaction().commit();
 		s.close();
 
 		s = openSession();
 		s.beginTransaction();
 		assertTrue(
-				s.createQuery( "select fum.id.short, fum.id.date, fum.id.string from Fum fum" ).iterate().hasNext()
+				s.createQuery( "select fum.id.short, fum.id.string from Fum fum" ).iterate().hasNext()
 		);
 		assertTrue(
 				s.createQuery( "select fum.id from Fum fum" ).iterate().hasNext()
 		);
-		Query qu = s.createQuery("select fum.fum, fum , fum.fum, fum.id.date from Fum fum");
+		Query qu = s.createQuery("select fum.fum, fum , fum.fum from Fum fum");
 		Type[] types = qu.getReturnTypes();
-		assertTrue(types.length==4);
+		assertTrue(types.length==3);
 		for ( int k=0; k<types.length; k++) {
 			assertTrue( types[k]!=null );
 		}
 		assertTrue(types[0] instanceof StringType);
 		assertTrue(types[1] instanceof EntityType);
 		assertTrue(types[2] instanceof StringType);
-		assertTrue(types[3] instanceof DateType);
 		Iterator iter = qu.iterate();
 		int j = 0;
 		while ( iter.hasNext() ) {
@@ -589,7 +579,8 @@ public class FumTest extends LegacyTestCase {
 	public void testCompositeIDs() throws Exception {
 		Session s = openSession();
 		s.beginTransaction();
-		Fo fo = Fo.newFo( fumKey("an instance of fo") );
+		FumCompositeID fumKey = fumKey("an instance of fo");
+		Fo fo = Fo.newFo( fumKey );
 		Properties props = new Properties();
 		props.setProperty("foo", "bar");
 		props.setProperty("bar", "foo");
@@ -603,7 +594,7 @@ public class FumTest extends LegacyTestCase {
 
 		s = openSession();
 		s.beginTransaction();
-		fo = (Fo) s.load( Fo.class, fumKey("an instance of fo") );
+		fo = (Fo) s.load( Fo.class, fumKey );
 		props = (Properties) fo.getSerial();
 		assertTrue( props.getProperty("foo").equals("bar") );
 		//assertTrue( props.contains("x") );
@@ -615,7 +606,7 @@ public class FumTest extends LegacyTestCase {
 
 		s = openSession();
 		s.beginTransaction();
-		fo = (Fo) s.load( Fo.class, fumKey("an instance of fo") );
+		fo = (Fo) s.load( Fo.class, fumKey );
 		assertTrue( fo.getBuf()[1]==126 );
 		assertTrue(
 				s.createQuery( "from Fo fo where fo.id.string like 'an instance of fo'" ).iterate().next()==fo
@@ -780,8 +771,8 @@ public class FumTest extends LegacyTestCase {
 		s.beginTransaction();
 
 		simple = (Simple) s.get( Simple.class, Long.valueOf(10) );
-		assertTrue("Not same parent instances", check.getName().equals( simple.getName() ) );
-		assertTrue("Not same child instances", check.getOther().getName().equals( other.getName() ) );
+		assertEquals( "Not same parent instances", check.getName(), simple.getName() );
+		assertEquals( "Not same child instances", check.getOther().getName(), other.getName() );
 
 		simple.setName("My updated name");
 
@@ -803,8 +794,8 @@ public class FumTest extends LegacyTestCase {
 		s.beginTransaction();
 
 		simple = (Simple) s.get( Simple.class, Long.valueOf( 10 ) );
-		assertTrue("Not same parent instances", check.getName().equals( simple.getName() ) );
-		assertTrue("Not same child instances", check.getOther().getName().equals( other.getName() ) );
+		assertEquals( "Not same parent instances", check.getName(), simple.getName() );
+		assertEquals( "Not same child instances", check.getOther().getName(), other.getName() );
 
 		// Now, lets delete across serialization...
 		s.delete(simple);
@@ -856,7 +847,7 @@ public class FumTest extends LegacyTestCase {
 		s.beginTransaction();
 		fum = (Fum) s.load( Fum.class, fum.getId() );
 
-		assertTrue("the Fum.friends did not get saved", fum.getFriends().size() == 2);
+		assertEquals( "the Fum.friends did not get saved", 2, fum.getFriends().size() );
 
 		fum.setFriends(null);
 		s.getTransaction().commit();

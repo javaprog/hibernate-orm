@@ -29,24 +29,25 @@ import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
 
-import org.junit.Test;
-
 import org.hibernate.MappingException;
 import org.hibernate.Query;
 import org.hibernate.SQLQuery;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
+import org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.dialect.PostgreSQL81Dialect;
 import org.hibernate.dialect.PostgreSQLDialect;
 import org.hibernate.dialect.function.SQLFunction;
 import org.hibernate.stat.Statistics;
-import org.hibernate.test.annotations.A320;
-import org.hibernate.test.annotations.A320b;
-import org.hibernate.test.annotations.Plane;
+
 import org.hibernate.testing.FailureExpected;
 import org.hibernate.testing.SkipForDialect;
 import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
+import org.hibernate.test.annotations.A320;
+import org.hibernate.test.annotations.A320b;
+import org.hibernate.test.annotations.Plane;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -242,6 +243,7 @@ public class QueryAndSQLTest extends BaseCoreFunctionalTestCase {
 		tx = s.beginTransaction();
 		Statistics stats = sessionFactory().getStatistics();
 		stats.setStatisticsEnabled( true );
+		stats.clear();
 		Query q = s.getNamedQuery( "night&areaCached" );
 		q.setCacheable( true );
 		List result = q.list();
@@ -468,7 +470,11 @@ public class QueryAndSQLTest extends BaseCoreFunctionalTestCase {
 				Captain.class,
 				Chaos.class,
 				CasimirParticle.class,
-				AllTables.class
+				AllTables.class,
+				Attrset.class,
+				Attrvalue.class,
+				Employee.class,
+				Employeegroup.class
 		};
 	}
 
@@ -489,5 +495,6 @@ public class QueryAndSQLTest extends BaseCoreFunctionalTestCase {
 	@Override
 	protected void configure(Configuration cfg) {
 		cfg.setProperty( "hibernate.cache.use_query_cache", "true" );
+		cfg.setImplicitNamingStrategy( ImplicitNamingStrategyLegacyJpaImpl.INSTANCE );
 	}
 }

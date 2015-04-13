@@ -4,14 +4,15 @@ import java.util.Arrays;
 import java.util.Map;
 import javax.persistence.EntityManager;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import org.hibernate.dialect.Oracle8iDialect;
+import org.hibernate.envers.configuration.EnversSettings;
 import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
+
 import org.hibernate.testing.RequiresDialect;
 import org.hibernate.testing.TestForIssue;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
@@ -23,13 +24,13 @@ public class ObjectUserTypeTest extends BaseEnversJPAFunctionalTestCase {
 
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class<?>[] { ObjectUserTypeEntity.class };
+		return new Class<?>[] {ObjectUserTypeEntity.class};
 	}
 
 	@Override
 	protected void addConfigOptions(Map options) {
 		super.addConfigOptions( options );
-		options.put( "org.hibernate.envers.store_data_at_delete", "true" );
+		options.put( EnversSettings.STORE_DATA_AT_DELETE, "true" );
 	}
 
 	@Test
@@ -78,7 +79,10 @@ public class ObjectUserTypeTest extends BaseEnversJPAFunctionalTestCase {
 		Assert.assertEquals( ver2, getAuditReader().find( ObjectUserTypeEntity.class, id, 2 ) );
 		Assert.assertEquals(
 				ver2,
-				getAuditReader().createQuery().forRevisionsOfEntity( ObjectUserTypeEntity.class, true, true ).getResultList().get( 2 )
+				getAuditReader().createQuery()
+						.forRevisionsOfEntity( ObjectUserTypeEntity.class, true, true )
+						.getResultList()
+						.get( 2 )
 		); // Checking delete state.
 	}
 }

@@ -12,5 +12,5 @@ public class OverrideDefaultRevListenerTest extends GloballyConfiguredRevListene
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
 		return ArrayHelper.join( super.getAnnotatedClasses(), LongRevNumberRevEntity.class );
-    }
+	}
 }

@@ -1,8 +1,5 @@
 package org.hibernate.envers.test.integration.reventity;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import org.hibernate.dialect.Oracle8iDialect;
 import org.hibernate.envers.enhanced.OrderedSequenceGenerator;
 import org.hibernate.envers.enhanced.SequenceIdRevisionEntity;
@@ -10,8 +7,11 @@ import org.hibernate.envers.test.BaseEnversFunctionalTestCase;
 import org.hibernate.envers.test.entities.StrIntTestEntity;
 import org.hibernate.id.IdentifierGenerator;
 import org.hibernate.persister.entity.EntityPersister;
+
 import org.hibernate.testing.RequiresDialect;
 import org.hibernate.testing.TestForIssue;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
@@ -21,7 +21,7 @@ import org.hibernate.testing.TestForIssue;
 public class MonotonicRevisionNumberTest extends BaseEnversFunctionalTestCase {
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class<?>[]{ StrIntTestEntity.class }; // Otherwise revision entity is not generated.
+		return new Class<?>[] {StrIntTestEntity.class}; // Otherwise revision entity is not generated.
 	}
 
 	@Test

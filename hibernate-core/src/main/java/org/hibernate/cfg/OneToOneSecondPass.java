@@ -22,16 +22,21 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.cfg;
+
 import java.util.Iterator;
 import java.util.Map;
+
+import javax.persistence.ConstraintMode;
 
 import org.hibernate.AnnotationException;
 import org.hibernate.MappingException;
 import org.hibernate.annotations.ForeignKey;
 import org.hibernate.annotations.common.reflection.XClass;
+import org.hibernate.boot.spi.MetadataBuildingContext;
 import org.hibernate.cfg.annotations.PropertyBinder;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.mapping.Column;
+import org.hibernate.mapping.Component;
 import org.hibernate.mapping.DependantValue;
 import org.hibernate.mapping.Join;
 import org.hibernate.mapping.ManyToOne;
@@ -46,8 +51,8 @@ import org.hibernate.type.ForeignKeyDirection;
  * -
  */
 public class OneToOneSecondPass implements SecondPass {
+	private MetadataBuildingContext buildingContext;
 	private String mappedBy;
-	private Mappings mappings;
 	private String ownerEntity;
 	private String ownerProperty;
 	private PropertyHolder propertyHolder;
@@ -72,12 +77,12 @@ public class OneToOneSecondPass implements SecondPass {
 			boolean optional,
 			String cascadeStrategy,
 			Ejb3JoinColumn[] columns,
-			Mappings mappings) {
+			MetadataBuildingContext buildingContext) {
 		this.ownerEntity = ownerEntity;
 		this.ownerProperty = ownerProperty;
 		this.mappedBy = mappedBy;
 		this.propertyHolder = propertyHolder;
-		this.mappings = mappings;
+		this.buildingContext = buildingContext;
 		this.ignoreNotFound = ignoreNotFound;
 		this.inferredData = inferredData;
 		this.targetEntity = targetEntity;
@@ -90,11 +95,13 @@ public class OneToOneSecondPass implements SecondPass {
 	//TODO refactor this code, there is a lot of duplication in this method
 	public void doSecondPass(Map persistentClasses) throws MappingException {
 		org.hibernate.mapping.OneToOne value = new org.hibernate.mapping.OneToOne(
-				mappings, propertyHolder.getTable(), propertyHolder.getPersistentClass()
+				buildingContext.getMetadataCollector(),
+				propertyHolder.getTable(),
+				propertyHolder.getPersistentClass()
 		);
 		final String propertyName = inferredData.getPropertyName();
 		value.setPropertyName( propertyName );
-		String referencedEntityName = ToOneBinder.getReferenceEntityName(inferredData, targetEntity, mappings);
+		String referencedEntityName = ToOneBinder.getReferenceEntityName( inferredData, targetEntity, buildingContext );
 		value.setReferencedEntityName( referencedEntityName );  
 		AnnotationBinder.defineFetchingStrategy( value, inferredData.getProperty() );
 		//value.setFetchMode( fetchMode );
@@ -103,9 +110,9 @@ public class OneToOneSecondPass implements SecondPass {
 
 		if ( !optional ) value.setConstrained( true );
 		value.setForeignKeyType(
-				value.isConstrained() ?
-						ForeignKeyDirection.FOREIGN_KEY_FROM_PARENT :
-						ForeignKeyDirection.FOREIGN_KEY_TO_PARENT
+				value.isConstrained()
+						? ForeignKeyDirection.FROM_PARENT
+						: ForeignKeyDirection.TO_PARENT
 		);
 		PropertyBinder binder = new PropertyBinder();
 		binder.setName( propertyName );
@@ -124,12 +131,15 @@ public class OneToOneSecondPass implements SecondPass {
 
 			if ( rightOrder ) {
 				String path = StringHelper.qualify( propertyHolder.getPath(), propertyName );
-				( new ToOneFkSecondPass(
-						value, joinColumns,
+				final ToOneFkSecondPass secondPass = new ToOneFkSecondPass(
+						value,
+						joinColumns,
 						!optional, //cannot have nullabe and unique on certain DBs
 						propertyHolder.getEntityOwnerClassName(),
-						path, mappings
-				) ).doSecondPass( persistentClasses );
+						path,
+						buildingContext
+				);
+				secondPass.doSecondPass( persistentClasses );
 				//no column associated since its a one to one
 				propertyHolder.addProperty( prop, inferredData.getDeclaringClass() );
 			}
@@ -179,7 +189,7 @@ public class OneToOneSecondPass implements SecondPass {
 					Join mappedByJoin = buildJoinFromMappedBySide(
 							(PersistentClass) persistentClasses.get( ownerEntity ), otherSideProperty, otherSideJoin
 					);
-					ManyToOne manyToOne = new ManyToOne( mappings, mappedByJoin.getTable() );
+					ManyToOne manyToOne = new ManyToOne( buildingContext.getMetadataCollector(), mappedByJoin.getTable() );
 					//FIXME use ignore not found here
 					manyToOne.setIgnoreNotFound( ignoreNotFound );
 					manyToOne.setCascadeDeleteEnabled( value.isCascadeDeleteEnabled() );
@@ -211,12 +221,32 @@ public class OneToOneSecondPass implements SecondPass {
 				else {
 					propertyHolder.addProperty( prop, inferredData.getDeclaringClass() );
 				}
-
+				
 				value.setReferencedPropertyName( mappedBy );
+
+				// HHH-6813
+				// Foo: @Id long id, @OneToOne(mappedBy="foo") Bar bar
+				// Bar: @Id @OneToOne Foo foo
+				boolean referencesDerivedId = false;
+				try {
+					referencesDerivedId = otherSide.getIdentifier() instanceof Component
+							&& ( (Component) otherSide.getIdentifier() ).getProperty( mappedBy ) != null;
+				}
+				catch ( MappingException e ) {
+					// ignore
+				}
+				boolean referenceToPrimaryKey  = referencesDerivedId || mappedBy == null;
+				value.setReferenceToPrimaryKey( referenceToPrimaryKey );
+				
+				// If the other side is a derived ID, prevent an infinite
+				// loop of attempts to resolve identifiers.
+				if ( referencesDerivedId ) {
+					( (ManyToOne) otherSideProperty.getValue() ).setReferenceToPrimaryKey( false );
+				}
 
 				String propertyRef = value.getReferencedPropertyName();
 				if ( propertyRef != null ) {
-					mappings.addUniquePropertyReference(
+					buildingContext.getMetadataCollector().addUniquePropertyReference(
 							value.getReferencedEntityName(),
 							propertyRef
 					);
@@ -233,9 +263,22 @@ public class OneToOneSecondPass implements SecondPass {
 				);
 			}
 		}
-		ForeignKey fk = inferredData.getProperty().getAnnotation( ForeignKey.class );
-		String fkName = fk != null ? fk.name() : "";
-		if ( !BinderHelper.isEmptyAnnotationValue( fkName ) ) value.setForeignKeyName( fkName );
+
+		final ForeignKey fk = inferredData.getProperty().getAnnotation( ForeignKey.class );
+		if ( fk != null && !BinderHelper.isEmptyAnnotationValue( fk.name() ) ) {
+			value.setForeignKeyName( fk.name() );
+		}
+		else {
+			final javax.persistence.ForeignKey jpaFk = inferredData.getProperty().getAnnotation( javax.persistence.ForeignKey.class );
+			if ( jpaFk != null ) {
+				if ( jpaFk.value() == ConstraintMode.NO_CONSTRAINT ) {
+					value.setForeignKeyName( "none" );
+				}
+				else {
+					value.setForeignKeyName( StringHelper.nullIfEmpty( jpaFk.name() ) );
+				}
+			}
+		}
 	}
 
 	/**
@@ -255,7 +298,7 @@ public class OneToOneSecondPass implements SecondPass {
 		//no check constraints available on joins
 		join.setTable( originalJoin.getTable() );
 		join.setInverse( true );
-		SimpleValue key = new DependantValue( mappings, join.getTable(), persistentClass.getIdentifier() );
+		SimpleValue key = new DependantValue( buildingContext.getMetadataCollector(), join.getTable(), persistentClass.getIdentifier() );
 		//TODO support @ForeignKey
 		join.setKey( key );
 		join.setSequentialSelect( false );

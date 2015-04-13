@@ -23,6 +23,7 @@
  *
  */
 package org.hibernate.loader.criteria;
+import java.io.Serializable;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -45,6 +46,7 @@ import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.CriteriaImpl;
 import org.hibernate.internal.util.collections.ArrayHelper;
 import org.hibernate.loader.OuterJoinLoader;
+import org.hibernate.loader.spi.AfterLoadAction;
 import org.hibernate.persister.entity.Loadable;
 import org.hibernate.persister.entity.Lockable;
 import org.hibernate.persister.entity.OuterJoinLoadable;
@@ -67,7 +69,7 @@ public class CriteriaLoader extends OuterJoinLoader {
 	//      multithreaded, or cacheable!!
 
 	private final CriteriaQueryTranslator translator;
-	private final Set querySpaces;
+	private final Set<Serializable> querySpaces;
 	private final Type[] resultTypes;
 	//the user visible aliases, which are unknown to the superclass,
 	//these are not the actual "physical" SQL aliases
@@ -124,23 +126,23 @@ public class CriteriaLoader extends OuterJoinLoader {
 		return list( session, translator.getQueryParameters(), querySpaces, resultTypes );
 
 	}
-
+	@Override
 	protected String[] getResultRowAliases() {
 		return userAliases;
 	}
-
+	@Override
 	protected ResultTransformer resolveResultTransformer(ResultTransformer resultTransformer) {
 		return translator.getRootCriteria().getResultTransformer();
 	}
-
+	@Override
 	protected boolean areResultSetRowsTransformedImmediately() {
 		return true;
 	}
-
+	@Override
 	protected boolean[] includeInResultRow() {
 		return includeInResultRow;
 	}
-
+	@Override
 	protected Object getResultColumnOrRow(Object[] row, ResultTransformer transformer, ResultSet rs, SessionImplementor session)
 	throws SQLException, HibernateException {
 		return resolveResultTransformer( transformer ).transformTuple(
@@ -148,7 +150,7 @@ public class CriteriaLoader extends OuterJoinLoader {
 				getResultRowAliases()
 		);
 	}
-			
+	@Override
 	protected Object[] getResultRow(Object[] row, ResultSet rs, SessionImplementor session)
 			throws SQLException, HibernateException {
 		final Object[] result;
@@ -199,8 +201,12 @@ public class CriteriaLoader extends OuterJoinLoader {
 			Dialect dialect,
 			List<AfterLoadAction> afterLoadActions) throws QueryException {
 		final LockOptions lockOptions = parameters.getLockOptions();
+
 		if ( lockOptions == null ||
-			( lockOptions.getLockMode() == LockMode.NONE && lockOptions.getAliasLockCount() == 0 ) ) {
+				(lockOptions.getLockMode() == LockMode.NONE && (lockOptions.getAliasLockCount() == 0
+						|| (lockOptions.getAliasLockCount() == 1 && lockOptions
+						.getAliasSpecificLockMode( "this_" ) == LockMode.NONE)
+				)) ) {
 			return sql;
 		}
 
@@ -248,7 +254,7 @@ public class CriteriaLoader extends OuterJoinLoader {
 	}
 
 
-
+	@Override
 	protected LockMode determineFollowOnLockMode(LockOptions lockOptions) {
 		final LockMode lockModeToUse = lockOptions.findGreatestLockMode();
 
@@ -259,7 +265,7 @@ public class CriteriaLoader extends OuterJoinLoader {
 
 		return lockModeToUse;
 	}
-
+	@Override
 	protected LockMode[] getLockModes(LockOptions lockOptions) {
 		final String[] entityAliases = getAliases();
 		if ( entityAliases == null ) {
@@ -273,15 +279,15 @@ public class CriteriaLoader extends OuterJoinLoader {
 		}
 		return lockModesArray;
 	}
-
+	@Override
 	protected boolean isSubselectLoadingEnabled() {
 		return hasSubselectLoadableCollections();
 	}
-
+	@Override
 	protected List getResultList(List results, ResultTransformer resultTransformer) {
 		return resolveResultTransformer( resultTransformer ).transformList( results );
 	}
-	
+	@Override
 	protected String getQueryIdentifier() { 
 		return "[CRITERIA] " + getSQLString(); 
 	}

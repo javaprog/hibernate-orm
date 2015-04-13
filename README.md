@@ -59,13 +59,14 @@ To execute a task in a specific module you can either:
 ### Common Java related tasks
 
 * _build_ - Assembles (jars) and tests this project
-* _buildDependents_ - Assembles and tests this project and all projects that depend on it.  So think of running this in hibernnate-entitymanager, Gradle would assemble and test hibernate-entitymanager as well as hibernate-envers (because envers depends on entitymanager)
+* _buildDependents_ - Assembles and tests this project and all projects that depend on it.  So think of running this in hibernate-entitymanager, Gradle would assemble and test hibernate-entitymanager as well as hibernate-envers (because envers depends on entitymanager)
 * _classes_ - Compiles the main classes
 * _testClasses_ - Compiles the test classes
 * _jar_ - Generates a jar archive with all the compiled classes
 * _test_ - Runs the tests
-* _uploadArchives_ - Think Maven deploy
-* _install_ - Installs the project jar to your local maven cache (aka ~/.m2/repository)
+* _publish_ - Think Maven deploy
+* _publishToMavenLocal_ - Installs the project jar to your local maven cache (aka ~/.m2/repository)
 * _eclipse_ - Generates an Eclipse project
 * _idea_ - Generates an IntelliJ/IDEA project.
 * _clean_ - Cleans the build directory
+

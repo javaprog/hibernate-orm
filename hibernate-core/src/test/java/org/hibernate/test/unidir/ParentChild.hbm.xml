@@ -8,6 +8,7 @@
 
 	<class name="Parent">
 		<id name="name"/>
+        <property name="ssn" unique="true"/>
 		<list name="children" cascade="persist,merge">
 			<key column="parentName" not-null="true"/>
 			<list-index column="sibling"/>

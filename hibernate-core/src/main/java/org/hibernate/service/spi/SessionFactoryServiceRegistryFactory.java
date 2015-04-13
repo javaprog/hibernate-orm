@@ -23,9 +23,8 @@
  */
 package org.hibernate.service.spi;
 
-import org.hibernate.cfg.Configuration;
+import org.hibernate.SessionFactory;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
-import org.hibernate.metamodel.source.MetadataImplementor;
 import org.hibernate.service.Service;
 import org.hibernate.service.internal.SessionFactoryServiceRegistryImpl;
 
@@ -40,32 +39,15 @@ public interface SessionFactoryServiceRegistryFactory extends Service {
 	/**
 	 * Create the registry.
 	 *
-	 * @todo : fully expect this signature to change!
-	 *
-	 * @param sessionFactory The (in flux) session factory.  Generally this is useful for grabbing a reference for later
-	 * 		use.  However, care should be taken when invoking on the session factory until after it has been fully
-	 * 		initialized.
-	 * @param configuration The configuration object.
+	 * @param sessionFactory The (still being built) session factory.  Generally this is useful
+	 * for grabbing a reference for later use.  However, care should be taken when invoking on
+	 * the session factory until after it has been fully initialized.
+	 * @param sessionFactoryOptions The build options.
 	 *
 	 * @return The registry
 	 */
 	public SessionFactoryServiceRegistryImpl buildServiceRegistry(
 			SessionFactoryImplementor sessionFactory,
-			Configuration configuration);
+			SessionFactory.SessionFactoryOptions sessionFactoryOptions);
 
-	/**
-	 * Create the registry.
-	 *
-	 * @todo : fully expect this signature to change!
-	 *
-	 * @param sessionFactory The (in flux) session factory.  Generally this is useful for grabbing a reference for later
-	 * 		use.  However, care should be taken when invoking on the session factory until after it has been fully
-	 * 		initialized.
-	 * @param metadata The configuration object.
-	 *
-	 * @return The registry
-	 */
-	public SessionFactoryServiceRegistryImpl buildServiceRegistry(
-			SessionFactoryImplementor sessionFactory,
-			MetadataImplementor metadata);
 }

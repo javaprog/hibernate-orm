@@ -23,26 +23,30 @@
  */
 package org.hibernate.procedure.internal;
 
-import javax.persistence.ParameterMode;
-import javax.persistence.TemporalType;
-
 import java.sql.CallableStatement;
 import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.Date;
+import javax.persistence.ParameterMode;
+import javax.persistence.TemporalType;
 
-import org.jboss.logging.Logger;
-
-import org.hibernate.cfg.NotYetImplementedException;
 import org.hibernate.engine.jdbc.cursor.spi.RefCursorSupport;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.procedure.ParameterBind;
 import org.hibernate.procedure.ParameterMisuseException;
-import org.hibernate.type.DateType;
+import org.hibernate.procedure.spi.ParameterRegistrationImplementor;
+import org.hibernate.procedure.spi.ParameterStrategy;
+import org.hibernate.type.CalendarDateType;
+import org.hibernate.type.CalendarTimeType;
+import org.hibernate.type.CalendarType;
 import org.hibernate.type.ProcedureParameterExtractionAware;
 import org.hibernate.type.Type;
 
+import org.jboss.logging.Logger;
+
 /**
+ * Abstract implementation of ParameterRegistration/ParameterRegistrationImplementor
+ *
  * @author Steve Ebersole
  */
 public abstract class AbstractParameterRegistrationImpl<T> implements ParameterRegistrationImplementor<T> {
@@ -62,28 +66,56 @@ public abstract class AbstractParameterRegistrationImpl<T> implements ParameterR
 	private Type hibernateType;
 	private int[] sqlTypes;
 
+
+	// positional constructors ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 	protected AbstractParameterRegistrationImpl(
 			ProcedureCallImpl procedureCall,
 			Integer position,
+			ParameterMode mode,
+			Class<T> type) {
+		this( procedureCall, position, null, mode, type );
+	}
+
+	protected AbstractParameterRegistrationImpl(
+			ProcedureCallImpl procedureCall,
+			Integer position,
+			ParameterMode mode,
 			Class<T> type,
-			ParameterMode mode) {
-		this( procedureCall, position, null, type, mode );
+			Type hibernateType) {
+		this( procedureCall, position, null, mode, type, hibernateType );
+	}
+
+
+	// named constructors ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	protected AbstractParameterRegistrationImpl(
+			ProcedureCallImpl procedureCall,
+			String name,
+			ParameterMode mode,
+			Class<T> type) {
+		this( procedureCall, null, name, mode, type );
 	}
 
 	protected AbstractParameterRegistrationImpl(
 			ProcedureCallImpl procedureCall,
 			String name,
+			ParameterMode mode,
 			Class<T> type,
-			ParameterMode mode) {
-		this( procedureCall, null, name, type, mode );
+			Type hibernateType) {
+		this( procedureCall, null, name, mode, type, hibernateType );
 	}
+
+
+	// full constructors ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	private AbstractParameterRegistrationImpl(
 			ProcedureCallImpl procedureCall,
 			Integer position,
 			String name,
+			ParameterMode mode,
 			Class<T> type,
-			ParameterMode mode) {
+			Type hibernateType) {
 		this.procedureCall = procedureCall;
 
 		this.position = position;
@@ -92,7 +124,27 @@ public abstract class AbstractParameterRegistrationImpl<T> implements ParameterR
 		this.mode = mode;
 		this.type = type;
 
-		setHibernateType( session().getFactory().getTypeResolver().heuristicType( type.getName() ) );
+		if ( mode == ParameterMode.REF_CURSOR ) {
+			return;
+		}
+
+		setHibernateType( hibernateType );
+	}
+
+	private AbstractParameterRegistrationImpl(
+			ProcedureCallImpl procedureCall,
+			Integer position,
+			String name,
+			ParameterMode mode,
+			Class<T> type) {
+		this(
+				procedureCall,
+				position,
+				name,
+				mode,
+				type,
+				procedureCall.getSession().getFactory().getTypeResolver().heuristicType( type.getName() )
+		);
 	}
 
 	protected SessionImplementor session() {
@@ -120,6 +172,11 @@ public abstract class AbstractParameterRegistrationImpl<T> implements ParameterR
 	}
 
 	@Override
+	public Type getHibernateType() {
+		return hibernateType;
+	}
+
+	@Override
 	public void setHibernateType(Type type) {
 		if ( type == null ) {
 			throw new IllegalArgumentException( "Type cannot be null" );
@@ -129,7 +186,8 @@ public abstract class AbstractParameterRegistrationImpl<T> implements ParameterR
 	}
 
 	@Override
-	public ParameterBind getParameterBind() {
+	@SuppressWarnings("unchecked")
+	public ParameterBind<T> getBind() {
 		return bind;
 	}
 
@@ -167,27 +225,51 @@ public abstract class AbstractParameterRegistrationImpl<T> implements ParameterR
 
 	@Override
 	public void prepare(CallableStatement statement, int startIndex) throws SQLException {
-		if ( mode == ParameterMode.REF_CURSOR ) {
-			throw new NotYetImplementedException( "Support for REF_CURSOR parameters not yet supported" );
+		// initially set up the Type we will use for binding as the explicit type.
+		Type typeToUse = hibernateType;
+		int[] sqlTypesToUse = sqlTypes;
+
+		// however, for Calendar binding with an explicit TemporalType we may need to adjust this...
+		if ( bind != null && bind.getExplicitTemporalType() != null ) {
+			if ( Calendar.class.isInstance( bind.getValue() ) ) {
+				switch ( bind.getExplicitTemporalType() ) {
+					case TIMESTAMP: {
+						typeToUse = CalendarType.INSTANCE;
+						sqlTypesToUse = typeToUse.sqlTypes( session().getFactory() );
+						break;
+					}
+					case DATE: {
+						typeToUse = CalendarDateType.INSTANCE;
+						sqlTypesToUse = typeToUse.sqlTypes( session().getFactory() );
+						break;
+					}
+					case TIME: {
+						typeToUse = CalendarTimeType.INSTANCE;
+						sqlTypesToUse = typeToUse.sqlTypes( session().getFactory() );
+						break;
+					}
+				}
+			}
 		}
 
 		this.startIndex = startIndex;
 		if ( mode == ParameterMode.IN || mode == ParameterMode.INOUT || mode == ParameterMode.OUT ) {
 			if ( mode == ParameterMode.INOUT || mode == ParameterMode.OUT ) {
-				if ( sqlTypes.length > 1 ) {
-					if ( ProcedureParameterExtractionAware.class.isInstance( hibernateType )
-							&& ( (ProcedureParameterExtractionAware) hibernateType ).canDoExtraction() ) {
-						// the type can handle multi-param extraction...
-					}
-					else {
+				if ( sqlTypesToUse.length > 1 ) {
+					// there is more than one column involved; see if the Hibernate Type can handle
+					// multi-param extraction...
+					final boolean canHandleMultiParamExtraction =
+							ProcedureParameterExtractionAware.class.isInstance( hibernateType )
+									&& ( (ProcedureParameterExtractionAware) hibernateType ).canDoExtraction();
+					if ( ! canHandleMultiParamExtraction ) {
 						// it cannot...
 						throw new UnsupportedOperationException(
 								"Type [" + hibernateType + "] does support multi-parameter value extraction"
 						);
 					}
 				}
-				for ( int i = 0; i < sqlTypes.length; i++ ) {
-					statement.registerOutParameter( startIndex + i, sqlTypes[i] );
+				for ( int i = 0; i < sqlTypesToUse.length; i++ ) {
+					statement.registerOutParameter( startIndex + i, sqlTypesToUse[i] );
 				}
 			}
 
@@ -206,16 +288,6 @@ public abstract class AbstractParameterRegistrationImpl<T> implements ParameterR
 					);
 				}
 				else {
-					final Type typeToUse;
-					if ( bind.getExplicitTemporalType() != null && bind.getExplicitTemporalType() == TemporalType.TIMESTAMP ) {
-						typeToUse = hibernateType;
-					}
-					else if ( bind.getExplicitTemporalType() != null && bind.getExplicitTemporalType() == TemporalType.DATE ) {
-						typeToUse = DateType.INSTANCE;
-					}
-					else {
-						typeToUse = hibernateType;
-					}
 					typeToUse.nullSafeSet( statement, bind.getValue(), startIndex, session() );
 				}
 			}
@@ -230,12 +302,16 @@ public abstract class AbstractParameterRegistrationImpl<T> implements ParameterR
 			else {
 				session().getFactory().getServiceRegistry()
 						.getService( RefCursorSupport.class )
-						.registerRefCursorParameter( statement, getPosition() );
+						.registerRefCursorParameter( statement, startIndex );
 			}
 		}
 	}
 
 	public int[] getSqlTypes() {
+		if ( mode == ParameterMode.REF_CURSOR ) {
+			// we could use the Types#REF_CURSOR added in Java 8, but that would require requiring Java 8...
+			throw new IllegalStateException( "REF_CURSOR parameters do not have a SQL/JDBC type" );
+		}
 		return sqlTypes;
 	}
 

@@ -27,6 +27,7 @@ import javax.persistence.DiscriminatorType;
 
 import org.hibernate.AssertionFailure;
 import org.hibernate.annotations.DiscriminatorFormula;
+import org.hibernate.boot.spi.MetadataBuildingContext;
 
 /**
  * Discriminator column
@@ -34,8 +35,8 @@ import org.hibernate.annotations.DiscriminatorFormula;
  * @author Emmanuel Bernard
  */
 public class Ejb3DiscriminatorColumn extends Ejb3Column {
-	private static final String DEFAULT_DISCRIMINATOR_COLUMN_NAME = "DTYPE";
-	private static final String DEFAULT_DISCRIMINATOR_TYPE = "string";
+	public static final String DEFAULT_DISCRIMINATOR_COLUMN_NAME = "DTYPE";
+	public static final String DEFAULT_DISCRIMINATOR_TYPE = "string";
 	private static final int DEFAULT_DISCRIMINATOR_LENGTH = 31;
 
 	private String discriminatorTypeName;
@@ -60,9 +61,9 @@ public class Ejb3DiscriminatorColumn extends Ejb3Column {
 	public static Ejb3DiscriminatorColumn buildDiscriminatorColumn(
 			DiscriminatorType type, DiscriminatorColumn discAnn,
 			DiscriminatorFormula discFormulaAnn,
-			Mappings mappings) {
+			MetadataBuildingContext context) {
 		Ejb3DiscriminatorColumn discriminatorColumn = new Ejb3DiscriminatorColumn();
-		discriminatorColumn.setMappings( mappings );
+		discriminatorColumn.setBuildingContext( context );
 		discriminatorColumn.setImplicit( true );
 		if ( discFormulaAnn != null ) {
 			discriminatorColumn.setImplicit( false );

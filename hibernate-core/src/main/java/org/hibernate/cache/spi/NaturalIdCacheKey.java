@@ -33,6 +33,7 @@ import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.util.ValueHolder;
 import org.hibernate.internal.util.compare.EqualsHelper;
 import org.hibernate.persister.entity.EntityPersister;
+import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
 
 /**
@@ -46,6 +47,7 @@ public class NaturalIdCacheKey implements Serializable {
 	private final String entityName;
 	private final String tenantId;
 	private final int hashCode;
+	// "transient" is important here -- NaturalIdCacheKey needs to be Serializable
 	private transient ValueHolder<String> toString;
 
 	/**
@@ -76,38 +78,46 @@ public class NaturalIdCacheKey implements Serializable {
 		result = prime * result + ( ( this.tenantId == null ) ? 0 : this.tenantId.hashCode() );
 		for ( int i = 0; i < naturalIdValues.length; i++ ) {
 			final int naturalIdPropertyIndex = naturalIdPropertyIndexes[i];
-            final Type type = propertyTypes[naturalIdPropertyIndex];
+			final Type type = propertyTypes[naturalIdPropertyIndex];
 			final Object value = naturalIdValues[i];
-			
+
 			result = prime * result + (value != null ? type.getHashCode( value, factory ) : 0);
-			
-			this.naturalIdValues[i] = type.disassemble( value, session, null );
+
+			// The natural id may not be fully resolved in some situations.  See HHH-7513 for one of them
+			// (re-attaching a mutable natural id uses a database snapshot and hydration does not resolve associations).
+			// TODO: The snapshot should probably be revisited at some point.  Consider semi-resolving, hydrating, etc.
+			if (type instanceof EntityType && type.getSemiResolvedType( factory ).getReturnedClass().isInstance( value )) {
+				this.naturalIdValues[i] = (Serializable) value;
+			}
+			else {
+				this.naturalIdValues[i] = type.disassemble( value, session, null );
+			}
 		}
-		
+
 		this.hashCode = result;
 		initTransients();
 	}
-	
-	private void initTransients() {
-	    this.toString = new ValueHolder<String>(
-                new ValueHolder.DeferredInitializer<String>() {
-                    @Override
-                    public String initialize() {
-                        //Complex toString is needed as naturalIds for entities are not simply based on a single value like primary keys
-                        //the only same way to differentiate the keys is to included the disassembled values in the string.
-                        final StringBuilder toStringBuilder = new StringBuilder( entityName ).append( "##NaturalId[" );
-                        for ( int i = 0; i < naturalIdValues.length; i++ ) {
-                            toStringBuilder.append( naturalIdValues[i] );
-                            if ( i + 1 < naturalIdValues.length ) {
-                                toStringBuilder.append( ", " );
-                            }
-                        }
-                        toStringBuilder.append( "]" );
 
-                        return toStringBuilder.toString();
-                    }
-                }
-        );
+	private void initTransients() {
+		this.toString = new ValueHolder<String>(
+				new ValueHolder.DeferredInitializer<String>() {
+					@Override
+					public String initialize() {
+						//Complex toString is needed as naturalIds for entities are not simply based on a single value like primary keys
+						//the only same way to differentiate the keys is to included the disassembled values in the string.
+						final StringBuilder toStringBuilder = new StringBuilder( entityName ).append( "##NaturalId[" );
+						for ( int i = 0; i < naturalIdValues.length; i++ ) {
+							toStringBuilder.append( naturalIdValues[i] );
+							if ( i + 1 < naturalIdValues.length ) {
+								toStringBuilder.append( ", " );
+							}
+						}
+						toStringBuilder.append( "]" );
+
+						return toStringBuilder.toString();
+					}
+				}
+		);
 	}
 
 	@SuppressWarnings( {"UnusedDeclaration"})
@@ -129,7 +139,7 @@ public class NaturalIdCacheKey implements Serializable {
 	public String toString() {
 		return toString.getValue();
 	}
-	
+
 	@Override
 	public int hashCode() {
 		return this.hashCode;
@@ -154,10 +164,10 @@ public class NaturalIdCacheKey implements Serializable {
 				&& EqualsHelper.equals( tenantId, other.tenantId )
 				&& Arrays.deepEquals( this.naturalIdValues, other.naturalIdValues );
 	}
-	
-    private void readObject(ObjectInputStream ois)
-            throws ClassNotFoundException, IOException {
-        ois.defaultReadObject();
-        initTransients();
-    }
+
+	private void readObject(ObjectInputStream ois)
+			throws ClassNotFoundException, IOException {
+		ois.defaultReadObject();
+		initTransients();
+	}
 }

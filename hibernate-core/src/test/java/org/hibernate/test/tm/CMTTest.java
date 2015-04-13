@@ -29,21 +29,20 @@ import java.util.List;
 import java.util.Map;
 import javax.transaction.Transaction;
 
-import org.junit.Test;
-
 import org.hibernate.ConnectionReleaseMode;
 import org.hibernate.EntityMode;
 import org.hibernate.ScrollableResults;
 import org.hibernate.Session;
-import org.hibernate.cfg.Configuration;
-import org.hibernate.cfg.Environment;
+import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.criterion.Order;
 import org.hibernate.engine.transaction.internal.jta.CMTTransactionFactory;
+
 import org.hibernate.testing.DialectChecks;
 import org.hibernate.testing.RequiresDialectFeature;
 import org.hibernate.testing.jta.TestingJtaBootstrap;
 import org.hibernate.testing.jta.TestingJtaPlatformImpl;
-import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
+import org.hibernate.testing.junit4.BaseNonConfigCoreFunctionalTestCase;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -54,23 +53,23 @@ import static org.junit.Assert.fail;
 /**
  * @author Gavin King
  */
-public class CMTTest extends BaseCoreFunctionalTestCase {
+public class CMTTest extends BaseNonConfigCoreFunctionalTestCase {
 	@Override
 	public String[] getMappings() {
 		return new String[] { "tm/Item.hbm.xml" };
 	}
 
 	@Override
-	public void configure(Configuration cfg) {
-		TestingJtaBootstrap.prepare( cfg.getProperties() );
-		cfg.setProperty( Environment.TRANSACTION_STRATEGY, CMTTransactionFactory.class.getName() );
-		cfg.setProperty( Environment.AUTO_CLOSE_SESSION, "true" );
-		cfg.setProperty( Environment.FLUSH_BEFORE_COMPLETION, "true" );
-		cfg.setProperty( Environment.RELEASE_CONNECTIONS, ConnectionReleaseMode.AFTER_STATEMENT.toString() );
-		cfg.setProperty( Environment.GENERATE_STATISTICS, "true" );
-		cfg.setProperty( Environment.USE_QUERY_CACHE, "true" );
-		cfg.setProperty( "hibernate.cache.region_prefix", "" );
-		cfg.setProperty( Environment.DEFAULT_ENTITY_MODE, EntityMode.MAP.toString() );
+	protected void addSettings(Map settings) {
+		TestingJtaBootstrap.prepare( settings );
+		settings.put( AvailableSettings.TRANSACTION_STRATEGY, CMTTransactionFactory.class.getName() );
+		settings.put( AvailableSettings.AUTO_CLOSE_SESSION, "true" );
+		settings.put( AvailableSettings.FLUSH_BEFORE_COMPLETION, "true" );
+		settings.put( AvailableSettings.RELEASE_CONNECTIONS, ConnectionReleaseMode.AFTER_STATEMENT.toString() );
+		settings.put( AvailableSettings.GENERATE_STATISTICS, "true" );
+		settings.put( AvailableSettings.USE_QUERY_CACHE, "true" );
+		settings.put( AvailableSettings.CACHE_REGION_PREFIX, "" );
+		settings.put( AvailableSettings.DEFAULT_ENTITY_MODE, EntityMode.MAP.toString() );
 	}
 
 	@Override
@@ -99,7 +98,7 @@ public class CMTTest extends BaseCoreFunctionalTestCase {
 		s.persist( "Item", bar );
 		TestingJtaPlatformImpl.INSTANCE.getTransactionManager().commit();
 		assertEquals(0, sessionFactory().getStatistics().getUpdateTimestampsCacheHitCount());
-		assertEquals(3, sessionFactory().getStatistics().getUpdateTimestampsCachePutCount()); // Twice preinvalidate & one invalidate
+		assertEquals(2, sessionFactory().getStatistics().getUpdateTimestampsCachePutCount()); // One preinvalidate & one invalidate
 		assertEquals(0, sessionFactory().getStatistics().getUpdateTimestampsCacheMissCount());
 
 		sessionFactory().getCache().evictEntityRegion( "Item" );
@@ -147,7 +146,7 @@ public class CMTTest extends BaseCoreFunctionalTestCase {
 		assertEquals( 0, sessionFactory().getStatistics().getQueryCacheHitCount() );
 		assertEquals( 0, sessionFactory().getStatistics().getQueryCacheMissCount() );
 		assertEquals( 0, sessionFactory().getStatistics().getUpdateTimestampsCacheHitCount() );
-		assertEquals( 3, sessionFactory().getStatistics().getUpdateTimestampsCachePutCount() );
+		assertEquals( 2, sessionFactory().getStatistics().getUpdateTimestampsCachePutCount() );
 
 		TestingJtaPlatformImpl.INSTANCE.getTransactionManager().begin();
 		s = openSession();

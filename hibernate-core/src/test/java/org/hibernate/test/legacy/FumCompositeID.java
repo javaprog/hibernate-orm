@@ -2,9 +2,9 @@
 package org.hibernate.test.legacy;
 
 
+
 public class FumCompositeID implements java.io.Serializable {
 	String string_;
-	java.util.Date date_;
 	short short_;
 	public boolean equals(Object other) {
 		FumCompositeID that = (FumCompositeID) other;
@@ -18,12 +18,6 @@ public class FumCompositeID implements java.io.Serializable {
 	}
 	public void setString(String string_) {
 		this.string_ = string_;
-	}
-	public java.util.Date getDate() {
-		return date_;
-	}
-	public void setDate(java.util.Date date_) {
-		this.date_ = date_;
 	}
 	public short getShort() {
 		return short_;

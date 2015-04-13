@@ -30,13 +30,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.type.descriptor.JdbcTypeNameMapper;
 import org.hibernate.type.descriptor.ValueBinder;
 import org.hibernate.type.descriptor.ValueExtractor;
 import org.hibernate.type.descriptor.WrapperOptions;
 import org.hibernate.type.descriptor.java.JavaTypeDescriptor;
+
+import org.jboss.logging.Logger;
 
 /**
  * Basically a map from JDBC type code (int) -> {@link SqlTypeDescriptor}
@@ -50,12 +50,44 @@ public class SqlTypeDescriptorRegistry {
 
 	private ConcurrentHashMap<Integer,SqlTypeDescriptor> descriptorMap = new ConcurrentHashMap<Integer, SqlTypeDescriptor>();
 
-	@SuppressWarnings("UnnecessaryBoxing")
-	public void addDescriptor(SqlTypeDescriptor sqlTypeDescriptor) {
-		descriptorMap.put( Integer.valueOf( sqlTypeDescriptor.getSqlType() ), sqlTypeDescriptor );
+	private SqlTypeDescriptorRegistry() {
+		addDescriptor( BooleanTypeDescriptor.INSTANCE );
+
+		addDescriptor( BitTypeDescriptor.INSTANCE );
+		addDescriptor( BigIntTypeDescriptor.INSTANCE );
+		addDescriptor( DecimalTypeDescriptor.INSTANCE );
+		addDescriptor( DoubleTypeDescriptor.INSTANCE );
+		addDescriptor( FloatTypeDescriptor.INSTANCE );
+		addDescriptor( IntegerTypeDescriptor.INSTANCE );
+		addDescriptor( NumericTypeDescriptor.INSTANCE );
+		addDescriptor( RealTypeDescriptor.INSTANCE );
+		addDescriptor( SmallIntTypeDescriptor.INSTANCE );
+		addDescriptor( TinyIntTypeDescriptor.INSTANCE );
+
+		addDescriptor( DateTypeDescriptor.INSTANCE );
+		addDescriptor( TimestampTypeDescriptor.INSTANCE );
+		addDescriptor( TimeTypeDescriptor.INSTANCE );
+
+		addDescriptor( BinaryTypeDescriptor.INSTANCE );
+		addDescriptor( VarbinaryTypeDescriptor.INSTANCE );
+		addDescriptor( LongVarbinaryTypeDescriptor.INSTANCE );
+		addDescriptor( BlobTypeDescriptor.DEFAULT );
+
+		addDescriptor( CharTypeDescriptor.INSTANCE );
+		addDescriptor( VarcharTypeDescriptor.INSTANCE );
+		addDescriptor( LongVarcharTypeDescriptor.INSTANCE );
+		addDescriptor( ClobTypeDescriptor.DEFAULT );
+
+		addDescriptor( NCharTypeDescriptor.INSTANCE );
+		addDescriptor( NVarcharTypeDescriptor.INSTANCE );
+		addDescriptor( LongNVarcharTypeDescriptor.INSTANCE );
+		addDescriptor( NClobTypeDescriptor.DEFAULT );
 	}
 
-	@SuppressWarnings("UnnecessaryBoxing")
+	public void addDescriptor(SqlTypeDescriptor sqlTypeDescriptor) {
+		descriptorMap.put( sqlTypeDescriptor.getSqlType(), sqlTypeDescriptor );
+	}
+
 	public SqlTypeDescriptor getDescriptor(int jdbcTypeCode) {
 		SqlTypeDescriptor descriptor = descriptorMap.get( Integer.valueOf( jdbcTypeCode ) );
 		if ( descriptor != null ) {

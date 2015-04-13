@@ -27,9 +27,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
-import org.hibernate.boot.registry.selector.Availability;
-import org.hibernate.boot.registry.selector.AvailabilityAnnouncer;
-import org.hibernate.boot.registry.selector.SimpleAvailabilityImpl;
+import org.hibernate.boot.registry.selector.SimpleStrategyRegistrationImpl;
+import org.hibernate.boot.registry.selector.StrategyRegistration;
+import org.hibernate.boot.registry.selector.StrategyRegistrationProvider;
 import org.hibernate.boot.registry.selector.spi.StrategySelectionException;
 import org.hibernate.boot.registry.selector.spi.StrategySelector;
 import org.hibernate.dialect.CUBRIDDialect;
@@ -61,6 +61,7 @@ import org.hibernate.dialect.Oracle9iDialect;
 import org.hibernate.dialect.PointbaseDialect;
 import org.hibernate.dialect.PostgreSQL81Dialect;
 import org.hibernate.dialect.PostgreSQL82Dialect;
+import org.hibernate.dialect.PostgreSQL9Dialect;
 import org.hibernate.dialect.PostgresPlusDialect;
 import org.hibernate.dialect.ProgressDialect;
 import org.hibernate.dialect.SAPDBDialect;
@@ -92,71 +93,103 @@ import org.hibernate.engine.transaction.jta.platform.internal.WebSphereJtaPlatfo
 import org.hibernate.engine.transaction.jta.platform.internal.WeblogicJtaPlatform;
 import org.hibernate.engine.transaction.jta.platform.spi.JtaPlatform;
 import org.hibernate.engine.transaction.spi.TransactionFactory;
+import org.hibernate.event.internal.EntityCopyAllowedLoggedObserver;
+import org.hibernate.event.internal.EntityCopyAllowedObserver;
+import org.hibernate.event.internal.EntityCopyNotAllowedObserver;
+import org.hibernate.event.spi.EntityCopyObserver;
 import org.hibernate.hql.spi.MultiTableBulkIdStrategy;
 import org.hibernate.hql.spi.PersistentTableBulkIdStrategy;
 import org.hibernate.hql.spi.TemporaryTableBulkIdStrategy;
+
 import org.jboss.logging.Logger;
 
 /**
+ * Builder for StrategySelector instances.
+ *
  * @author Steve Ebersole
  */
 public class StrategySelectorBuilder {
 	private static final Logger log = Logger.getLogger( StrategySelectorBuilder.class );
 
-	private final List<Availability> explicitAvailabilities = new ArrayList<Availability>();
+	private final List<StrategyRegistration> explicitStrategyRegistrations = new ArrayList<StrategyRegistration>();
 
+	/**
+	 * Adds an explicit (as opposed to discovered) strategy registration.
+	 *
+	 * @param strategy The strategy
+	 * @param implementation The strategy implementation
+	 * @param name The registered name
+	 * @param <T> The type of the strategy.  Used to make sure that the strategy and implementation are type
+	 * compatible.
+	 */
 	@SuppressWarnings("unchecked")
-	public <T> void addExplicitAvailability(Class<T> strategy, Class<? extends T> implementation, String name) {
-		addExplicitAvailability( new SimpleAvailabilityImpl( strategy, implementation, name ) );
+	public <T> void addExplicitStrategyRegistration(Class<T> strategy, Class<? extends T> implementation, String name) {
+		addExplicitStrategyRegistration( new SimpleStrategyRegistrationImpl<T>( strategy, implementation, name ) );
 	}
 
-	public void addExplicitAvailability(Availability availability) {
-		if ( !availability.getStrategyRole().isInterface() ) {
+	/**
+	 * Adds an explicit (as opposed to discovered) strategy registration.
+	 *
+	 * @param strategyRegistration The strategy implementation registration.
+	 * @param <T> The type of the strategy.  Used to make sure that the strategy and implementation are type
+	 * compatible.
+	 */
+	public <T> void addExplicitStrategyRegistration(StrategyRegistration<T> strategyRegistration) {
+		if ( !strategyRegistration.getStrategyRole().isInterface() ) {
 			// not good form...
-			log.debug( "Registering non-interface strategy implementation : " + availability.getStrategyRole().getName()  );
+			log.debug( "Registering non-interface strategy : " + strategyRegistration.getStrategyRole().getName()  );
 		}
 
-		if ( ! availability.getStrategyRole().isAssignableFrom( availability.getStrategyImplementation() ) ) {
+		if ( ! strategyRegistration.getStrategyRole().isAssignableFrom( strategyRegistration.getStrategyImplementation() ) ) {
 			throw new StrategySelectionException(
-					"Implementation class [" + availability.getStrategyImplementation().getName()
+					"Implementation class [" + strategyRegistration.getStrategyImplementation().getName()
 							+ "] does not implement strategy interface ["
-							+ availability.getStrategyRole().getName() + "]"
+							+ strategyRegistration.getStrategyRole().getName() + "]"
 			);
 		}
-		explicitAvailabilities.add( availability );
+		explicitStrategyRegistrations.add( strategyRegistration );
 	}
 
+	/**
+	 * Builds the selector.
+	 *
+	 * @param classLoaderService The class loading service used to (attempt to) resolve any un-registered
+	 * strategy implementations.
+	 *
+	 * @return The selector.
+	 */
 	public StrategySelector buildSelector(ClassLoaderService classLoaderService) {
-		StrategySelectorImpl strategySelector = new StrategySelectorImpl( classLoaderService );
+		final StrategySelectorImpl strategySelector = new StrategySelectorImpl( classLoaderService );
 
 		// build the baseline...
 		addDialects( strategySelector );
 		addJtaPlatforms( strategySelector );
 		addTransactionFactories( strategySelector );
 		addMultiTableBulkIdStrategies( strategySelector );
+		addEntityCopyObserverStrategies( strategySelector );
 
 		// apply auto-discovered registrations
-		for ( AvailabilityAnnouncer announcer : classLoaderService.loadJavaServices( AvailabilityAnnouncer.class ) ) {
-			for ( Availability discoveredAvailability : announcer.getAvailabilities() ) {
-				applyFromAvailability( strategySelector, discoveredAvailability );
+		for ( StrategyRegistrationProvider provider : classLoaderService.loadJavaServices( StrategyRegistrationProvider.class ) ) {
+			for ( StrategyRegistration discoveredStrategyRegistration : provider.getStrategyRegistrations() ) {
+				applyFromStrategyRegistration( strategySelector, discoveredStrategyRegistration );
 			}
 		}
 
 		// apply customizations
-		for ( Availability explicitAvailability : explicitAvailabilities ) {
-			applyFromAvailability( strategySelector, explicitAvailability );
+		for ( StrategyRegistration explicitStrategyRegistration : explicitStrategyRegistrations ) {
+			applyFromStrategyRegistration( strategySelector, explicitStrategyRegistration );
 		}
 
 		return strategySelector;
 	}
 
 	@SuppressWarnings("unchecked")
-	private void applyFromAvailability(StrategySelectorImpl strategySelector, Availability availability) {
-		for ( String name : availability.getSelectorNames() ) {
+	private <T> void applyFromStrategyRegistration(StrategySelectorImpl strategySelector, StrategyRegistration<T> strategyRegistration) {
+		for ( String name : strategyRegistration.getSelectorNames() ) {
 			strategySelector.registerStrategyImplementor(
-					availability.getStrategyRole(),
+					strategyRegistration.getStrategyRole(),
 					name,
-					availability.getStrategyImplementation()
+					strategyRegistration.getStrategyImplementation()
 			);
 		}
 	}
@@ -193,6 +226,7 @@ public class StrategySelectorBuilder {
 		addDialect( strategySelector, PostgresPlusDialect.class );
 		addDialect( strategySelector, PostgreSQL81Dialect.class );
 		addDialect( strategySelector, PostgreSQL82Dialect.class );
+		addDialect( strategySelector, PostgreSQL9Dialect.class );
 		addDialect( strategySelector, ProgressDialect.class );
 		addDialect( strategySelector, SAPDBDialect.class );
 		addDialect( strategySelector, SQLServerDialect.class );
@@ -341,6 +375,24 @@ public class StrategySelectorBuilder {
 				MultiTableBulkIdStrategy.class,
 				TemporaryTableBulkIdStrategy.SHORT_NAME,
 				TemporaryTableBulkIdStrategy.class
+		);
+	}
+
+	private void addEntityCopyObserverStrategies(StrategySelectorImpl strategySelector) {
+		strategySelector.registerStrategyImplementor(
+				EntityCopyObserver.class,
+				EntityCopyNotAllowedObserver.SHORT_NAME,
+				EntityCopyNotAllowedObserver.class
+		);
+		strategySelector.registerStrategyImplementor(
+				EntityCopyObserver.class,
+				EntityCopyAllowedObserver.SHORT_NAME,
+				EntityCopyAllowedObserver.class
+		);
+		strategySelector.registerStrategyImplementor(
+				EntityCopyObserver.class,
+				EntityCopyAllowedLoggedObserver.SHORT_NAME,
+				EntityCopyAllowedLoggedObserver.class
 		);
 	}
 }

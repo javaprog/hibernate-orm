@@ -27,9 +27,9 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.internal.CoreMessageLogger;
+
+import org.jboss.logging.Logger;
 
 /**
  * Tracks information about loading of entities specific to a given result set.  These can be hierarchical.
@@ -41,7 +41,8 @@ public class EntityLoadContext {
 
 	private final LoadContexts loadContexts;
 	private final ResultSet resultSet;
-	private final List hydratingEntities = new ArrayList( 20 ); // todo : need map? the prob is a proper key, right?
+	// todo : need map? the prob is a proper key, right?
+	private final List hydratingEntities = new ArrayList( 20 );
 
 	public EntityLoadContext(LoadContexts loadContexts, ResultSet resultSet) {
 		this.loadContexts = loadContexts;

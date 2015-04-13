@@ -22,31 +22,25 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.cfg.annotations;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Random;
-import javax.persistence.AttributeOverride;
-import javax.persistence.AttributeOverrides;
-import javax.persistence.MapKeyClass;
 
 import org.hibernate.AnnotationException;
 import org.hibernate.AssertionFailure;
 import org.hibernate.FetchMode;
 import org.hibernate.MappingException;
 import org.hibernate.annotations.MapKeyType;
+import org.hibernate.annotations.common.reflection.ClassLoadingException;
 import org.hibernate.annotations.common.reflection.XClass;
 import org.hibernate.annotations.common.reflection.XProperty;
+import org.hibernate.boot.spi.MetadataBuildingContext;
 import org.hibernate.cfg.AccessType;
 import org.hibernate.cfg.AnnotatedClassType;
 import org.hibernate.cfg.AnnotationBinder;
 import org.hibernate.cfg.BinderHelper;
+import org.hibernate.cfg.CollectionPropertyHolder;
 import org.hibernate.cfg.CollectionSecondPass;
 import org.hibernate.cfg.Ejb3Column;
 import org.hibernate.cfg.Ejb3JoinColumn;
-import org.hibernate.cfg.Mappings;
 import org.hibernate.cfg.PropertyData;
-import org.hibernate.cfg.PropertyHolder;
 import org.hibernate.cfg.PropertyHolderBuilder;
 import org.hibernate.cfg.PropertyPreloadedData;
 import org.hibernate.cfg.SecondPass;
@@ -67,6 +61,14 @@ import org.hibernate.mapping.ToOne;
 import org.hibernate.mapping.Value;
 import org.hibernate.sql.Template;
 
+import javax.persistence.AttributeOverride;
+import javax.persistence.AttributeOverrides;
+import javax.persistence.MapKeyClass;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Random;
+
 /**
  * Implementation to bind a Map
  *
@@ -77,16 +79,12 @@ public class MapBinder extends CollectionBinder {
 		super( sorted );
 	}
 
-	public MapBinder() {
-		super();
-	}
-
 	public boolean isMap() {
 		return true;
 	}
 
 	protected Collection createCollection(PersistentClass persistentClass) {
-		return new org.hibernate.mapping.Map( getMappings(), persistentClass );
+		return new org.hibernate.mapping.Map( getBuildingContext().getMetadataCollector(), persistentClass );
 	}
 
 	@Override
@@ -103,16 +101,16 @@ public class MapBinder extends CollectionBinder {
 			final boolean ignoreNotFound,
 			final boolean unique,
 			final TableBinder assocTableBinder,
-			final Mappings mappings) {
-		return new CollectionSecondPass( mappings, MapBinder.this.collection ) {
+			final MetadataBuildingContext buildingContext) {
+		return new CollectionSecondPass( buildingContext, MapBinder.this.collection ) {
 			public void secondPass(Map persistentClasses, Map inheritedMetas)
 					throws MappingException {
 				bindStarToManySecondPass(
 						persistentClasses, collType, fkJoinColumns, keyColumns, inverseColumns, elementColumns,
-						isEmbedded, property, unique, assocTableBinder, ignoreNotFound, mappings
+						isEmbedded, property, unique, assocTableBinder, ignoreNotFound, buildingContext
 				);
 				bindKeyFromAssociationTable(
-						collType, persistentClasses, mapKeyPropertyName, property, isEmbedded, mappings,
+						collType, persistentClasses, mapKeyPropertyName, property, isEmbedded, buildingContext,
 						mapKeyColumns, mapKeyManyToManyColumns,
 						inverseColumns != null ? inverseColumns[0].getPropertyName() : null
 				);
@@ -126,7 +124,7 @@ public class MapBinder extends CollectionBinder {
 			String mapKeyPropertyName,
 			XProperty property,
 			boolean isEmbedded,
-			Mappings mappings,
+			MetadataBuildingContext buildingContext,
 			Ejb3Column[] mapKeyColumns,
 			Ejb3JoinColumn[] mapKeyManyToManyColumns,
 			String targetPropertyName) {
@@ -142,7 +140,7 @@ public class MapBinder extends CollectionBinder {
 			}
 			org.hibernate.mapping.Map map = (org.hibernate.mapping.Map) this.collection;
 			Value indexValue = createFormulatedValue(
-					mapProperty.getValue(), map, targetPropertyName, associatedClass, mappings
+					mapProperty.getValue(), map, targetPropertyName, associatedClass, buildingContext
 			);
 			map.setIndex( indexValue );
 		}
@@ -169,7 +167,7 @@ public class MapBinder extends CollectionBinder {
 			ManyToOne element = null;
 			org.hibernate.mapping.Map mapValue = (org.hibernate.mapping.Map) this.collection;
 			if ( isIndexOfEntities ) {
-				element = new ManyToOne( mappings, mapValue.getCollectionTable() );
+				element = new ManyToOne( buildingContext.getMetadataCollector(), mapValue.getCollectionTable() );
 				mapValue.setIndex( element );
 				element.setReferencedEntityName( mapKeyType );
 				//element.setFetchMode( fetchMode );
@@ -180,28 +178,20 @@ public class MapBinder extends CollectionBinder {
 				//does not make sense for a map key element.setIgnoreNotFound( ignoreNotFound );
 			}
 			else {
-				XClass elementClass;
+				XClass keyXClass;
 				AnnotatedClassType classType;
-				PropertyHolder holder = null;
 				if ( BinderHelper.PRIMITIVE_NAMES.contains( mapKeyType ) ) {
 					classType = AnnotatedClassType.NONE;
-					elementClass = null;
+					keyXClass = null;
 				}
 				else {
 					try {
-						elementClass = mappings.getReflectionManager().classForName( mapKeyType, MapBinder.class );
+						keyXClass = buildingContext.getBuildingOptions().getReflectionManager().classForName( mapKeyType );
 					}
-					catch (ClassNotFoundException e) {
+					catch (ClassLoadingException e) {
 						throw new AnnotationException( "Unable to find class: " + mapKeyType, e );
 					}
-					classType = mappings.getClassType( elementClass );
-
-					holder = PropertyHolderBuilder.buildPropertyHolder(
-							mapValue,
-							StringHelper.qualify( mapValue.getRole(), "mapkey" ),
-							elementClass,
-							property, propertyHolder, mappings
-					);
+					classType = buildingContext.getMetadataCollector().getClassType( keyXClass );
 					//force in case of attribute override
 					boolean attributeOverride = property.isAnnotationPresent( AttributeOverride.class )
 							|| property.isAnnotationPresent( AttributeOverrides.class );
@@ -210,12 +200,29 @@ public class MapBinder extends CollectionBinder {
 					}
 				}
 
+				CollectionPropertyHolder holder = PropertyHolderBuilder.buildPropertyHolder(
+						mapValue,
+						StringHelper.qualify( mapValue.getRole(), "mapkey" ),
+						keyXClass,
+						property,
+						propertyHolder,
+						buildingContext
+				);
+
+
+				// 'propertyHolder' is the PropertyHolder for the owner of the collection
+				// 'holder' is the CollectionPropertyHolder.
+				// 'property' is the collection XProperty
+				propertyHolder.startingProperty( property );
+				holder.prepare( property );
+
 				PersistentClass owner = mapValue.getOwner();
 				AccessType accessType;
 				// FIXME support @Access for collection of elements
 				// String accessType = access != null ? access.value() : null;
 				if ( owner.getIdentifierProperty() != null ) {
-					accessType = owner.getIdentifierProperty().getPropertyAccessorName().equals( "property" ) ? AccessType.PROPERTY
+					accessType = owner.getIdentifierProperty().getPropertyAccessorName().equals( "property" )
+							? AccessType.PROPERTY
 							: AccessType.FIELD;
 				}
 				else if ( owner.getIdentifierMapper() != null && owner.getIdentifierMapper().getPropertySpan() > 0 ) {
@@ -232,24 +239,31 @@ public class MapBinder extends CollectionBinder {
 
 					PropertyData inferredData;
 					if ( isHibernateExtensionMapping() ) {
-						inferredData = new PropertyPreloadedData( AccessType.PROPERTY, "index", elementClass );
+						inferredData = new PropertyPreloadedData( AccessType.PROPERTY, "index", keyXClass );
 					}
 					else {
 						//"key" is the JPA 2 prefix for map keys
-						inferredData = new PropertyPreloadedData( AccessType.PROPERTY, "key", elementClass );
+						inferredData = new PropertyPreloadedData( AccessType.PROPERTY, "key", keyXClass );
 					}
 
 					//TODO be smart with isNullable
 					Component component = AnnotationBinder.fillComponent(
-							holder, inferredData, accessType, true,
-							entityBinder, false, false,
-							true, mappings, inheritanceStatePerClass
+							holder,
+							inferredData,
+							accessType,
+							true,
+							entityBinder,
+							false,
+							false,
+							true,
+							buildingContext,
+							inheritanceStatePerClass
 					);
 					mapValue.setIndex( component );
 				}
 				else {
 					SimpleValueBinder elementBinder = new SimpleValueBinder();
-					elementBinder.setMappings( mappings );
+					elementBinder.setBuildingContext( buildingContext );
 					elementBinder.setReturnedClassName( mapKeyType );
 
 					Ejb3Column[] elementColumns = mapKeyColumns;
@@ -262,7 +276,7 @@ public class MapBinder extends CollectionBinder {
 						column.setLogicalColumnName( Collection.DEFAULT_KEY_COLUMN_NAME );
 						//TODO create an EMPTY_JOINS collection
 						column.setJoins( new HashMap<String, Join>() );
-						column.setMappings( mappings );
+						column.setBuildingContext( buildingContext );
 						column.bind();
 						elementColumns[0] = column;
 					}
@@ -275,14 +289,17 @@ public class MapBinder extends CollectionBinder {
 					//the algorithm generally does not apply for map key anyway
 					elementBinder.setKey(true);
 					MapKeyType mapKeyTypeAnnotation = property.getAnnotation( MapKeyType.class );
-					if ( mapKeyTypeAnnotation != null && !BinderHelper.isEmptyAnnotationValue(
-							mapKeyTypeAnnotation.value()
-									.type()
-					) ) {
+					if ( mapKeyTypeAnnotation != null
+							&& !BinderHelper.isEmptyAnnotationValue( mapKeyTypeAnnotation.value() .type() ) ) {
 						elementBinder.setExplicitType( mapKeyTypeAnnotation.value() );
 					}
 					else {
-						elementBinder.setType( property, elementClass, this.collection.getOwnerEntityName() );
+						elementBinder.setType(
+								property,
+								keyXClass,
+								this.collection.getOwnerEntityName(),
+								holder.keyElementAttributeConverterDefinition( keyXClass )
+						);
 					}
 					elementBinder.setPersistentClassName( propertyHolder.getEntityName() );
 					elementBinder.setAccessType( accessType );
@@ -302,7 +319,7 @@ public class MapBinder extends CollectionBinder {
 						mapKeyManyToManyColumns,
 						element,
 						false, //a map key column has no unique constraint
-						mappings
+						buildingContext
 				);
 			}
 		}
@@ -313,7 +330,7 @@ public class MapBinder extends CollectionBinder {
 			Collection collection,
 			String targetPropertyName,
 			PersistentClass associatedClass,
-			Mappings mappings) {
+			MetadataBuildingContext buildingContext) {
 		Value element = collection.getElement();
 		String fromAndWhere = null;
 		if ( !( element instanceof OneToMany ) ) {
@@ -357,7 +374,7 @@ public class MapBinder extends CollectionBinder {
 		if ( value instanceof Component ) {
 			Component component = (Component) value;
 			Iterator properties = component.getPropertyIterator();
-			Component indexComponent = new Component( mappings, collection );
+			Component indexComponent = new Component( getBuildingContext().getMetadataCollector(), collection );
 			indexComponent.setComponentClassName( component.getComponentClassName() );
 			//TODO I don't know if this is appropriate
 			indexComponent.setNodeName( "index" );
@@ -365,7 +382,7 @@ public class MapBinder extends CollectionBinder {
 				Property current = (Property) properties.next();
 				Property newProperty = new Property();
 				newProperty.setCascade( current.getCascade() );
-				newProperty.setGeneration( current.getGeneration() );
+				newProperty.setValueGenerationStrategy( current.getValueGenerationStrategy() );
 				newProperty.setInsertable( false );
 				newProperty.setUpdateable( false );
 				newProperty.setMetaAttributes( current.getMetaAttributes() );
@@ -379,7 +396,7 @@ public class MapBinder extends CollectionBinder {
 				newProperty.setSelectable( current.isSelectable() );
 				newProperty.setValue(
 						createFormulatedValue(
-								current.getValue(), collection, targetPropertyName, associatedClass, mappings
+								current.getValue(), collection, targetPropertyName, associatedClass, buildingContext
 						)
 				);
 				indexComponent.addProperty( newProperty );
@@ -391,7 +408,7 @@ public class MapBinder extends CollectionBinder {
 			SimpleValue targetValue;
 			if ( value instanceof ManyToOne ) {
 				ManyToOne sourceManyToOne = (ManyToOne) sourceValue;
-				ManyToOne targetManyToOne = new ManyToOne( mappings, collection.getCollectionTable() );
+				ManyToOne targetManyToOne = new ManyToOne( getBuildingContext().getMetadataCollector(), collection.getCollectionTable() );
 				targetManyToOne.setFetchMode( FetchMode.DEFAULT );
 				targetManyToOne.setLazy( true );
 				//targetValue.setIgnoreNotFound( ); does not make sense for a map key
@@ -399,7 +416,7 @@ public class MapBinder extends CollectionBinder {
 				targetValue = targetManyToOne;
 			}
 			else {
-				targetValue = new SimpleValue( mappings, collection.getCollectionTable() );
+				targetValue = new SimpleValue( getBuildingContext().getMetadataCollector(), collection.getCollectionTable() );
 				targetValue.setTypeName( sourceValue.getTypeName() );
 				targetValue.setTypeParameters( sourceValue.getTypeParameters() );
 			}

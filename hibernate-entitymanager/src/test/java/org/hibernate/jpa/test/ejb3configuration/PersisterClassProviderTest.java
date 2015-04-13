@@ -24,11 +24,9 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Set;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.PersistenceException;
-
-import org.junit.Assert;
-import org.junit.Test;
 
 import org.hibernate.EntityMode;
 import org.hibernate.HibernateException;
@@ -40,10 +38,9 @@ import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
 import org.hibernate.cache.spi.access.NaturalIdRegionAccessStrategy;
 import org.hibernate.cache.spi.entry.CacheEntry;
 import org.hibernate.cache.spi.entry.CacheEntryStructure;
-import org.hibernate.jpa.test.SettingsGenerator;
-import org.hibernate.jpa.test.PersistenceUnitDescriptorAdapter;
+import org.hibernate.engine.internal.DefaultEntityEntryFactory;
 import org.hibernate.engine.spi.CascadeStyle;
-import org.hibernate.engine.spi.Mapping;
+import org.hibernate.engine.spi.EntityEntryFactory;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.engine.spi.ValueInclusion;
@@ -51,20 +48,26 @@ import org.hibernate.id.IdentifierGenerator;
 import org.hibernate.internal.FilterAliasGenerator;
 import org.hibernate.jpa.AvailableSettings;
 import org.hibernate.jpa.boot.spi.Bootstrap;
+import org.hibernate.jpa.test.PersistenceUnitDescriptorAdapter;
+import org.hibernate.jpa.test.SettingsGenerator;
 import org.hibernate.mapping.Collection;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.metadata.ClassMetadata;
-import org.hibernate.metamodel.binding.EntityBinding;
-import org.hibernate.metamodel.binding.PluralAttributeBinding;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.persister.internal.PersisterClassResolverInitiator;
 import org.hibernate.persister.spi.PersisterClassResolver;
+import org.hibernate.persister.spi.PersisterCreationContext;
+import org.hibernate.persister.walking.spi.AttributeDefinition;
+import org.hibernate.persister.walking.spi.EntityIdentifierDefinition;
 import org.hibernate.tuple.entity.EntityMetamodel;
 import org.hibernate.tuple.entity.EntityTuplizer;
 import org.hibernate.tuple.entity.NonPojoInstrumentationMetadata;
 import org.hibernate.type.Type;
 import org.hibernate.type.VersionType;
+
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * @author Emmanuel Bernard <emmanuel@hibernate.org>
@@ -99,17 +102,7 @@ public class PersisterClassProviderTest {
 		}
 
 		@Override
-		public Class<? extends EntityPersister> getEntityPersisterClass(EntityBinding metadata) {
-			return GoofyProvider.class;
-		}
-
-		@Override
 		public Class<? extends CollectionPersister> getCollectionPersisterClass(Collection metadata) {
-			return null;
-		}
-
-		@Override
-		public Class<? extends CollectionPersister> getCollectionPersisterClass(PluralAttributeBinding metadata) {
 			return null;
 		}
 	}
@@ -121,8 +114,7 @@ public class PersisterClassProviderTest {
 				org.hibernate.mapping.PersistentClass persistentClass,
 				org.hibernate.cache.spi.access.EntityRegionAccessStrategy strategy,
 				NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
-				SessionFactoryImplementor sf,
-				Mapping mapping) {
+				PersisterCreationContext creationContext) {
 			throw new GoofyException();
 		}
 
@@ -142,6 +134,10 @@ public class PersisterClassProviderTest {
 		}
 
 		@Override
+		public void generateEntityDefinition() {
+		}
+
+		@Override
 		public void postInstantiate() throws MappingException {
 
 		}
@@ -149,6 +145,11 @@ public class PersisterClassProviderTest {
 		@Override
 		public SessionFactoryImplementor getFactory() {
 			return null;
+		}
+
+		@Override
+		public EntityEntryFactory getEntityEntryFactory() {
+			return DefaultEntityEntryFactory.INSTANCE;
 		}
 
 		@Override
@@ -605,8 +606,32 @@ public class PersisterClassProviderTest {
 		}
 
 		@Override
+		public int[] resolveAttributeIndexes(Set<String> properties) {
+			return new int[0];
+		}
+
+		@Override
+		public boolean canUseReferenceCacheEntries() {
+			return false;  //To change body of implemented methods use File | Settings | File Templates.
+		}
+
+		@Override
 		public CacheEntry buildCacheEntry(Object entity, Object[] state, Object version, SessionImplementor session) {
-			// TODO Auto-generated method stub
+			return null;
+		}
+
+		@Override
+		public EntityPersister getEntityPersister() {
+			return this;
+		}
+
+		@Override
+		public EntityIdentifierDefinition getEntityKeyDefinition() {
+			return null;
+		}
+
+		@Override
+		public Iterable<AttributeDefinition> getAttributes() {
 			return null;
 		}
 	}

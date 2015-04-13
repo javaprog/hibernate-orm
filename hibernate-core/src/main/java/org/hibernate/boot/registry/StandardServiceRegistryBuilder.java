@@ -23,21 +23,21 @@
  */
 package org.hibernate.boot.registry;
 
+import java.io.File;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
+import org.hibernate.boot.cfgxml.internal.ConfigLoader;
+import org.hibernate.boot.cfgxml.spi.LoadedConfig;
 import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 import org.hibernate.boot.registry.internal.StandardServiceRegistryImpl;
 import org.hibernate.cfg.Environment;
 import org.hibernate.integrator.spi.Integrator;
 import org.hibernate.integrator.spi.IntegratorService;
-import org.hibernate.internal.jaxb.cfg.JaxbHibernateConfiguration;
 import org.hibernate.internal.util.config.ConfigurationHelper;
-import org.hibernate.service.ConfigLoader;
 import org.hibernate.service.Service;
 import org.hibernate.service.ServiceRegistry;
 import org.hibernate.service.StandardServiceInitiators;
@@ -53,20 +53,26 @@ import org.hibernate.service.spi.ServiceContributor;
  * @see org.hibernate.boot.registry.BootstrapServiceRegistryBuilder
  */
 public class StandardServiceRegistryBuilder {
+	/**
+	 * The default resource name for a hibernate configuration xml file.
+	 */
 	public static final String DEFAULT_CFG_RESOURCE_NAME = "hibernate.cfg.xml";
 
 	private final Map settings;
 	private final List<StandardServiceInitiator> initiators = standardInitiatorList();
 	private final List<ProvidedService> providedServices = new ArrayList<ProvidedService>();
 
+	private boolean autoCloseRegistry = true;
+
 	private final BootstrapServiceRegistry bootstrapServiceRegistry;
 	private final ConfigLoader configLoader;
+	private final LoadedConfig aggregatedCfgXml;
 
 	/**
-	 * Create a default builder
+	 * Create a default builder.
 	 */
 	public StandardServiceRegistryBuilder() {
-		this( new BootstrapServiceRegistryBuilder().build() );
+		this( new BootstrapServiceRegistryBuilder().enableAutoClose().build() );
 	}
 
 	/**
@@ -75,9 +81,26 @@ public class StandardServiceRegistryBuilder {
 	 * @param bootstrapServiceRegistry Provided bootstrap registry to use.
 	 */
 	public StandardServiceRegistryBuilder(BootstrapServiceRegistry bootstrapServiceRegistry) {
+		this( bootstrapServiceRegistry,  LoadedConfig.baseline() );
+	}
+
+	/**
+	 * Create a builder with the specified bootstrap services.
+	 *
+	 * @param bootstrapServiceRegistry Provided bootstrap registry to use.
+	 */
+	public StandardServiceRegistryBuilder(BootstrapServiceRegistry bootstrapServiceRegistry, LoadedConfig loadedConfigBaseline) {
 		this.settings = Environment.getProperties();
 		this.bootstrapServiceRegistry = bootstrapServiceRegistry;
 		this.configLoader = new ConfigLoader( bootstrapServiceRegistry );
+		this.aggregatedCfgXml = loadedConfigBaseline;
+	}
+
+	/**
+	 * Intended for internal testing use only!!
+	 */
+	public LoadedConfig getAggregatedCfgXml() {
+		return aggregatedCfgXml;
 	}
 
 	/**
@@ -96,8 +119,10 @@ public class StandardServiceRegistryBuilder {
 	}
 
 	/**
-	 * Read settings from a {@link Properties} file.  Differs from {@link #configure()} and {@link #configure(String)}
-	 * in that here we read a {@link Properties} file while for {@link #configure} we read the XML variant.
+	 * Read settings from a {@link java.util.Properties} file by resource name.
+	 *
+	 * Differs from {@link #configure()} and {@link #configure(String)} in that here we expect to read a
+	 * {@link java.util.Properties} file while for {@link #configure} we read the XML variant.
 	 *
 	 * @param resourceName The name by which to perform a resource look up for the properties file.
 	 *
@@ -113,7 +138,26 @@ public class StandardServiceRegistryBuilder {
 	}
 
 	/**
-	 * Read setting information from an XML file using the standard resource location
+	 * Read settings from a {@link java.util.Properties} file by File reference
+	 *
+	 * Differs from {@link #configure()} and {@link #configure(String)} in that here we expect to read a
+	 * {@link java.util.Properties} file while for {@link #configure} we read the XML variant.
+	 *
+	 * @param file The properties File reference
+	 *
+	 * @return this, for method chaining
+	 *
+	 * @see #configure()
+	 * @see #configure(String)
+	 */
+	@SuppressWarnings( {"unchecked"})
+	public StandardServiceRegistryBuilder loadProperties(File file) {
+		settings.putAll( configLoader.loadProperties( file ) );
+		return this;
+	}
+
+	/**
+	 * Read setting information from an XML file using the standard resource location.
 	 *
 	 * @return this, for method chaining
 	 *
@@ -126,26 +170,34 @@ public class StandardServiceRegistryBuilder {
 	}
 
 	/**
-	 * Read setting information from an XML file using the named resource location
+	 * Read setting information from an XML file using the named resource location.
 	 *
 	 * @param resourceName The named resource
 	 *
 	 * @return this, for method chaining
-	 *
-	 * @see #loadProperties(String)
 	 */
-	@SuppressWarnings( {"unchecked"})
 	public StandardServiceRegistryBuilder configure(String resourceName) {
-		JaxbHibernateConfiguration configurationElement = configLoader.loadConfigXmlResource( resourceName );
-		for ( JaxbHibernateConfiguration.JaxbSessionFactory.JaxbProperty xmlProperty : configurationElement.getSessionFactory().getProperty() ) {
-			settings.put( xmlProperty.getName(), xmlProperty.getValue() );
-		}
+		return configure( configLoader.loadConfigXmlResource( resourceName ) );
+	}
+
+	public StandardServiceRegistryBuilder configure(File configurationFile) {
+		return configure( configLoader.loadConfigXmlFile( configurationFile ) );
+	}
+
+	public StandardServiceRegistryBuilder configure(URL url) {
+		return configure( configLoader.loadConfigXmlUrl( url ) );
+	}
+
+	@SuppressWarnings( {"unchecked"})
+	public StandardServiceRegistryBuilder configure(LoadedConfig loadedConfig) {
+		aggregatedCfgXml.merge( loadedConfig );
+		settings.putAll( loadedConfig.getConfigurationValues() );
 
 		return this;
 	}
 
 	/**
-	 * Apply a setting value
+	 * Apply a setting value.
 	 *
 	 * @param settingName The name of the setting
 	 * @param value The value to use.
@@ -159,7 +211,7 @@ public class StandardServiceRegistryBuilder {
 	}
 
 	/**
-	 * Apply a groups of setting values
+	 * Apply a groups of setting values.
 	 *
 	 * @param settings The incoming settings to apply
 	 *
@@ -185,7 +237,7 @@ public class StandardServiceRegistryBuilder {
 	}
 
 	/**
-	 * Adds a user-provided service
+	 * Adds a user-provided service.
 	 *
 	 * @param serviceRole The role of the service being added
 	 * @param service The service implementation
@@ -198,8 +250,43 @@ public class StandardServiceRegistryBuilder {
 		return this;
 	}
 
+	/**
+	 * By default, when a ServiceRegistry is no longer referenced by any other
+	 * registries as a parent it will be closed.
+	 * <p/>
+	 * Some applications that explicitly build "shared registries" may want to
+	 * circumvent that behavior.
+	 * <p/>
+	 * This method indicates that the registry being built should not be
+	 * automatically closed.  The caller agrees to take responsibility to
+	 * close it themselves.
+	 *
+	 * @return this, for method chaining
+	 */
+	public StandardServiceRegistryBuilder disableAutoClose() {
+		this.autoCloseRegistry = false;
+		return this;
+	}
+
+	/**
+	 * See the discussion on {@link #disableAutoClose}.  This method enables
+	 * the auto-closing.
+	 *
+	 * @return this, for method chaining
+	 */
+	public StandardServiceRegistryBuilder enableAutoClose() {
+		this.autoCloseRegistry = true;
+		return this;
+	}
+
+	/**
+	 * Build the StandardServiceRegistry.
+	 *
+	 * @return The StandardServiceRegistry.
+	 */
+	@SuppressWarnings("unchecked")
 	public StandardServiceRegistry build() {
-		Map<?,?> settingsCopy = new HashMap();
+		final Map settingsCopy = new HashMap();
 		settingsCopy.putAll( settings );
 		Environment.verifyProperties( settingsCopy );
 		ConfigurationHelper.resolvePlaceHolders( settingsCopy );
@@ -207,7 +294,15 @@ public class StandardServiceRegistryBuilder {
 		applyServiceContributingIntegrators();
 		applyServiceContributors();
 
-		return new StandardServiceRegistryImpl( bootstrapServiceRegistry, initiators, providedServices, settingsCopy );
+		settingsCopy.put( org.hibernate.boot.cfgxml.spi.CfgXmlAccessService.LOADED_CONFIG_KEY, aggregatedCfgXml );
+
+		return new StandardServiceRegistryImpl(
+				autoCloseRegistry,
+				bootstrapServiceRegistry,
+				initiators,
+				providedServices,
+				settingsCopy
+		);
 	}
 
 	@SuppressWarnings("deprecation")
@@ -220,8 +315,10 @@ public class StandardServiceRegistryBuilder {
 	}
 
 	private void applyServiceContributors() {
-		LinkedHashSet<ServiceContributor> serviceContributors =
-				bootstrapServiceRegistry.getService( ClassLoaderService.class ).loadJavaServices( ServiceContributor.class );
+		final Iterable<ServiceContributor> serviceContributors =
+				bootstrapServiceRegistry.getService( ClassLoaderService.class )
+						.loadJavaServices( ServiceContributor.class );
+
 		for ( ServiceContributor serviceContributor : serviceContributors ) {
 			serviceContributor.contribute( this );
 		}
@@ -230,6 +327,11 @@ public class StandardServiceRegistryBuilder {
 	/**
 	 * Temporarily exposed since Configuration is still around and much code still uses Configuration.  This allows
 	 * code to configure the builder and access that to configure Configuration object (used from HEM atm).
+	 *
+	 * @return The settings map.
+	 *
+	 * @deprecated Temporarily exposed since Configuration is still around and much code still uses Configuration.
+	 * This allows code to configure the builder and access that to configure Configuration object.
 	 */
 	@Deprecated
 	public Map getSettings() {

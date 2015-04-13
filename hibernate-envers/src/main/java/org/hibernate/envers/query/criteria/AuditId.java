@@ -23,11 +23,12 @@
  */
 package org.hibernate.envers.query.criteria;
 
+import org.hibernate.envers.query.criteria.internal.IdentifierEqAuditExpression;
+import org.hibernate.envers.query.internal.property.EntityPropertyName;
+import org.hibernate.envers.query.internal.property.OriginalIdPropertyName;
+import org.hibernate.envers.query.internal.property.PropertyNameGetter;
 import org.hibernate.envers.query.projection.AuditProjection;
-import org.hibernate.envers.query.projection.PropertyAuditProjection;
-import org.hibernate.envers.query.property.EntityPropertyName;
-import org.hibernate.envers.query.property.OriginalIdPropertyName;
-import org.hibernate.envers.query.property.PropertyNameGetter;
+import org.hibernate.envers.query.projection.internal.PropertyAuditProjection;
 
 /**
  * Create restrictions and projections for the id of an audited entity.
@@ -35,18 +36,19 @@ import org.hibernate.envers.query.property.PropertyNameGetter;
  * @author Adam Warski (adam at warski dot org)
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
-@SuppressWarnings({ "JavaDoc" })
+@SuppressWarnings({"JavaDoc"})
 public class AuditId<T> extends AuditProperty<T> {
 	public static final String IDENTIFIER_PLACEHOLDER = "$$id$$";
-	private static final PropertyNameGetter identifierPropertyGetter = new EntityPropertyName( IDENTIFIER_PLACEHOLDER );
+	private static final PropertyNameGetter IDENTIFIER_PROPERTY_GETTER = new EntityPropertyName( IDENTIFIER_PLACEHOLDER );
 
 	public AuditId() {
-		super( identifierPropertyGetter );
+		super( IDENTIFIER_PROPERTY_GETTER );
 	}
 
 	/**
 	 * Apply an "equal" constraint
 	 */
+	@Override
 	public AuditCriterion eq(Object id) {
 		return new IdentifierEqAuditExpression( id, true );
 	}
@@ -54,6 +56,7 @@ public class AuditId<T> extends AuditProperty<T> {
 	/**
 	 * Apply a "not equal" constraint
 	 */
+	@Override
 	public AuditCriterion ne(Object id) {
 		return new IdentifierEqAuditExpression( id, false );
 	}

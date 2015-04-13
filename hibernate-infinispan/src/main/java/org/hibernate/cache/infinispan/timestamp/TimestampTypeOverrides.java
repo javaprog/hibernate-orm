@@ -21,29 +21,29 @@
  */
 package org.hibernate.cache.infinispan.timestamp;
 
-import org.infinispan.configuration.cache.Configuration;
-import org.infinispan.eviction.EvictionStrategy;
-
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.infinispan.TypeOverrides;
 
+import org.infinispan.configuration.cache.Configuration;
+import org.infinispan.eviction.EvictionStrategy;
+
 /**
  * TimestampTypeOverrides.
- * 
+ *
  * @author Galder Zamarreño
  * @since 3.5
  */
 public class TimestampTypeOverrides extends TypeOverrides {
 
-   @Override
-   public void validateInfinispanConfiguration(Configuration cfg) throws CacheException {
-      if (cfg.clustering().cacheMode().isInvalidation()) {
-         throw new CacheException("Timestamp cache cannot be configured with invalidation");
-      }
-      EvictionStrategy strategy = cfg.eviction().strategy();
-      if (!strategy.equals(EvictionStrategy.NONE)) {
-         throw new CacheException("Timestamp cache cannot be configured with eviction");
-      }
-   }
+	@Override
+	public void validateInfinispanConfiguration(Configuration cfg) throws CacheException {
+		if ( cfg.clustering().cacheMode().isInvalidation() ) {
+			throw new CacheException( "Timestamp cache cannot be configured with invalidation" );
+		}
+		final EvictionStrategy strategy = cfg.eviction().strategy();
+		if ( !strategy.equals( EvictionStrategy.NONE ) ) {
+			throw new CacheException( "Timestamp cache cannot be configured with eviction" );
+		}
+	}
 
 }

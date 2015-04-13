@@ -3,22 +3,22 @@ package org.hibernate.envers.test.integration.modifiedflags;
 import java.util.List;
 import javax.persistence.EntityManager;
 
-import org.junit.Test;
-
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.collection.EmbeddableListEntity1;
 import org.hibernate.envers.test.entities.components.Component3;
 import org.hibernate.envers.test.entities.components.Component4;
-import org.hibernate.testing.TestForIssue;
 
-import static org.junit.Assert.assertEquals;
+import org.hibernate.testing.TestForIssue;
+import org.junit.Test;
+
 import static org.hibernate.envers.test.tools.TestTools.extractRevisionNumbers;
 import static org.hibernate.envers.test.tools.TestTools.makeList;
+import static org.junit.Assert.assertEquals;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
-@TestForIssue( jiraKey = "HHH-6613" )
+@TestForIssue(jiraKey = "HHH-6613")
 public class HasChangedComponentCollection extends AbstractModifiedFlagsEntityTest {
 	private Integer ele1_id = null;
 
@@ -29,7 +29,7 @@ public class HasChangedComponentCollection extends AbstractModifiedFlagsEntityTe
 
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class[] { EmbeddableListEntity1.class };
+		return new Class[] {EmbeddableListEntity1.class};
 	}
 
 	@Test

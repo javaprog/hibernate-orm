@@ -357,7 +357,7 @@ public class Flight implements Serializable {
       recommended). You can also specify an interface to use for lazy
       initializing proxies (defaults to the class itself): use
       <literal>proxyClass</literal> on <classname>@Proxy</classname>.
-      Hibernate will initially return proxies (Javassist or CGLIB) that
+      Hibernate will initially return proxies ( using bytecode provider defined by <literal>hibernate.bytecode.provider</literal>) that
       implement the named interface. The persistent object will load when a
       method of the proxy is invoked. See "Initializing collections and
       proxies" below.</para>
@@ -580,7 +580,7 @@ public class Summary {
 
           <callout arearefs="class17">
             <para><literal>entity-name</literal> (optional - defaults to the
-            class name): Hibernate3 allows a class to be mapped multiple
+            class name): Hibernate allows a class to be mapped multiple
             times, potentially to different tables. It also allows entity
             mappings that are represented by Maps or XML at the Java level. In
             these cases, you should provide an explicit arbitrary name for the
@@ -723,7 +723,7 @@ public class Person {
       that the class has no identifier property.</para>
 
       <para>The <literal>unsaved-value</literal> attribute is almost never
-      needed in Hibernate3 and indeed has no corresponding element in
+      needed in Hibernate and indeed has no corresponding element in
       annotations.</para>
 
       <para>You can also declare the identifier as a composite identifier.
@@ -2316,7 +2316,7 @@ public class Flight implements Serializable {
       </section>
     </section>
 
-    <section xml:id="mapping-declaration-property" revision="4">
+    <section xml:id="mapping-declaration-property" revision="5">
       <title>Property</title>
 
       <para>You need to decide which property needs to be made persistent in a
@@ -2550,7 +2550,7 @@ public class MonetaryAmount implements Serializable {
           the position of the <classname>@Id</classname> or
           <classname>@EmbeddedId</classname> annotations. If these annotations
           are on a field, then only fields are considered for persistence and
-          the state is accessed via the field. If there annotations are on a
+          the state is accessed via the field. If these annotations are on a
           getter, then only the getters are considered for persistence and the
           state is accessed via the getter/setter. That works well in practice
           and is the recommended approach.<note>

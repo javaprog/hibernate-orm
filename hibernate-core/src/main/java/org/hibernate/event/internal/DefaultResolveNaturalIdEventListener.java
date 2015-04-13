@@ -24,15 +24,14 @@
 package org.hibernate.event.internal;
 
 import java.io.Serializable;
-
-import org.jboss.logging.Logger;
+import java.util.concurrent.TimeUnit;
 
 import org.hibernate.HibernateException;
 import org.hibernate.cache.spi.access.NaturalIdRegionAccessStrategy;
-import org.hibernate.engine.spi.CachedNaturalIdValueSource;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.event.spi.ResolveNaturalIdEvent;
 import org.hibernate.event.spi.ResolveNaturalIdEventListener;
+import org.hibernate.internal.CoreLogging;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.pretty.MessageHelper;
@@ -51,10 +50,7 @@ public class DefaultResolveNaturalIdEventListener
 	public static final Object REMOVED_ENTITY_MARKER = new Object();
 	public static final Object INCONSISTENT_RTN_CLASS_MARKER = new Object();
 
-	private static final CoreMessageLogger LOG = Logger.getMessageLogger(
-			CoreMessageLogger.class,
-			DefaultResolveNaturalIdEventListener.class.getName()
-	);
+	private static final CoreMessageLogger LOG = CoreLogging.messageLogger( DefaultResolveNaturalIdEventListener.class );
 
 	@Override
 	public void onResolveNaturalId(ResolveNaturalIdEvent event) throws HibernateException {
@@ -122,7 +118,7 @@ public class DefaultResolveNaturalIdEventListener
 		final boolean stats = factory.getStatistics().isStatisticsEnabled();
 		long startTime = 0;
 		if ( stats ) {
-			startTime = System.currentTimeMillis();
+			startTime = System.nanoTime();
 		}
 		
 		final Serializable pk = event.getEntityPersister().loadEntityIdByNaturalId(
@@ -134,10 +130,11 @@ public class DefaultResolveNaturalIdEventListener
 		if ( stats ) {
 			final NaturalIdRegionAccessStrategy naturalIdCacheAccessStrategy = event.getEntityPersister().getNaturalIdCacheAccessStrategy();
 			final String regionName = naturalIdCacheAccessStrategy == null ? null : naturalIdCacheAccessStrategy.getRegion().getName();
-			
+			final long endTime = System.nanoTime();
+			final long milliseconds = TimeUnit.MILLISECONDS.convert( endTime - startTime, TimeUnit.NANOSECONDS );
 			factory.getStatisticsImplementor().naturalIdQueryExecuted(
 					regionName,
-					System.currentTimeMillis() - startTime );
+					milliseconds );
 		}
 		
 		//PK can be null if the entity doesn't exist

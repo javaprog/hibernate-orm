@@ -92,8 +92,8 @@ options {
 	      out(")");
 	}
 
-	protected void commaBetweenParameters(String comma) {
-		out(comma);
+	protected void betweenFunctionArguments() {
+		out( ", " );
 	}
 
 	protected void captureExpressionStart() {
@@ -246,7 +246,8 @@ selectExpr
 	| aggregate
 	| c:constant { out(c); }
 	| arithmeticExpr
-	| param:PARAM { out(param); }
+	| selectBooleanExpr[false]
+	| parameter
 	| sn:SQL_NODE { out(sn); }
 	| { out("("); } selectStatement { out(")"); }
 	;
@@ -304,6 +305,11 @@ booleanOp[ boolean parens ]
 	: #(AND booleanExpr[true] { out(" and "); } booleanExpr[true])
 	| #(OR { if (parens) out("("); } booleanExpr[false] { out(" or "); } booleanExpr[false] { if (parens) out(")"); })
 	| #(NOT { out(" not ("); } booleanExpr[false] { out(")"); } )
+	;
+
+selectBooleanExpr[ boolean parens ]
+	: booleanOp [ parens ]
+	| comparisonExpr [ parens ]
 	;
 
 booleanExpr[ boolean parens ]
@@ -387,6 +393,7 @@ simpleExpr
 	| count
 	| parameter
 	| arithmeticExpr
+	| selectBooleanExpr[false]
 	;
 	
 constant
@@ -458,10 +465,19 @@ methodCall
 	: #(m:METHOD_CALL i:METHOD_NAME { beginFunctionTemplate(m,i); }
 	 ( #(EXPR_LIST (arguments)? ) )?
 	 { endFunctionTemplate(m); } )
+	| #( c:CAST { beginFunctionTemplate(c,c); } castExpression {betweenFunctionArguments();} castTargetType { endFunctionTemplate(c); } )
 	;
 
 arguments
-	: expr ( { commaBetweenParameters(", "); } expr )*
+	: expr ( { betweenFunctionArguments(); } expr )*
+	;
+
+castExpression
+	: selectExpr
+	;
+
+castTargetType
+	: i:IDENT { out(i); }
 	;
 
 parameter

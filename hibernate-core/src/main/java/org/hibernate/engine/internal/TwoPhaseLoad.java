@@ -25,8 +25,6 @@ package org.hibernate.engine.internal;
 
 import java.io.Serializable;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.AssertionFailure;
 import org.hibernate.CacheMode;
 import org.hibernate.HibernateException;
@@ -55,18 +53,22 @@ import org.hibernate.proxy.HibernateProxy;
 import org.hibernate.type.Type;
 import org.hibernate.type.TypeHelper;
 
+import org.jboss.logging.Logger;
+
 /**
- * Functionality relating to Hibernate's two-phase loading process,
- * that may be reused by persisters that do not use the Loader
- * framework
+ * Functionality relating to the Hibernate two-phase loading process, that may be reused by persisters
+ * that do not use the Loader framework
  *
  * @author Gavin King
  */
 public final class TwoPhaseLoad {
+	private static final CoreMessageLogger LOG = Logger.getMessageLogger(
+			CoreMessageLogger.class,
+			TwoPhaseLoad.class.getName()
+	);
 
-	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, TwoPhaseLoad.class.getName() );
-
-	private TwoPhaseLoad() {}
+	private TwoPhaseLoad() {
+	}
 
 	/**
 	 * Register the "hydrated" state of an entity instance, after the first step of 2-phase loading.
@@ -74,19 +76,26 @@ public final class TwoPhaseLoad {
 	 * Add the "hydrated state" (an array) of an uninitialized entity to the session. We don't try
 	 * to resolve any associations yet, because there might be other entities waiting to be
 	 * read from the JDBC result set we are currently processing
+	 *
+	 * @param persister The persister for the hydrated entity
+	 * @param id The entity identifier
+	 * @param values The entity values
+	 * @param rowId The rowId for the entity
+	 * @param object An optional instance for the entity being loaded
+	 * @param lockMode The lock mode
+	 * @param lazyPropertiesAreUnFetched Whether properties defined as lazy are yet un-fetched
+	 * @param session The Session
 	 */
 	public static void postHydrate(
-		final EntityPersister persister,
-		final Serializable id,
-		final Object[] values,
-		final Object rowId,
-		final Object object,
-		final LockMode lockMode,
-		final boolean lazyPropertiesAreUnfetched,
-		final SessionImplementor session)
-	throws HibernateException {
-
-		Object version = Versioning.getVersion( values, persister );
+			final EntityPersister persister,
+			final Serializable id,
+			final Object[] values,
+			final Object rowId,
+			final Object object,
+			final LockMode lockMode,
+			final boolean lazyPropertiesAreUnFetched,
+			final SessionImplementor session) {
+		final Object version = Versioning.getVersion( values, persister );
 		session.getPersistenceContext().addEntry(
 				object,
 				Status.LOADING,
@@ -98,47 +107,41 @@ public final class TwoPhaseLoad {
 				true,
 				persister,
 				false,
-				lazyPropertiesAreUnfetched
+				lazyPropertiesAreUnFetched
 			);
 
-		if ( LOG.isTraceEnabled() && version != null ) {
-			String versionStr = persister.isVersioned()
+		if ( version != null && LOG.isTraceEnabled() ) {
+			final String versionStr = persister.isVersioned()
 					? persister.getVersionType().toLoggableString( version, session.getFactory() )
 					: "null";
-			LOG.tracev( "Version: {0}", versionStr );
+			LOG.tracef( "Version: %s", versionStr );
 		}
-
 	}
 
 	/**
 	 * Perform the second step of 2-phase load. Fully initialize the entity
 	 * instance.
-	 *
+	 * <p/>
 	 * After processing a JDBC result set, we "resolve" all the associations
 	 * between the entities which were instantiated and had their state
 	 * "hydrated" into an array
+	 *
+	 * @param entity The entity being loaded
+	 * @param readOnly Is the entity being loaded as read-only
+	 * @param session The Session
+	 * @param preLoadEvent The (re-used) pre-load event
 	 */
 	public static void initializeEntity(
 			final Object entity,
 			final boolean readOnly,
 			final SessionImplementor session,
-			final PreLoadEvent preLoadEvent,
-			final PostLoadEvent postLoadEvent) throws HibernateException {
+			final PreLoadEvent preLoadEvent) {
 		final PersistenceContext persistenceContext = session.getPersistenceContext();
-		final EntityEntry entityEntry = persistenceContext.getEntry(entity);
+		final EntityEntry entityEntry = persistenceContext.getEntry( entity );
 		if ( entityEntry == null ) {
 			throw new AssertionFailure( "possible non-threadsafe access to the session" );
 		}
-		final EntityPersister persister = entityEntry.getPersister();
-		final Serializable id = entityEntry.getId();
-
-//		persistenceContext.getNaturalIdHelper().startingLoad( persister, id );
-//		try {
-			doInitializeEntity( entity, entityEntry, readOnly, session, preLoadEvent, postLoadEvent );
-//		}
-//		finally {
-//			persistenceContext.getNaturalIdHelper().endingLoad( persister, id );
-//		}
+		doInitializeEntity( entity, entityEntry, readOnly, session, preLoadEvent );
 	}
 
 	private static void doInitializeEntity(
@@ -146,21 +149,21 @@ public final class TwoPhaseLoad {
 			final EntityEntry entityEntry,
 			final boolean readOnly,
 			final SessionImplementor session,
-			final PreLoadEvent preLoadEvent,
-			final PostLoadEvent postLoadEvent) throws HibernateException {
+			final PreLoadEvent preLoadEvent) throws HibernateException {
 		final PersistenceContext persistenceContext = session.getPersistenceContext();
-		EntityPersister persister = entityEntry.getPersister();
-		Serializable id = entityEntry.getId();
-		Object[] hydratedState = entityEntry.getLoadedState();
+		final EntityPersister persister = entityEntry.getPersister();
+		final Serializable id = entityEntry.getId();
+		final Object[] hydratedState = entityEntry.getLoadedState();
 
-		if ( LOG.isDebugEnabled() ) {
+		final boolean debugEnabled = LOG.isDebugEnabled();
+		if ( debugEnabled ) {
 			LOG.debugf(
 					"Resolving associations for %s",
 					MessageHelper.infoString( persister, id, session.getFactory() )
 			);
 		}
 
-		Type[] types = persister.getPropertyTypes();
+		final Type[] types = persister.getPropertyTypes();
 		for ( int i = 0; i < hydratedState.length; i++ ) {
 			final Object value = hydratedState[i];
 			if ( value!=LazyPropertyInitializer.UNFETCHED_PROPERTY && value!=BackrefPropertyAccessor.UNKNOWN ) {
@@ -187,16 +190,16 @@ public final class TwoPhaseLoad {
 		final SessionFactoryImplementor factory = session.getFactory();
 		if ( persister.hasCache() && session.getCacheMode().isPutEnabled() ) {
 
-			if ( LOG.isDebugEnabled() ) {
+			if ( debugEnabled ) {
 				LOG.debugf(
 						"Adding entity to second-level cache: %s",
 						MessageHelper.infoString( persister, id, session.getFactory() )
 				);
 			}
 
-			Object version = Versioning.getVersion(hydratedState, persister);
-			CacheEntry entry = persister.buildCacheEntry( entity, hydratedState, version, session );
-			CacheKey cacheKey = session.generateCacheKey( id, persister.getIdentifierType(), persister.getRootEntityName() );
+			final Object version = Versioning.getVersion( hydratedState, persister );
+			final CacheEntry entry = persister.buildCacheEntry( entity, hydratedState, version, session );
+			final CacheKey cacheKey = session.generateCacheKey( id, persister.getIdentifierType(), persister.getRootEntityName() );
 
 			// explicit handling of caching for rows just inserted and then somehow forced to be read
 			// from the database *within the same transaction*.  usually this is done by
@@ -213,16 +216,22 @@ public final class TwoPhaseLoad {
 				);
 			}
 			else {
-				boolean put = persister.getCacheAccessStrategy().putFromLoad(
-						cacheKey,
-						persister.getCacheEntryStructure().structure( entry ),
-						session.getTimestamp(),
-						version,
-						useMinimalPuts( session, entityEntry )
-				);
+				try {
+					session.getEventListenerManager().cachePutStart();
+					final boolean put = persister.getCacheAccessStrategy().putFromLoad(
+							cacheKey,
+							persister.getCacheEntryStructure().structure( entry ),
+							session.getTimestamp(),
+							version,
+							useMinimalPuts( session, entityEntry )
+					);
 
-				if ( put && factory.getStatistics().isStatisticsEnabled() ) {
-					factory.getStatisticsImplementor().secondLevelCachePut( persister.getCacheAccessStrategy().getRegion().getName() );
+					if ( put && factory.getStatistics().isStatisticsEnabled() ) {
+						factory.getStatisticsImplementor().secondLevelCachePut( persister.getCacheAccessStrategy().getRegion().getName() );
+					}
+				}
+				finally {
+					session.getEventListenerManager().cachePutEnd();
 				}
 			}
 		}
@@ -240,11 +249,11 @@ public final class TwoPhaseLoad {
 			isReallyReadOnly = true;
 		}
 		else {
-			Object proxy = persistenceContext.getProxy( entityEntry.getEntityKey() );
+			final Object proxy = persistenceContext.getProxy( entityEntry.getEntityKey() );
 			if ( proxy != null ) {
 				// there is already a proxy for this impl
 				// only set the status to read-only if the proxy is read-only
-				isReallyReadOnly = ( ( HibernateProxy ) proxy ).getHibernateLazyInitializer().isReadOnly();
+				isReallyReadOnly = ( (HibernateProxy) proxy ).getHibernateLazyInitializer().isReadOnly();
 			}
 		}
 		if ( isReallyReadOnly ) {
@@ -252,7 +261,7 @@ public final class TwoPhaseLoad {
 			//performance optimization, but not really
 			//important, except for entities with huge
 			//mutable property values
-			persistenceContext.setEntryStatus(entityEntry, Status.READ_ONLY);
+			persistenceContext.setEntryStatus( entityEntry, Status.READ_ONLY );
 		}
 		else {
 			//take a snapshot
@@ -260,10 +269,11 @@ public final class TwoPhaseLoad {
 					hydratedState,
 					persister.getPropertyTypes(),
 					persister.getPropertyUpdateability(),
-					hydratedState,  //after setting values to object, entityMode
+					//after setting values to object
+					hydratedState,
 					session
 			);
-			persistenceContext.setEntryStatus(entityEntry, Status.MANAGED);
+			persistenceContext.setEntryStatus( entityEntry, Status.MANAGED );
 		}
 
 		persister.afterInitialize(
@@ -272,7 +282,7 @@ public final class TwoPhaseLoad {
 				session
 		);
 
-		if ( LOG.isDebugEnabled() ) {
+		if ( debugEnabled ) {
 			LOG.debugf(
 					"Done materializing entity %s",
 					MessageHelper.infoString( persister, id, session.getFactory() )
@@ -289,13 +299,12 @@ public final class TwoPhaseLoad {
 	 * the Set collections are added to the persistence context by Loader.
 	 * Without the split, LazyInitializationExceptions can occur in the Entity's
 	 * postLoad if it acts upon the collection.
-	 * 
-	 * 
+	 *
 	 * HHH-6043
 	 * 
-	 * @param entity
-	 * @param session
-	 * @param postLoadEvent
+	 * @param entity The entity
+	 * @param session The Session
+	 * @param postLoadEvent The (re-used) post-load event
 	 */
 	public static void postLoad(
 			final Object entity,
@@ -305,15 +314,11 @@ public final class TwoPhaseLoad {
 		if ( session.isEventSource() ) {
 			final PersistenceContext persistenceContext
 					= session.getPersistenceContext();
-			final EntityEntry entityEntry = persistenceContext.getEntry(entity);
-			final Serializable id = entityEntry.getId();
-			
-			postLoadEvent.setEntity( entity ).setId( entityEntry.getId() )
-					.setPersister( entityEntry.getPersister() );
+			final EntityEntry entityEntry = persistenceContext.getEntry( entity );
 
-			final EventListenerGroup<PostLoadEventListener> listenerGroup
-					= session
-							.getFactory()
+			postLoadEvent.setEntity( entity ).setId( entityEntry.getId() ).setPersister( entityEntry.getPersister() );
+
+			final EventListenerGroup<PostLoadEventListener> listenerGroup = session.getFactory()
 							.getServiceRegistry()
 							.getService( EventListenerRegistry.class )
 							.getEventListenerGroup( EventType.POST_LOAD );
@@ -324,11 +329,11 @@ public final class TwoPhaseLoad {
 	}
 
 	private static boolean useMinimalPuts(SessionImplementor session, EntityEntry entityEntry) {
-		return ( session.getFactory().getSettings().isMinimalPutsEnabled() &&
-						session.getCacheMode()!=CacheMode.REFRESH ) ||
-				( entityEntry.getPersister().hasLazyProperties() &&
-						entityEntry.isLoadedWithLazyPropertiesUnfetched() &&
-						entityEntry.getPersister().isLazyPropertiesCacheable() );
+		return ( session.getFactory().getSettings().isMinimalPutsEnabled()
+				&& session.getCacheMode()!=CacheMode.REFRESH )
+				|| ( entityEntry.getPersister().hasLazyProperties()
+				&& entityEntry.isLoadedWithLazyPropertiesUnfetched()
+				&& entityEntry.getPersister().isLazyPropertiesCacheable() );
 	}
 
 	/**
@@ -337,15 +342,21 @@ public final class TwoPhaseLoad {
 	 *
 	 * Create a "temporary" entry for a newly instantiated entity. The entity is uninitialized,
 	 * but we need the mapping from id to instance in order to guarantee uniqueness.
+	 *
+	 * @param key The entity key
+	 * @param object The entity instance
+	 * @param persister The entity persister
+	 * @param lockMode The lock mode
+	 * @param lazyPropertiesAreUnFetched Are lazy properties still un-fetched?
+	 * @param session The Session
 	 */
 	public static void addUninitializedEntity(
 			final EntityKey key,
 			final Object object,
 			final EntityPersister persister,
 			final LockMode lockMode,
-			final boolean lazyPropertiesAreUnfetched,
-			final SessionImplementor session
-	) {
+			final boolean lazyPropertiesAreUnFetched,
+			final SessionImplementor session) {
 		session.getPersistenceContext().addEntity(
 				object,
 				Status.LOADING,
@@ -356,19 +367,29 @@ public final class TwoPhaseLoad {
 				true,
 				persister,
 				false,
-				lazyPropertiesAreUnfetched
-			);
+				lazyPropertiesAreUnFetched
+		);
 	}
 
+	/**
+	 * Same as {@link #addUninitializedEntity}, but here for an entity from the second level cache
+	 *
+	 * @param key The entity key
+	 * @param object The entity instance
+	 * @param persister The entity persister
+	 * @param lockMode The lock mode
+	 * @param lazyPropertiesAreUnFetched Are lazy properties still un-fetched?
+	 * @param version The version
+	 * @param session The Session
+	 */
 	public static void addUninitializedCachedEntity(
 			final EntityKey key,
 			final Object object,
 			final EntityPersister persister,
 			final LockMode lockMode,
-			final boolean lazyPropertiesAreUnfetched,
+			final boolean lazyPropertiesAreUnFetched,
 			final Object version,
-			final SessionImplementor session
-	) {
+			final SessionImplementor session) {
 		session.getPersistenceContext().addEntity(
 				object,
 				Status.LOADING,
@@ -379,7 +400,7 @@ public final class TwoPhaseLoad {
 				true,
 				persister,
 				false,
-				lazyPropertiesAreUnfetched
+				lazyPropertiesAreUnFetched
 			);
 	}
 }

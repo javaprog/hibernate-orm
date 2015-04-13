@@ -25,13 +25,12 @@ package org.hibernate.event.internal;
 
 import java.io.Serializable;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
 import org.hibernate.ReplicationMode;
 import org.hibernate.TransientObjectException;
 import org.hibernate.engine.internal.Cascade;
+import org.hibernate.engine.internal.CascadePoint;
 import org.hibernate.engine.spi.CascadingAction;
 import org.hibernate.engine.spi.CascadingActions;
 import org.hibernate.engine.spi.EntityKey;
@@ -40,6 +39,7 @@ import org.hibernate.engine.spi.Status;
 import org.hibernate.event.spi.EventSource;
 import org.hibernate.event.spi.ReplicateEvent;
 import org.hibernate.event.spi.ReplicateEventListener;
+import org.hibernate.internal.CoreLogging;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.pretty.MessageHelper;
@@ -52,9 +52,7 @@ import org.hibernate.type.Type;
  * @author Steve Ebersole
  */
 public class DefaultReplicateEventListener extends AbstractSaveEventListener implements ReplicateEventListener {
-
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                       DefaultReplicateEventListener.class.getName());
+	private static final CoreMessageLogger LOG = CoreLogging.messageLogger( DefaultReplicateEventListener.class );
 
 	/**
 	 * Handle the given replicate event.
@@ -101,9 +99,16 @@ public class DefaultReplicateEventListener extends AbstractSaveEventListener imp
 			oldVersion = persister.getCurrentVersion( id, source );
 		}
 
+		final boolean traceEnabled = LOG.isTraceEnabled();
 		if ( oldVersion != null ) {
-			if ( LOG.isTraceEnabled() ) {
-				LOG.tracev( "Found existing row for {0}", MessageHelper.infoString( persister, id, source.getFactory() ) );
+			if ( traceEnabled ) {
+				LOG.tracev(
+						"Found existing row for {0}", MessageHelper.infoString(
+						persister,
+						id,
+						source.getFactory()
+				)
+				);
 			}
 
 			/// HHH-2378
@@ -118,18 +123,22 @@ public class DefaultReplicateEventListener extends AbstractSaveEventListener imp
 
 			// if can replicate, will result in a SQL UPDATE
 			// else do nothing (don't even reassociate object!)
-			if ( canReplicate )
+			if ( canReplicate ) {
 				performReplication( entity, id, realOldVersion, persister, replicationMode, source );
-			else
+			}
+			else if ( traceEnabled ) {
 				LOG.trace( "No need to replicate" );
+			}
 
 			//TODO: would it be better to do a refresh from db?
 		}
 		else {
 			// no existing row - do an insert
-			if ( LOG.isTraceEnabled() ) {
-				LOG.tracev( "No existing row, replicating new instance {0}",
-						MessageHelper.infoString( persister, id, source.getFactory() ) );
+			if ( traceEnabled ) {
+				LOG.tracev(
+						"No existing row, replicating new instance {0}",
+						MessageHelper.infoString( persister, id, source.getFactory() )
+				);
 			}
 
 			final boolean regenerate = persister.isIdentifierAssignedByInsert(); // prefer re-generation of identity!
@@ -149,7 +158,12 @@ public class DefaultReplicateEventListener extends AbstractSaveEventListener imp
 	}
 
 	@Override
-    protected boolean visitCollectionsBeforeSave(Object entity, Serializable id, Object[] values, Type[] types, EventSource source) {
+	protected boolean visitCollectionsBeforeSave(
+			Object entity,
+			Serializable id,
+			Object[] values,
+			Type[] types,
+			EventSource source) {
 		//TODO: we use two visitors here, inefficient!
 		OnReplicateVisitor visitor = new OnReplicateVisitor( source, id, entity, false );
 		visitor.processEntityPropertyValues( values, types );
@@ -157,7 +171,7 @@ public class DefaultReplicateEventListener extends AbstractSaveEventListener imp
 	}
 
 	@Override
-    protected boolean substituteValuesIfNecessary(
+	protected boolean substituteValuesIfNecessary(
 			Object entity,
 			Serializable id,
 			Object[] values,
@@ -167,7 +181,7 @@ public class DefaultReplicateEventListener extends AbstractSaveEventListener imp
 	}
 
 	@Override
-    protected boolean isVersionIncrementDisabled() {
+	protected boolean isVersionIncrementDisabled() {
 		return true;
 	}
 
@@ -208,8 +222,14 @@ public class DefaultReplicateEventListener extends AbstractSaveEventListener imp
 			EventSource source) {
 		source.getPersistenceContext().incrementCascadeLevel();
 		try {
-			new Cascade( CascadingActions.REPLICATE, Cascade.AFTER_UPDATE, source )
-					.cascade( persister, entity, replicationMode );
+			Cascade.cascade(
+					CascadingActions.REPLICATE,
+					CascadePoint.AFTER_UPDATE,
+					source,
+					persister,
+					entity,
+					replicationMode
+			);
 		}
 		finally {
 			source.getPersistenceContext().decrementCascadeLevel();
@@ -217,7 +237,7 @@ public class DefaultReplicateEventListener extends AbstractSaveEventListener imp
 	}
 
 	@Override
-    protected CascadingAction getCascadeAction() {
+	protected CascadingAction getCascadeAction() {
 		return CascadingActions.REPLICATE;
 	}
 }

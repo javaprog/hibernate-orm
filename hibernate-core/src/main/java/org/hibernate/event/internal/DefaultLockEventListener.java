@@ -25,12 +25,11 @@ package org.hibernate.event.internal;
 
 import java.io.Serializable;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
 import org.hibernate.TransientObjectException;
 import org.hibernate.engine.internal.Cascade;
+import org.hibernate.engine.internal.CascadePoint;
 import org.hibernate.engine.internal.ForeignKeys;
 import org.hibernate.engine.spi.CascadingActions;
 import org.hibernate.engine.spi.EntityEntry;
@@ -40,6 +39,8 @@ import org.hibernate.event.spi.LockEvent;
 import org.hibernate.event.spi.LockEventListener;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.entity.EntityPersister;
+
+import org.jboss.logging.Logger;
 
 /**
  * Defines the default lock event listeners used by hibernate to lock entities
@@ -102,8 +103,14 @@ public class DefaultLockEventListener extends AbstractLockUpgradeEventListener i
 		EventSource source = event.getSession();
 		source.getPersistenceContext().incrementCascadeLevel();
 		try {
-			new Cascade( CascadingActions.LOCK, Cascade.AFTER_LOCK, source)
-					.cascade( persister, entity, event.getLockOptions() );
+			Cascade.cascade(
+					CascadingActions.LOCK,
+					CascadePoint.AFTER_LOCK,
+					source,
+					persister,
+					entity,
+					event.getLockOptions()
+			);
 		}
 		finally {
 			source.getPersistenceContext().decrementCascadeLevel();

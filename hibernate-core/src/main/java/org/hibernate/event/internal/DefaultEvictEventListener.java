@@ -25,10 +25,9 @@ package org.hibernate.event.internal;
 
 import java.io.Serializable;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.engine.internal.Cascade;
+import org.hibernate.engine.internal.CascadePoint;
 import org.hibernate.engine.spi.CascadingActions;
 import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.EntityKey;
@@ -36,6 +35,7 @@ import org.hibernate.engine.spi.PersistenceContext;
 import org.hibernate.event.spi.EventSource;
 import org.hibernate.event.spi.EvictEvent;
 import org.hibernate.event.spi.EvictEventListener;
+import org.hibernate.internal.CoreLogging;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.pretty.MessageHelper;
@@ -51,14 +51,13 @@ import org.hibernate.proxy.LazyInitializer;
  * @author Steve Ebersole
  */
 public class DefaultEvictEventListener implements EvictEventListener {
-
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                       DefaultEvictEventListener.class.getName());
+	private static final CoreMessageLogger LOG = CoreLogging.messageLogger( DefaultEvictEventListener.class );
 
 	/**
 	 * Handle the given evict event.
 	 *
 	 * @param event The evict event to be handled.
+	 *
 	 * @throws HibernateException
 	 */
 	public void onEvict(EvictEvent event) throws HibernateException {
@@ -117,18 +116,22 @@ public class DefaultEvictEventListener implements EvictEventListener {
 	}
 
 	protected void doEvict(
-		final Object object,
-		final EntityKey key,
-		final EntityPersister persister,
-		final EventSource session)
-	throws HibernateException {
+			final Object object,
+			final EntityKey key,
+			final EntityPersister persister,
+			final EventSource session)
+			throws HibernateException {
 
 		if ( LOG.isTraceEnabled() ) {
 			LOG.tracev( "Evicting {0}", MessageHelper.infoString( persister ) );
 		}
 
 		if ( persister.hasNaturalIdentifier() ) {
-			session.getPersistenceContext().getNaturalIdHelper().handleEviction( object, persister, key.getIdentifier() );
+			session.getPersistenceContext().getNaturalIdHelper().handleEviction(
+					object,
+					persister,
+					key.getIdentifier()
+			);
 		}
 
 		// remove all collections for the entity from the session-level cache
@@ -142,7 +145,6 @@ public class DefaultEvictEventListener implements EvictEventListener {
 		// This is now handled by removeEntity()
 		//session.getPersistenceContext().removeDatabaseSnapshot(key);
 
-		new Cascade( CascadingActions.EVICT, Cascade.AFTER_EVICT, session )
-				.cascade( persister, object );
+		Cascade.cascade( CascadingActions.EVICT, CascadePoint.AFTER_EVICT, session, persister, object );
 	}
 }

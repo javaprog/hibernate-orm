@@ -27,6 +27,10 @@ import java.sql.Types;
 import org.hibernate.cfg.Environment;
 import org.hibernate.dialect.function.NoArgSQLFunction;
 import org.hibernate.dialect.function.VarArgsSQLFunction;
+import org.hibernate.dialect.pagination.AbstractLimitHandler;
+import org.hibernate.dialect.pagination.LimitHandler;
+import org.hibernate.dialect.pagination.LimitHelper;
+import org.hibernate.engine.spi.RowSelection;
 import org.hibernate.type.StandardBasicTypes;
 
 /**
@@ -34,8 +38,25 @@ import org.hibernate.type.StandardBasicTypes;
  *
  * @author Gavin King
  */
+@SuppressWarnings("deprecation")
 public class InterbaseDialect extends Dialect {
 
+	private static final AbstractLimitHandler LIMIT_HANDLER = new AbstractLimitHandler() {
+		@Override
+		public String processSql(String sql, RowSelection selection) {
+			final boolean hasOffset = LimitHelper.hasFirstRow( selection );
+			return hasOffset ? sql + " rows ? to ?" : sql + " rows ?";
+		}
+
+		@Override
+		public boolean supportsLimit() {
+			return true;
+		}
+	};
+
+	/**
+	 * Constructs a InterbaseDialect
+	 */
 	public InterbaseDialect() {
 		super();
 		registerColumnType( Types.BIT, "smallint" );
@@ -54,65 +75,86 @@ public class InterbaseDialect extends Dialect {
 		registerColumnType( Types.NUMERIC, "numeric($p,$s)" );
 		registerColumnType( Types.BLOB, "blob" );
 		registerColumnType( Types.CLOB, "blob sub_type 1" );
+		registerColumnType( Types.BOOLEAN, "smallint" );
 		
 		registerFunction( "concat", new VarArgsSQLFunction( StandardBasicTypes.STRING, "(","||",")" ) );
-		registerFunction("current_date", new NoArgSQLFunction("current_date", StandardBasicTypes.DATE, false) );
+		registerFunction( "current_date", new NoArgSQLFunction( "current_date", StandardBasicTypes.DATE, false ) );
 
-		getDefaultProperties().setProperty(Environment.STATEMENT_BATCH_SIZE, NO_BATCH);
+		getDefaultProperties().setProperty( Environment.STATEMENT_BATCH_SIZE, NO_BATCH );
 	}
 
+	@Override
 	public String getAddColumnString() {
 		return "add";
 	}
 
+	@Override
 	public String getSequenceNextValString(String sequenceName) {
 		return "select " + getSelectSequenceNextValString( sequenceName ) + " from RDB$DATABASE";
 	}
 
+	@Override
 	public String getSelectSequenceNextValString(String sequenceName) {
 		return "gen_id( " + sequenceName + ", 1 )";
 	}
 
+	@Override
 	public String getCreateSequenceString(String sequenceName) {
 		return "create generator " + sequenceName;
 	}
 
+	@Override
 	public String getDropSequenceString(String sequenceName) {
 		return "delete from RDB$GENERATORS where RDB$GENERATOR_NAME = '" + sequenceName.toUpperCase() + "'";
 	}
 
+	@Override
 	public String getQuerySequencesString() {
 		return "select RDB$GENERATOR_NAME from RDB$GENERATORS";
 	}
-	
+
+	@Override
 	public String getForUpdateString() {
 		return " with lock";
 	}
+
+	@Override
 	public String getForUpdateString(String aliases) {
 		return " for update of " + aliases + " with lock";
 	}
 
+	@Override
 	public boolean supportsSequences() {
 		return true;
 	}
 
+	@Override
+	public LimitHandler getLimitHandler() {
+		return LIMIT_HANDLER;
+	}
+
+	@Override
 	public boolean supportsLimit() {
 		return true;
 	}
 
+	@Override
 	public String getLimitString(String sql, boolean hasOffset) {
 		return hasOffset ? sql + " rows ? to ?" : sql + " rows ?";
 	}
 
+	@Override
 	public boolean bindLimitParametersFirst() {
 		return false;
 	}
 
+	@Override
 	public boolean bindLimitParametersInReverseOrder() {
 		return false;
 	}
 
-	public String getCurrentTimestampCallString() {
+	@Override
+	public String getCurrentTimestampSelectString() {
 		// TODO : not sure which (either?) is correct, could not find docs on how to do this.
 		// did find various blogs and forums mentioning that select CURRENT_TIMESTAMP
 		// does not work...
@@ -120,6 +162,7 @@ public class InterbaseDialect extends Dialect {
 //		return "select CURRENT_TIMESTAMP from RDB$DATABASE";
 	}
 
+	@Override
 	public boolean isCurrentTimestampSelectStringCallable() {
 		return true;
 	}

@@ -23,14 +23,14 @@
  */
 package org.hibernate.jpa.boot.internal;
 
-import javax.persistence.SharedCacheMode;
-import javax.persistence.ValidationMode;
-import javax.persistence.spi.PersistenceUnitTransactionType;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import javax.persistence.SharedCacheMode;
+import javax.persistence.ValidationMode;
+import javax.persistence.spi.PersistenceUnitTransactionType;
 
 /**
  * Describes the information gleaned from a {@code <persistence-unit/>} element in a {@code persistence.xml} file
@@ -49,8 +49,8 @@ public class ParsedPersistenceXmlDescriptor implements org.hibernate.jpa.boot.sp
 	private Object jtaDataSource;
 	private String providerClassName;
 	private PersistenceUnitTransactionType transactionType;
-	private boolean useQuotedIdentifiers = false;
-	private boolean excludeUnlistedClasses = false;
+	private boolean useQuotedIdentifiers;
+	private boolean excludeUnlistedClasses;
 	private ValidationMode validationMode;
 	private SharedCacheMode sharedCacheMode;
 
@@ -192,6 +192,11 @@ public class ParsedPersistenceXmlDescriptor implements org.hibernate.jpa.boot.sp
 
 	@Override
 	public ClassLoader getClassLoader() {
+		return null;
+	}
+
+	@Override
+	public ClassLoader getTempClassLoader() {
 		return null;
 	}
 

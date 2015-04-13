@@ -23,11 +23,8 @@
  *
  */
 package org.hibernate.hql.internal.ast;
-import java.lang.reflect.Constructor;
 
-import antlr.ASTFactory;
-import antlr.Token;
-import antlr.collections.AST;
+import java.lang.reflect.Constructor;
 
 import org.hibernate.hql.internal.antlr.HqlSqlTokenTypes;
 import org.hibernate.hql.internal.ast.tree.AggregateNode;
@@ -35,8 +32,9 @@ import org.hibernate.hql.internal.ast.tree.BetweenOperatorNode;
 import org.hibernate.hql.internal.ast.tree.BinaryArithmeticOperatorNode;
 import org.hibernate.hql.internal.ast.tree.BinaryLogicOperatorNode;
 import org.hibernate.hql.internal.ast.tree.BooleanLiteralNode;
-import org.hibernate.hql.internal.ast.tree.Case2Node;
-import org.hibernate.hql.internal.ast.tree.CaseNode;
+import org.hibernate.hql.internal.ast.tree.CastFunctionNode;
+import org.hibernate.hql.internal.ast.tree.SearchedCaseNode;
+import org.hibernate.hql.internal.ast.tree.SimpleCaseNode;
 import org.hibernate.hql.internal.ast.tree.CollectionFunction;
 import org.hibernate.hql.internal.ast.tree.ConstructorNode;
 import org.hibernate.hql.internal.ast.tree.CountNode;
@@ -72,6 +70,10 @@ import org.hibernate.hql.internal.ast.tree.UnaryArithmeticNode;
 import org.hibernate.hql.internal.ast.tree.UnaryLogicOperatorNode;
 import org.hibernate.hql.internal.ast.tree.UpdateStatement;
 
+import antlr.ASTFactory;
+import antlr.Token;
+import antlr.collections.AST;
+
 /**
  * Custom AST factory the intermediate tree that causes ANTLR to create specialized
  * AST nodes, given the AST node type (from HqlSqlTokenTypes).   HqlSqlWalker registers
@@ -96,6 +98,7 @@ public class SqlASTFactory extends ASTFactory implements HqlSqlTokenTypes {
 	 * Returns the class for a given token type (a.k.a. AST node type).
 	 *
 	 * @param tokenType The token type.
+	 *
 	 * @return Class - The AST node class to instantiate.
 	 */
 	public Class getASTNodeType(int tokenType) {
@@ -121,7 +124,7 @@ public class SqlASTFactory extends ASTFactory implements HqlSqlTokenTypes {
 				return DotNode.class;
 			case INDEX_OP:
 				return IndexNode.class;
-				// Alias references and identifiers use the same node class.
+			// Alias references and identifiers use the same node class.
 			case ALIAS_REF:
 			case IDENT:
 				return IdentNode.class;
@@ -131,6 +134,8 @@ public class SqlASTFactory extends ASTFactory implements HqlSqlTokenTypes {
 				return SqlFragment.class;
 			case METHOD_CALL:
 				return MethodNode.class;
+			case CAST:
+				return CastFunctionNode.class;
 			case ELEMENTS:
 			case INDICES:
 				return CollectionFunction.class;
@@ -169,9 +174,9 @@ public class SqlASTFactory extends ASTFactory implements HqlSqlTokenTypes {
 			case UNARY_PLUS:
 				return UnaryArithmeticNode.class;
 			case CASE2:
-				return Case2Node.class;
+				return SimpleCaseNode.class;
 			case CASE:
-				return CaseNode.class;
+				return SearchedCaseNode.class;
 			case PARAM:
 			case NAMED_PARAM:
 				return ParameterNode.class;
@@ -207,18 +212,19 @@ public class SqlASTFactory extends ASTFactory implements HqlSqlTokenTypes {
 			}
 			default:
 				return SqlNode.class;
-		} // switch
+		}
 	}
 
+	@SuppressWarnings("unchecked")
 	protected AST createUsingCtor(Token token, String className) {
 		Class c;
 		AST t;
 		try {
 			c = Class.forName( className );
-			Class[] tokenArgType = new Class[]{antlr.Token.class};
+			Class[] tokenArgType = new Class[] {antlr.Token.class};
 			Constructor ctor = c.getConstructor( tokenArgType );
 			if ( ctor != null ) {
-				t = ( AST ) ctor.newInstance( new Object[]{token} ); // make a new one
+				t = (AST) ctor.newInstance( token );
 				initializeSqlNode( t );
 			}
 			else {
@@ -227,7 +233,7 @@ public class SqlASTFactory extends ASTFactory implements HqlSqlTokenTypes {
 				t = create( c );
 			}
 		}
-		catch ( Exception e ) {
+		catch (Exception e) {
 			throw new IllegalArgumentException( "Invalid class or can't make instance, " + className );
 		}
 		return t;
@@ -236,11 +242,11 @@ public class SqlASTFactory extends ASTFactory implements HqlSqlTokenTypes {
 	private void initializeSqlNode(AST t) {
 		// Initialize SQL nodes here.
 		if ( t instanceof InitializeableNode ) {
-			InitializeableNode initializeableNode = ( InitializeableNode ) t;
+			InitializeableNode initializeableNode = (InitializeableNode) t;
 			initializeableNode.initialize( walker );
 		}
 		if ( t instanceof SessionFactoryAwareNode ) {
-			( ( SessionFactoryAwareNode ) t ).setSessionFactory( walker.getSessionFactoryHelper().getFactory() );
+			( (SessionFactoryAwareNode) t ).setSessionFactory( walker.getSessionFactoryHelper().getFactory() );
 		}
 	}
 
@@ -248,15 +254,16 @@ public class SqlASTFactory extends ASTFactory implements HqlSqlTokenTypes {
 	 * Actually instantiate the AST node.
 	 *
 	 * @param c The class to instantiate.
+	 *
 	 * @return The instantiated and initialized node.
 	 */
 	protected AST create(Class c) {
 		AST t;
 		try {
-			t = ( AST ) c.newInstance(); // make a new one
+			t = (AST) c.newInstance();
 			initializeSqlNode( t );
 		}
-		catch ( Exception e ) {
+		catch (Exception e) {
 			error( "Can't create AST Node " + c.getName() );
 			return null;
 		}

@@ -27,11 +27,12 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.hibernate.internal.CoreMessageLogger;
+
 import org.jboss.logging.Logger;
+
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.SAXParseException;
-
-import org.hibernate.internal.CoreMessageLogger;
 
 /**
  * Implements an {@link ErrorHandler} that mainly just logs errors/warnings.  However, it does track
@@ -58,9 +59,7 @@ public class ErrorLogger implements ErrorHandler, Serializable {
 		this.file = file;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void error(SAXParseException error) {
 		if ( this.errors == null ) {
 			errors = new ArrayList<SAXParseException>();
@@ -68,23 +67,16 @@ public class ErrorLogger implements ErrorHandler, Serializable {
 		errors.add( error );
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void fatalError(SAXParseException error) {
 		error( error );
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void warning(SAXParseException warn) {
 		LOG.parsingXmlWarning( warn.getLineNumber(), warn.getMessage() );
 	}
 
-	/**
-	 * @return returns a list of encountered xml parsing errors, or the empty list if there was no error
-	 */
 	public List<SAXParseException> getErrors() {
 		return errors;
 	}

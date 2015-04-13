@@ -28,8 +28,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.EntityMode;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
@@ -46,22 +44,22 @@ import org.hibernate.event.spi.PersistEvent;
 import org.hibernate.event.spi.PersistEventListener;
 import org.hibernate.id.Assigned;
 import org.hibernate.internal.CoreMessageLogger;
+import org.hibernate.loader.PropertyPath;
 import org.hibernate.mapping.Component;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.mapping.Property;
-import org.hibernate.metamodel.binding.AttributeBinding;
-import org.hibernate.metamodel.binding.EntityBinding;
 import org.hibernate.property.Getter;
 import org.hibernate.property.Setter;
 import org.hibernate.proxy.HibernateProxy;
 import org.hibernate.proxy.ProxyFactory;
 import org.hibernate.tuple.Instantiator;
-import org.hibernate.tuple.StandardProperty;
-import org.hibernate.tuple.VersionProperty;
+import org.hibernate.tuple.NonIdentifierAttribute;
 import org.hibernate.type.ComponentType;
 import org.hibernate.type.CompositeType;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
+
+import org.jboss.logging.Logger;
 
 
 /**
@@ -133,42 +131,6 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 	protected abstract ProxyFactory buildProxyFactory(PersistentClass mappingInfo, Getter idGetter, Setter idSetter);
 
 	/**
-	 * Build an appropriate Getter for the given property.
-	 *
-	 *
-	 * @param mappedProperty The property to be accessed via the built Getter.
-	 * @return An appropriate Getter instance.
-	 */
-	protected abstract Getter buildPropertyGetter(AttributeBinding mappedProperty);
-
-	/**
-	 * Build an appropriate Setter for the given property.
-	 *
-	 *
-	 * @param mappedProperty The property to be accessed via the built Setter.
-	 * @return An appropriate Setter instance.
-	 */
-	protected abstract Setter buildPropertySetter(AttributeBinding mappedProperty);
-
-	/**
-	 * Build an appropriate Instantiator for the given mapped entity.
-	 *
-	 * @param mappingInfo The mapping information regarding the mapped entity.
-	 * @return An appropriate Instantiator instance.
-	 */
-	protected abstract Instantiator buildInstantiator(EntityBinding mappingInfo);
-
-	/**
-	 * Build an appropriate ProxyFactory for the given mapped entity.
-	 *
-	 * @param mappingInfo The mapping information regarding the mapped entity.
-	 * @param idGetter The constructed Getter relating to the entity's id property.
-	 * @param idSetter The constructed Setter relating to the entity's id property.
-	 * @return An appropriate ProxyFactory instance.
-	 */
-	protected abstract ProxyFactory buildProxyFactory(EntityBinding mappingInfo, Getter idGetter, Setter idSetter);
-
-	/**
 	 * Constructs a new AbstractEntityTuplizer instance.
 	 *
 	 * @param entityMetamodel The "interpreted" information relating to the mapped entity.
@@ -232,75 +194,6 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		}
 	}
 
-	/**
-	 * Constructs a new AbstractEntityTuplizer instance.
-	 *
-	 * @param entityMetamodel The "interpreted" information relating to the mapped entity.
-	 * @param mappingInfo The parsed "raw" mapping data relating to the given entity.
-	 */
-	public AbstractEntityTuplizer(EntityMetamodel entityMetamodel, EntityBinding mappingInfo) {
-		this.entityMetamodel = entityMetamodel;
-
-		if ( !entityMetamodel.getIdentifierProperty().isVirtual() ) {
-			idGetter = buildPropertyGetter( mappingInfo.getHierarchyDetails().getEntityIdentifier().getValueBinding() );
-			idSetter = buildPropertySetter( mappingInfo.getHierarchyDetails().getEntityIdentifier().getValueBinding() );
-		}
-		else {
-			idGetter = null;
-			idSetter = null;
-		}
-
-		propertySpan = entityMetamodel.getPropertySpan();
-
-		getters = new Getter[ propertySpan ];
-		setters = new Setter[ propertySpan ];
-
-		boolean foundCustomAccessor = false;
-		int i = 0;
-		for ( AttributeBinding property : mappingInfo.getAttributeBindingClosure() ) {
-			if ( property == mappingInfo.getHierarchyDetails().getEntityIdentifier().getValueBinding() ) {
-				continue; // ID binding processed above
-			}
-
-			//TODO: redesign how PropertyAccessors are acquired...
-			getters[ i ] = buildPropertyGetter( property );
-			setters[ i ] = buildPropertySetter( property );
-			if ( ! property.isBasicPropertyAccessor() ) {
-				foundCustomAccessor = true;
-			}
-			i++;
-		}
-		hasCustomAccessors = foundCustomAccessor;
-
-		instantiator = buildInstantiator( mappingInfo );
-
-		if ( entityMetamodel.isLazy() ) {
-			proxyFactory = buildProxyFactory( mappingInfo, idGetter, idSetter );
-			if ( proxyFactory == null ) {
-				entityMetamodel.setLazy( false );
-			}
-		}
-		else {
-			proxyFactory = null;
-		}
-
-
-		// TODO: Fix this when components are working (HHH-6173)
-		//Component mapper = mappingInfo.getEntityIdentifier().getIdentifierMapper();
-		Component mapper = null;
-		if ( mapper == null ) {
-			identifierMapperType = null;
-			mappedIdentifierValueMarshaller = null;
-		}
-		else {
-			identifierMapperType = ( CompositeType ) mapper.getType();
-			mappedIdentifierValueMarshaller = buildMappedIdentifierValueMarshaller(
-					( ComponentType ) entityMetamodel.getIdentifierProperty().getType(),
-					( ComponentType ) identifierMapperType
-			);
-		}
-	}
-
 	/** Retreives the defined entity-name for the tuplized entity.
 	 *
 	 * @return The entity-name.
@@ -319,10 +212,12 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		return entityMetamodel.getSubclassEntityNames();
 	}
 
+	@Override
 	public Serializable getIdentifier(Object entity) throws HibernateException {
 		return getIdentifier( entity, null );
 	}
 
+	@Override
 	public Serializable getIdentifier(Object entity, SessionImplementor session) {
 		final Object id;
 		if ( entityMetamodel.getIdentifierProperty().isEmbedded() ) {
@@ -360,19 +255,14 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		}
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void setIdentifier(Object entity, Serializable id) throws HibernateException {
 		// 99% of the time the session is not needed.  Its only needed for certain brain-dead
 		// interpretations of JPA 2 "derived identity" support
 		setIdentifier( entity, id, null );
 	}
 
-
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void setIdentifier(Object entity, Serializable id, SessionImplementor session) {
 		if ( entityMetamodel.getIdentifierProperty().isEmbedded() ) {
 			if ( entity != id ) {
@@ -433,6 +323,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 			this.mappedIdentifierType = mappedIdentifierType;
 		}
 
+		@Override
 		public Object getIdentifier(Object entity, EntityMode entityMode, SessionImplementor session) {
 			Object id = mappedIdentifierType.instantiate( entityMode );
 			final Object[] propertyValues = virtualIdComponent.getPropertyValues( entity, entityMode );
@@ -440,6 +331,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 			return id;
 		}
 
+		@Override
 		public void setIdentifier(Object entity, Serializable id, EntityMode entityMode, SessionImplementor session) {
 			virtualIdComponent.setPropertyValues(
 					entity,
@@ -458,6 +350,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 			this.mappedIdentifierType = mappedIdentifierType;
 		}
 
+		@Override
 		public Object getIdentifier(Object entity, EntityMode entityMode, SessionImplementor session) {
 			final Object id = mappedIdentifierType.instantiate( entityMode );
 			final Object[] propertyValues = virtualIdComponent.getPropertyValues( entity, entityMode );
@@ -509,6 +402,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 			return id;
 		}
 
+		@Override
 		public void setIdentifier(Object entity, Serializable id, EntityMode entityMode, SessionImplementor session) {
 			final Object[] extractedValues = mappedIdentifierType.getPropertyValues( id, entityMode );
 			final Object[] injectionValues = new Object[ extractedValues.length ];
@@ -552,18 +446,14 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 				.listeners();
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void resetIdentifier(Object entity, Serializable currentId, Object currentVersion) {
 		// 99% of the time the session is not needed.  Its only needed for certain brain-dead
 		// interpretations of JPA 2 "derived identity" support
 		resetIdentifier( entity, currentId, currentVersion, null );
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public void resetIdentifier(
 			Object entity,
 			Serializable currentId,
@@ -589,6 +479,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		}
 	}
 
+	@Override
 	public Object getVersion(Object entity) throws HibernateException {
 		if ( !entityMetamodel.isVersioned() ) return null;
 		return getters[ entityMetamodel.getVersionPropertyIndex() ].get( entity );
@@ -598,13 +489,14 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		return !hasUninitializedLazyProperties( entity );
 	}
 
+	@Override
 	public Object[] getPropertyValues(Object entity) throws HibernateException {
 		boolean getAll = shouldGetAllProperties( entity );
 		final int span = entityMetamodel.getPropertySpan();
 		final Object[] result = new Object[span];
 
 		for ( int j = 0; j < span; j++ ) {
-			StandardProperty property = entityMetamodel.getProperties()[j];
+			NonIdentifierAttribute property = entityMetamodel.getProperties()[j];
 			if ( getAll || !property.isLazy() ) {
 				result[j] = getters[j].get( entity );
 			}
@@ -615,8 +507,9 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		return result;
 	}
 
+	@Override
 	public Object[] getPropertyValuesToInsert(Object entity, Map mergeMap, SessionImplementor session)
-	throws HibernateException {
+			throws HibernateException {
 		final int span = entityMetamodel.getPropertySpan();
 		final Object[] result = new Object[span];
 
@@ -626,10 +519,12 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		return result;
 	}
 
+	@Override
 	public Object getPropertyValue(Object entity, int i) throws HibernateException {
 		return getters[i].get( entity );
 	}
 
+	@Override
 	public Object getPropertyValue(Object entity, String propertyPath) throws HibernateException {
 		int loc = propertyPath.indexOf('.');
 		String basePropertyName = loc > 0
@@ -638,7 +533,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		//final int index = entityMetamodel.getPropertyIndexOrNull( basePropertyName );
 		Integer index = entityMetamodel.getPropertyIndexOrNull( basePropertyName );
 		if (index == null) {
-			propertyPath = "_identifierMapper." + propertyPath;
+			propertyPath = PropertyPath.IDENTIFIER_MAPPER_PROPERTY + "." + propertyPath;
 			loc = propertyPath.indexOf('.');
 			basePropertyName = loc > 0
 				? propertyPath.substring( 0, loc )
@@ -675,7 +570,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 				? propertyPath.substring( 0, loc )
 				: propertyPath;
 		final int index = findSubPropertyIndex( type, basePropertyName );
-		final Object baseValue = type.getPropertyValue( component, index, getEntityMode() );
+		final Object baseValue = type.getPropertyValue( component, index );
 		if ( loc > 0 ) {
 			if ( baseValue == null ) {
 				return null;
@@ -702,6 +597,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		throw new MappingException( "component property not found: " + subPropertyName );
 	}
 
+	@Override
 	public void setPropertyValues(Object entity, Object[] values) throws HibernateException {
 		boolean setAll = !entityMetamodel.hasLazyProperties();
 
@@ -712,20 +608,24 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		}
 	}
 
+	@Override
 	public void setPropertyValue(Object entity, int i, Object value) throws HibernateException {
 		setters[i].set( entity, value, getFactory() );
 	}
 
+	@Override
 	public void setPropertyValue(Object entity, String propertyName, Object value) throws HibernateException {
 		setters[ entityMetamodel.getPropertyIndex( propertyName ) ].set( entity, value, getFactory() );
 	}
 
+	@Override
 	public final Object instantiate(Serializable id) throws HibernateException {
 		// 99% of the time the session is not needed.  Its only needed for certain brain-dead
 		// interpretations of JPA 2 "derived identity" support
 		return instantiate( id, null );
 	}
 
+	@Override
 	public final Object instantiate(Serializable id, SessionImplementor session) {
 		Object result = getInstantiator().instantiate( id );
 		if ( id != null ) {
@@ -734,30 +634,37 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		return result;
 	}
 
+	@Override
 	public final Object instantiate() throws HibernateException {
 		return instantiate( null, null );
 	}
 
+	@Override
 	public void afterInitialize(Object entity, boolean lazyPropertiesAreUnfetched, SessionImplementor session) {}
 
+	@Override
 	public boolean hasUninitializedLazyProperties(Object entity) {
 		// the default is to simply not lazy fetch properties for now...
 		return false;
 	}
 
+	@Override
 	public final boolean isInstance(Object object) {
         return getInstantiator().isInstance( object );
 	}
 
+	@Override
 	public boolean hasProxy() {
 		return entityMetamodel.isLazy();
 	}
 
+	@Override
 	public final Object createProxy(Serializable id, SessionImplementor session)
 	throws HibernateException {
 		return getProxyFactory().getProxy( id, session );
 	}
 
+	@Override
 	public boolean isLifecycleImplementor() {
 		return false;
 	}
@@ -783,10 +690,12 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		return getClass().getName() + '(' + getEntityMetamodel().getName() + ')';
 	}
 
+	@Override
 	public Getter getIdentifierGetter() {
 		return idGetter;
 	}
 
+	@Override
 	public Getter getVersionGetter() {
 		if ( getEntityMetamodel().isVersioned() ) {
 			return getGetter( getEntityMetamodel().getVersionPropertyIndex() );
@@ -794,6 +703,7 @@ public abstract class AbstractEntityTuplizer implements EntityTuplizer {
 		return null;
 	}
 
+	@Override
 	public Getter getGetter(int i) {
 		return getters[i];
 	}

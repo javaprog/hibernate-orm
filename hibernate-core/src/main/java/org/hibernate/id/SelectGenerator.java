@@ -23,6 +23,7 @@
  *
  */
 package org.hibernate.id;
+
 import java.io.Serializable;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -32,8 +33,8 @@ import java.util.Properties;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.dialect.Dialect;
+import org.hibernate.engine.jdbc.env.spi.JdbcEnvironment;
 import org.hibernate.engine.spi.SessionImplementor;
-import org.hibernate.engine.spi.ValueInclusion;
 import org.hibernate.id.insert.AbstractSelectingDelegate;
 import org.hibernate.id.insert.IdentifierGeneratingInsert;
 import org.hibernate.id.insert.InsertGeneratedIdentifierDelegate;
@@ -49,10 +50,10 @@ import org.hibernate.type.Type;
  * @author Gavin King
  */
 public class SelectGenerator extends AbstractPostInsertGenerator implements Configurable {
-	
 	private String uniqueKeyPropertyName;
 
-	public void configure(Type type, Properties params, Dialect d) throws MappingException {
+	@Override
+	public void configure(Type type, Properties params, JdbcEnvironment jdbcEnvironment) throws MappingException {
 		uniqueKeyPropertyName = params.getProperty( "key" );
 	}
 
@@ -80,8 +81,7 @@ public class SelectGenerator extends AbstractPostInsertGenerator implements Conf
 					"natural-id properties; need to specify [key] in generator parameters"
 			);
 		}
-		ValueInclusion inclusion = persister.getPropertyInsertGenerationInclusions() [ naturalIdPropertyIndices[0] ];
-		if ( inclusion != ValueInclusion.NONE ) {
+		if ( persister.getEntityMetamodel().isNaturalIdentifierInsertGenerated() ) {
 			throw new IdentifierGenerationException(
 					"natural-id also defined as insert-generated; need to specify [key] " +
 					"in generator parameters"

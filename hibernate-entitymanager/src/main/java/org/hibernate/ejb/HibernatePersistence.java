@@ -23,10 +23,16 @@
  */
 package org.hibernate.ejb;
 
+import java.util.Map;
+import javax.persistence.EntityManagerFactory;
 import javax.persistence.spi.PersistenceProvider;
+import javax.persistence.spi.PersistenceUnitInfo;
+import javax.persistence.spi.ProviderUtil;
 
 import org.hibernate.jpa.HibernatePersistenceProvider;
-import org.hibernate.jpa.internal.util.PersistenceUtilHelper;
+import org.hibernate.jpa.boot.spi.EntityManagerFactoryBuilder;
+import org.hibernate.jpa.internal.EntityManagerMessageLogger;
+import org.hibernate.jpa.internal.HEMLogging;
 
 /**
  * Hibernate EJB3 persistence provider implementation
@@ -37,59 +43,61 @@ import org.hibernate.jpa.internal.util.PersistenceUtilHelper;
  */
 @Deprecated
 public class HibernatePersistence extends HibernatePersistenceProvider implements PersistenceProvider, AvailableSettings {
-	private final PersistenceUtilHelper.MetadataCache cache = new PersistenceUtilHelper.MetadataCache();
+	private static final EntityManagerMessageLogger log = HEMLogging.messageLogger( HibernatePersistence.class );
 
-//	/**
-//	 * Get an entity manager factory by its entity manager name, using the specified
-//	 * properties (they override any found in the peristence.xml file).
-//	 * <p/>
-//	 * This is the form used in JSE environments.
-//	 *
-//	 * @param persistenceUnitName entity manager name
-//	 * @param properties The explicit property values
-//	 *
-//	 * @return initialized EntityManagerFactory
-//	 */
-//	public EntityManagerFactory createEntityManagerFactory(String persistenceUnitName, Map properties) {
-//		Ejb3Configuration cfg = new Ejb3Configuration();
-//		Ejb3Configuration configured = cfg.configure( persistenceUnitName, properties );
-//		return configured != null ? configured.buildEntityManagerFactory() : null;
-//	}
+	public HibernatePersistence() {
+	}
 
-//	/**
-//	 * Create an entity manager factory from the given persistence unit info, using the specified
-//	 * properties (they override any on the PUI).
-//	 * <p/>
-//	 * This is the form used by the container in a JEE environment.
-//	 *
-//	 * @param info The persistence unit information
-//	 * @param properties The explicit property values
-//	 *
-//	 * @return initialized EntityManagerFactory
-//	 */
-//	public EntityManagerFactory createContainerEntityManagerFactory(PersistenceUnitInfo info, Map properties) {
-//		Ejb3Configuration cfg = new Ejb3Configuration();
-//		Ejb3Configuration configured = cfg.configure( info, properties );
-//		return configured != null ? configured.buildEntityManagerFactory() : null;
-//	}
+	@Override
+	public EntityManagerFactory createEntityManagerFactory(String persistenceUnitName, Map properties) {
+		logDeprecation();
+		return super.createEntityManagerFactory( persistenceUnitName, properties );
+	}
 
+	protected void logDeprecation() {
+		log.deprecatedPersistenceProvider(
+				HibernatePersistence.class.getName(),
+				HibernatePersistenceProvider.class.getName()
+		);
+	}
 
-//	private final ProviderUtil providerUtil = new ProviderUtil() {
-//		public LoadState isLoadedWithoutReference(Object proxy, String property) {
-//			return PersistenceUtilHelper.isLoadedWithoutReference( proxy, property, cache );
-//		}
-//
-//		public LoadState isLoadedWithReference(Object proxy, String property) {
-//			return PersistenceUtilHelper.isLoadedWithReference( proxy, property, cache );
-//		}
-//
-//		public LoadState isLoaded(Object o) {
-//			return PersistenceUtilHelper.isLoaded(o);
-//		}
-//	};
+	@Override
+	public EntityManagerFactory createContainerEntityManagerFactory(PersistenceUnitInfo info, Map properties) {
+		logDeprecation();
+		return super.createContainerEntityManagerFactory( info, properties );
+	}
 
-//	public ProviderUtil getProviderUtil() {
-//		return providerUtil;
-//	}
+	@Override
+	public void generateSchema(PersistenceUnitInfo info, Map map) {
+		logDeprecation();
+		super.generateSchema( info, map );
+	}
 
+	@Override
+	public boolean generateSchema(String persistenceUnitName, Map map) {
+		logDeprecation();
+		return super.generateSchema( persistenceUnitName, map );
+	}
+
+	@Override
+	public ProviderUtil getProviderUtil() {
+		return super.getProviderUtil();
+	}
+
+	@Override
+	protected EntityManagerFactoryBuilder getEntityManagerFactoryBuilderOrNull(
+			String persistenceUnitName,
+			Map properties,
+			ClassLoader providedClassLoader) {
+		logDeprecation();
+		return super.getEntityManagerFactoryBuilderOrNull( persistenceUnitName, properties, providedClassLoader );
+	}
+
+	@Override
+	protected EntityManagerFactoryBuilder getEntityManagerFactoryBuilderOrNull(
+			String persistenceUnitName,
+			Map properties) {
+		logDeprecation();
+		return super.getEntityManagerFactoryBuilderOrNull( persistenceUnitName, properties );
+	}
 }

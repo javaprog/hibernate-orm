@@ -23,39 +23,41 @@
  */
 package org.hibernate.jpa.internal;
 
+import java.io.IOException;
+import java.io.InvalidObjectException;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.persistence.Cache;
 import javax.persistence.EntityGraph;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.persistence.NamedAttributeNode;
+import javax.persistence.NamedEntityGraph;
+import javax.persistence.NamedSubgraph;
 import javax.persistence.PersistenceContextType;
 import javax.persistence.PersistenceException;
 import javax.persistence.PersistenceUnitUtil;
 import javax.persistence.Query;
 import javax.persistence.SynchronizationType;
 import javax.persistence.criteria.CriteriaBuilder;
+import javax.persistence.metamodel.Attribute;
 import javax.persistence.metamodel.EntityType;
-import javax.persistence.metamodel.ManagedType;
 import javax.persistence.metamodel.Metamodel;
 import javax.persistence.spi.LoadState;
 import javax.persistence.spi.PersistenceUnitTransactionType;
-import java.io.IOException;
-import java.io.InvalidObjectException;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
-import org.jboss.logging.Logger;
 
 import org.hibernate.Hibernate;
 import org.hibernate.SessionFactory;
+import org.hibernate.boot.spi.MetadataImplementor;
 import org.hibernate.cache.spi.RegionFactory;
-import org.hibernate.cfg.Configuration;
+import org.hibernate.cfg.annotations.NamedEntityGraphDefinition;
 import org.hibernate.ejb.HibernateEntityManagerFactory;
 import org.hibernate.engine.spi.NamedQueryDefinition;
 import org.hibernate.engine.spi.NamedQueryDefinitionBuilder;
@@ -65,17 +67,23 @@ import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.id.IdentifierGenerator;
 import org.hibernate.id.UUIDGenerator;
 import org.hibernate.internal.SessionFactoryImpl;
+import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.jpa.AvailableSettings;
 import org.hibernate.jpa.HibernateQuery;
 import org.hibernate.jpa.boot.internal.SettingsImpl;
 import org.hibernate.jpa.criteria.CriteriaBuilderImpl;
-import org.hibernate.jpa.internal.graph.EntityGraphImpl;
+import org.hibernate.jpa.graph.internal.AbstractGraphNode;
+import org.hibernate.jpa.graph.internal.AttributeNodeImpl;
+import org.hibernate.jpa.graph.internal.EntityGraphImpl;
+import org.hibernate.jpa.graph.internal.SubgraphImpl;
+import org.hibernate.jpa.internal.metamodel.EntityTypeImpl;
 import org.hibernate.jpa.internal.metamodel.MetamodelImpl;
 import org.hibernate.jpa.internal.util.PersistenceUtilHelper;
-import org.hibernate.mapping.PersistentClass;
 import org.hibernate.metadata.ClassMetadata;
-import org.hibernate.service.ServiceRegistry;
+import org.hibernate.procedure.ProcedureCall;
+
+import org.jboss.logging.Logger;
 
 /**
  * Actual Hibernate implementation of {@link javax.persistence.EntityManagerFactory}.
@@ -95,7 +103,7 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 	private final transient boolean discardOnClose;
 	private final transient Class sessionInterceptorClass;
 	private final transient CriteriaBuilderImpl criteriaBuilder;
-	private final transient Metamodel metamodel;
+	private final transient MetamodelImpl metamodel;
 	private final transient HibernatePersistenceUnitUtil util;
 	private final transient Map<String,Object> properties;
 	private final String entityManagerFactoryName;
@@ -103,42 +111,25 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 	private final transient PersistenceUtilHelper.MetadataCache cache = new PersistenceUtilHelper.MetadataCache();
 	private final transient Map<String,EntityGraphImpl> entityGraphs = new ConcurrentHashMap<String, EntityGraphImpl>();
 
-	@SuppressWarnings( "unchecked" )
-	public EntityManagerFactoryImpl(
-			PersistenceUnitTransactionType transactionType,
-			boolean discardOnClose,
-			Class sessionInterceptorClass,
-			Configuration cfg,
-			ServiceRegistry serviceRegistry,
-			String persistenceUnitName) {
-		this(
-				persistenceUnitName,
-				(SessionFactoryImplementor) cfg.buildSessionFactory( serviceRegistry ),
-				new SettingsImpl().setReleaseResourcesOnCloseEnabled( discardOnClose ).setSessionInterceptorClass( sessionInterceptorClass ).setTransactionType( transactionType ),
-				cfg.getProperties(),
-				cfg
-		);
-	}
-
 	public EntityManagerFactoryImpl(
 			String persistenceUnitName,
 			SessionFactoryImplementor sessionFactory,
+			MetadataImplementor metadata,
 			SettingsImpl settings,
-			Map<?, ?> configurationValues,
-			Configuration cfg) {
+			Map<?, ?> configurationValues) {
 		this.sessionFactory = (SessionFactoryImpl) sessionFactory;
 		this.transactionType = settings.getTransactionType();
 		this.discardOnClose = settings.isReleaseResourcesOnCloseEnabled();
 		this.sessionInterceptorClass = settings.getSessionInterceptorClass();
 
-		final Iterator<PersistentClass> classes = cfg.getClassMappings();
-		final JpaMetaModelPopulationSetting jpaMetaModelPopulationSetting = determineJpaMetaModelPopulationSetting( cfg );
+		final JpaMetaModelPopulationSetting jpaMetaModelPopulationSetting = determineJpaMetaModelPopulationSetting( configurationValues );
 		if ( JpaMetaModelPopulationSetting.DISABLED == jpaMetaModelPopulationSetting ) {
 			this.metamodel = null;
 		}
 		else {
 			this.metamodel = MetamodelImpl.buildMetamodel(
-					classes,
+					metadata.getEntityBindings().iterator(),
+					metadata.getMappedSuperclassMappingsCopy(),
 					sessionFactory,
 					JpaMetaModelPopulationSetting.IGNORE_UNSUPPORTED == jpaMetaModelPopulationSetting
 			);
@@ -148,8 +139,8 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 
 		HashMap<String,Object> props = new HashMap<String, Object>();
 		addAll( props, sessionFactory.getProperties() );
-		addAll( props, cfg.getProperties() );
 		addAll( props, configurationValues );
+		maskOutSensitiveInformation( props );
 		this.properties = Collections.unmodifiableMap( props );
 		String entityManagerFactoryName = (String)this.properties.get( AvailableSettings.ENTITY_MANAGER_FACTORY_NAME);
 		if (entityManagerFactoryName == null) {
@@ -159,7 +150,10 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 			entityManagerFactoryName = (String) UUID_GENERATOR.generate(null, null);
 		}
 		this.entityManagerFactoryName = entityManagerFactoryName;
-		EntityManagerFactoryRegistry.INSTANCE.addEntityManagerFactory(entityManagerFactoryName, this);
+
+		applyNamedEntityGraphs( metadata.getNamedEntityGraphs().values() );
+
+		EntityManagerFactoryRegistry.INSTANCE.addEntityManagerFactory( entityManagerFactoryName, this );
 	}
 
 	private enum JpaMetaModelPopulationSetting {
@@ -180,14 +174,14 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 		}
 	}
 	
-	protected JpaMetaModelPopulationSetting determineJpaMetaModelPopulationSetting(Configuration cfg) {
+	protected JpaMetaModelPopulationSetting determineJpaMetaModelPopulationSetting(Map configurationValues) {
 		String setting = ConfigurationHelper.getString(
 				AvailableSettings.JPA_METAMODEL_POPULATION,
-				cfg.getProperties(),
+				configurationValues,
 				null
 		);
 		if ( setting == null ) {
-			setting = ConfigurationHelper.getString( AvailableSettings.JPA_METAMODEL_GENERATION, cfg.getProperties(), null );
+			setting = ConfigurationHelper.getString( AvailableSettings.JPA_METAMODEL_GENERATION, configurationValues, null );
 			if ( setting != null ) {
 				log.infof( 
 						"Encountered deprecated setting [%s], use [%s] instead",
@@ -207,16 +201,127 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 		}
 	}
 
+	private void maskOutSensitiveInformation(HashMap<String, Object> props) {
+		maskOutIfSet( props, AvailableSettings.JDBC_PASSWORD );
+		maskOutIfSet( props, org.hibernate.cfg.AvailableSettings.PASS );
+	}
+
+	private void maskOutIfSet(HashMap<String, Object> props, String setting) {
+		if ( props.containsKey( setting ) ) {
+			props.put( setting, "****" );
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private void applyNamedEntityGraphs(Collection<NamedEntityGraphDefinition> namedEntityGraphs) {
+		for ( NamedEntityGraphDefinition definition : namedEntityGraphs ) {
+			log.debugf(
+					"Applying named entity graph [name=%s, entity-name=%s, jpa-entity-name=%s",
+					definition.getRegisteredName(),
+					definition.getEntityName(),
+					definition.getJpaEntityName()
+			);
+			final EntityType entityType = metamodel.getEntityTypeByName( definition.getEntityName() );
+			if ( entityType == null ) {
+				throw new IllegalArgumentException(
+						"Attempted to register named entity graph [" + definition.getRegisteredName()
+								+ "] for unknown entity ["+ definition.getEntityName() + "]"
+
+				);
+			}
+			final EntityGraphImpl entityGraph = new EntityGraphImpl(
+					definition.getRegisteredName(),
+					entityType,
+					this
+			);
+
+			final NamedEntityGraph namedEntityGraph = definition.getAnnotation();
+
+			if ( namedEntityGraph.includeAllAttributes() ) {
+				for ( Object attributeObject : entityType.getAttributes() ) {
+					entityGraph.addAttributeNodes( (Attribute) attributeObject );
+				}
+			}
+
+			if ( namedEntityGraph.attributeNodes() != null ) {
+				applyNamedAttributeNodes( namedEntityGraph.attributeNodes(), namedEntityGraph, entityGraph );
+			}
+
+			entityGraphs.put( definition.getRegisteredName(), entityGraph );
+		}
+	}
+
+	private void applyNamedAttributeNodes(
+			NamedAttributeNode[] namedAttributeNodes,
+			NamedEntityGraph namedEntityGraph,
+			AbstractGraphNode graphNode) {
+		for ( NamedAttributeNode namedAttributeNode : namedAttributeNodes ) {
+			final String value = namedAttributeNode.value();
+			AttributeNodeImpl attributeNode = graphNode.addAttribute( value );
+			if ( StringHelper.isNotEmpty( namedAttributeNode.subgraph() ) ) {
+				final SubgraphImpl subgraph = attributeNode.makeSubgraph();
+				applyNamedSubgraphs(
+						namedEntityGraph,
+						namedAttributeNode.subgraph(),
+						subgraph
+				);
+			}
+			if ( StringHelper.isNotEmpty( namedAttributeNode.keySubgraph() ) ) {
+				final SubgraphImpl subgraph = attributeNode.makeKeySubgraph();
+
+				applyNamedSubgraphs(
+						namedEntityGraph,
+						namedAttributeNode.keySubgraph(),
+						subgraph
+				);
+			}
+		}
+	}
+
+	private void applyNamedSubgraphs(NamedEntityGraph namedEntityGraph, String subgraphName, SubgraphImpl subgraph) {
+		for ( NamedSubgraph namedSubgraph : namedEntityGraph.subgraphs() ) {
+			if ( subgraphName.equals( namedSubgraph.name() ) ) {
+				applyNamedAttributeNodes(
+						namedSubgraph.attributeNodes(),
+						namedEntityGraph,
+						subgraph
+				);
+			}
+		}
+	}
+
 	public EntityManager createEntityManager() {
-		return createEntityManager( null );
+		return internalCreateEntityManager( SynchronizationType.SYNCHRONIZED, Collections.EMPTY_MAP );
+	}
+
+	@Override
+	public EntityManager createEntityManager(SynchronizationType synchronizationType) {
+		errorIfResourceLocalDueToExplicitSynchronizationType();
+		return internalCreateEntityManager( synchronizationType, Collections.EMPTY_MAP );
+	}
+
+	private void errorIfResourceLocalDueToExplicitSynchronizationType() {
+		if ( transactionType == PersistenceUnitTransactionType.RESOURCE_LOCAL ) {
+			throw new IllegalStateException(
+					"Illegal attempt to specify a SynchronizationType when building an EntityManager from a " +
+							"EntityManagerFactory defined as RESOURCE_LOCAL "
+			);
+		}
 	}
 
 	public EntityManager createEntityManager(Map map) {
-		return createEntityManager( SynchronizationType.SYNCHRONIZED, map );
+		return internalCreateEntityManager( SynchronizationType.SYNCHRONIZED, map );
 	}
 
 	@Override
 	public EntityManager createEntityManager(SynchronizationType synchronizationType, Map map) {
+		errorIfResourceLocalDueToExplicitSynchronizationType();
+		return internalCreateEntityManager( synchronizationType, map );
+	}
+
+	private EntityManager internalCreateEntityManager(SynchronizationType synchronizationType, Map map) {
+		validateNotClosed();
+
 		//TODO support discardOnClose, persistencecontexttype?, interceptor,
 		return new EntityManagerImpl(
 				this,
@@ -230,57 +335,103 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 	}
 
 	public CriteriaBuilder getCriteriaBuilder() {
+		validateNotClosed();
 		return criteriaBuilder;
 	}
 
 	public Metamodel getMetamodel() {
+		validateNotClosed();
 		return metamodel;
 	}
 
 	public void close() {
+		// The spec says so, that's why :(
+		validateNotClosed();
+
 		sessionFactory.close();
 		EntityManagerFactoryRegistry.INSTANCE.removeEntityManagerFactory(entityManagerFactoryName, this);
 	}
 
 	public Map<String, Object> getProperties() {
+		validateNotClosed();
 		return properties;
 	}
 
 	public Cache getCache() {
+		validateNotClosed();
+
 		// TODO : cache the cache reference?
-		if ( ! isOpen() ) {
-			throw new IllegalStateException("EntityManagerFactory is closed");
-		}
 		return new JPACache( sessionFactory );
 	}
 
-	public PersistenceUnitUtil getPersistenceUnitUtil() {
+	protected void validateNotClosed() {
 		if ( ! isOpen() ) {
-			throw new IllegalStateException("EntityManagerFactory is closed");
+			throw new IllegalStateException( "EntityManagerFactory is closed" );
 		}
+	}
+
+	public PersistenceUnitUtil getPersistenceUnitUtil() {
+		validateNotClosed();
 		return util;
 	}
 
 	@Override
 	public void addNamedQuery(String name, Query query) {
-		if ( ! isOpen() ) {
-			throw new IllegalStateException( "EntityManagerFactory is closed" );
+		validateNotClosed();
+
+		// NOTE : we use Query#unwrap here (rather than direct type checking) to account for possibly wrapped
+		// query implementations
+
+		// first, handle StoredProcedureQuery
+		try {
+			final StoredProcedureQueryImpl unwrapped = query.unwrap( StoredProcedureQueryImpl.class );
+			if ( unwrapped != null ) {
+				addNamedStoredProcedureQuery( name, unwrapped );
+				return;
+			}
+		}
+		catch ( PersistenceException ignore ) {
+			// this means 'query' is not a StoredProcedureQueryImpl
 		}
 
-		if ( ! HibernateQuery.class.isInstance( query ) ) {
-			throw new PersistenceException( "Cannot use query non-Hibernate EntityManager query as basis for named query" );
+		// then try as a native-SQL or JPQL query
+		try {
+			final HibernateQuery unwrapped = query.unwrap( HibernateQuery.class );
+			if ( unwrapped != null ) {
+				// create and register the proper NamedQueryDefinition...
+				final org.hibernate.Query hibernateQuery = unwrapped.getHibernateQuery();
+				if ( org.hibernate.SQLQuery.class.isInstance( hibernateQuery ) ) {
+					sessionFactory.registerNamedSQLQueryDefinition(
+							name,
+							extractSqlQueryDefinition( (org.hibernate.SQLQuery) hibernateQuery, name )
+					);
+				}
+				else {
+					sessionFactory.registerNamedQueryDefinition( name, extractHqlQueryDefinition( hibernateQuery, name ) );
+				}
+				return;
+			}
+		}
+		catch ( PersistenceException ignore ) {
+			// this means 'query' is not a native-SQL or JPQL query
 		}
 
-		// create and register the proper NamedQueryDefinition...
-		final org.hibernate.Query hibernateQuery = ( (HibernateQuery) query ).getHibernateQuery();
-		if ( org.hibernate.SQLQuery.class.isInstance( hibernateQuery ) ) {
-			final NamedSQLQueryDefinition namedQueryDefinition = extractSqlQueryDefinition( ( org.hibernate.SQLQuery ) hibernateQuery, name );
-			sessionFactory.registerNamedSQLQueryDefinition( name, namedQueryDefinition );
-		}
-		else {
-			final NamedQueryDefinition namedQueryDefinition = extractHqlQueryDefinition( hibernateQuery, name );
-			sessionFactory.registerNamedQueryDefinition( name, namedQueryDefinition );
-		}
+
+		// if we get here, we are unsure how to properly unwrap the incoming query to extract the needed information
+		throw new PersistenceException(
+				String.format(
+						"Unsure how to how to properly unwrap given Query [%s] as basis for named query",
+						query
+				)
+		);
+	}
+
+	private void addNamedStoredProcedureQuery(String name, StoredProcedureQueryImpl query) {
+		final ProcedureCall procedureCall = query.getHibernateProcedureCall();
+		sessionFactory.getNamedQueryRepository().registerNamedProcedureCallMemento(
+				name,
+				procedureCall.extractMemento( query.getHints() )
+		);
 	}
 
 	private NamedSQLQueryDefinition extractSqlQueryDefinition(org.hibernate.SQLQuery nativeSqlQuery, String name) {
@@ -371,6 +522,15 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 		return sessionFactory;
 	}
 
+	@Override
+	public EntityTypeImpl getEntityTypeByName(String entityName) {
+		final EntityTypeImpl entityType = metamodel.getEntityTypeByName( entityName );
+		if ( entityType == null ) {
+			throw new IllegalArgumentException( "[" + entityName + "] did not refer to EntityType" );
+		}
+		return entityType;
+	}
+
 	public String getEntityManagerFactoryName() {
 		return entityManagerFactoryName;
 	}
@@ -395,6 +555,7 @@ public class EntityManagerFactoryImpl implements HibernateEntityManagerFactory {
 		}
 
 		public void evictAll() {
+			// Evict only the "JPA cache", which is purely defined as the entity regions.
 			sessionFactory.getCache().evictEntityRegions();
 // TODO : if we want to allow an optional clearing of all cache data, the additional calls would be:
 //			sessionFactory.getCache().evictCollectionRegions();

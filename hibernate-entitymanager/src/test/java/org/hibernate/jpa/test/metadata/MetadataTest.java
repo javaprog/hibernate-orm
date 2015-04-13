@@ -23,6 +23,7 @@
  */
 package org.hibernate.jpa.test.metadata;
 
+import java.util.Collections;
 import java.util.Set;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.metamodel.Attribute;
@@ -31,6 +32,7 @@ import javax.persistence.metamodel.EmbeddableType;
 import javax.persistence.metamodel.EntityType;
 import javax.persistence.metamodel.IdentifiableType;
 import javax.persistence.metamodel.ListAttribute;
+import javax.persistence.metamodel.ManagedType;
 import javax.persistence.metamodel.MapAttribute;
 import javax.persistence.metamodel.MappedSuperclassType;
 import javax.persistence.metamodel.PluralAttribute;
@@ -38,12 +40,14 @@ import javax.persistence.metamodel.SetAttribute;
 import javax.persistence.metamodel.SingularAttribute;
 import javax.persistence.metamodel.Type;
 
-import org.junit.Test;
-
-import org.hibernate.cfg.Configuration;
+import org.hibernate.boot.Metadata;
+import org.hibernate.boot.MetadataSources;
+import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.jpa.internal.metamodel.MetamodelImpl;
 import org.hibernate.jpa.test.BaseEntityManagerFunctionalTestCase;
-import org.hibernate.engine.spi.SessionFactoryImplementor;
+import org.hibernate.mapping.MappedSuperclass;
+
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -66,14 +70,53 @@ public class MetadataTest extends BaseEntityManagerFunctionalTestCase {
 	}
 
 	@Test
+	public void testInvalidAttributeCausesIllegalArgumentException() {
+		// should not matter the exact subclass of ManagedType since this is implemented on the base class but
+		// check each anyway..
+
+		// entity
+		checkNonExistentAttributeAccess( entityManagerFactory().getMetamodel().entity( Fridge.class ) );
+
+		// embeddable
+		checkNonExistentAttributeAccess( entityManagerFactory().getMetamodel().embeddable( Address.class ) );
+	}
+
+	private void checkNonExistentAttributeAccess(ManagedType managedType) {
+		final String NAME = "NO_SUCH_ATTRIBUTE";
+		try {
+			managedType.getAttribute( NAME );
+			fail( "Lookup of non-existent attribute (getAttribute) should have caused IAE : " + managedType );
+		}
+		catch (IllegalArgumentException expected) {
+		}
+		try {
+			managedType.getSingularAttribute( NAME );
+			fail( "Lookup of non-existent attribute (getSingularAttribute) should have caused IAE : " + managedType );
+		}
+		catch (IllegalArgumentException expected) {
+		}
+		try {
+			managedType.getCollection( NAME );
+			fail( "Lookup of non-existent attribute (getCollection) should have caused IAE : " + managedType );
+		}
+		catch (IllegalArgumentException expected) {
+		}
+	}
+
+	@Test
 	@SuppressWarnings({ "unchecked" })
 	public void testBuildingMetamodelWithParameterizedCollection() {
-		Configuration cfg = new Configuration( );
-//		configure( cfg );
-		cfg.addAnnotatedClass( WithGenericCollection.class );
-		cfg.buildMappings();
-		SessionFactoryImplementor sfi = (SessionFactoryImplementor) cfg.buildSessionFactory( serviceRegistry() );
-		MetamodelImpl.buildMetamodel( cfg.getClassMappings(), sfi, true );
+		Metadata metadata = new MetadataSources()
+				.addAnnotatedClass( WithGenericCollection.class )
+				.buildMetadata();
+		SessionFactoryImplementor sfi = (SessionFactoryImplementor) metadata.buildSessionFactory();
+		MetamodelImpl.buildMetamodel(
+				metadata.getEntityBindings().iterator(),
+				Collections.<MappedSuperclass>emptySet(),
+				sfi,
+				true
+		);
+		sfi.close();
 	}
 
 	@Test

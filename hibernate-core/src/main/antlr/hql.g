@@ -84,7 +84,7 @@ tokens
 
 	// -- SQL tokens --
 	// These aren't part of HQL, but the SQL fragment parser uses the HQL lexer, so they need to be declared here.
-	CASE="case";
+	CASE="case";	// a "searched case statement", whereas CASE2 represents a "simple case statement"
 	END="end";
 	ELSE="else";
 	THEN="then";
@@ -92,7 +92,7 @@ tokens
 	ON="on";
 	WITH="with";
 
-	// -- EJBQL tokens --
+	// -- JPAQL tokens --
 	BOTH="both";
 	EMPTY="empty";
 	LEADING="leading";
@@ -108,7 +108,8 @@ tokens
 	AGGREGATE;		// One of the aggregate functions (e.g. min, max, avg)
 	ALIAS;
 	CONSTRUCTOR;
-	CASE2;
+	CASE2;			// a "simple case statement", whereas CASE represents a "searched case statement"
+	CAST;
 	EXPR_LIST;
 	FILTER_ENTITY;		// FROM element injected because of a filter expression (happens during compilation phase 2)
 	IN_LIST;
@@ -197,6 +198,13 @@ tokens
 	public void weakKeywords() throws TokenStreamException {
 	}
 
+	/**
+	 * Called after we have recognized ':'.  The expectation is to handle converting
+	 * any non-IDENT token where possibleID == true into an IDENT
+	 */
+	public void expectNamedParameterName() throws TokenStreamException {
+	}
+
 	public void processMemberOf(Token n,AST p,ASTPair currentAST) {
 	}
 
@@ -216,6 +224,9 @@ tokens
 
     protected String unquote(String text) {
         return text.substring( 1, text.length() - 1 );
+    }
+
+    protected void registerTreat(AST pathToTreat, AST treatAs) {
     }
 }
 
@@ -369,7 +380,9 @@ joinPath
  * Uses a validating semantic predicate to make sure the text of the matched first IDENT is the TREAT keyword
  */
 castedJoinPath
-    : i:IDENT! OPEN! p:path AS! path! CLOSE! {i.getText().equals("treat") }?
+    : i:IDENT! OPEN! p:path AS! a:path! CLOSE! {i.getText().equalsIgnoreCase("treat") }? {
+        registerTreat( #p, #a );
+    }
     ;
 
 withClause
@@ -660,8 +673,7 @@ quantifiedExpression
 //      * method call ( '.' ident '(' exprList ') )
 //      * function : differentiated from method call via explicit keyword
 atom
-    : { validateSoftKeyword("function") && LA(2) == OPEN && LA(3) == QUOTED_STRING }? jpaFunctionSyntax
-    | primaryExpression
+	: primaryExpression
 		(
 			DOT^ identifier
 				( options { greedy=true; } :
@@ -670,25 +682,52 @@ atom
 		)*
 	;
 
-jpaFunctionSyntax!
-    : i:IDENT OPEN n:QUOTED_STRING COMMA a:exprList CLOSE {
-        #i.setType( METHOD_CALL );
-        #i.setText( #i.getText() + " (" + #n.getText() + ")" );
-        #jpaFunctionSyntax = #( #i, [IDENT, unquote( #n.getText() )], #a );
-    }
-    ;
 
 // level 0 - the basic element of an expression
 primaryExpression
-	:   identPrimary ( options {greedy=true;} : DOT^ "class" )?
-	|   constant
-	|   parameter
-	// TODO: Add parens to the tree so the user can control the operator evaluation order.
-	|   OPEN! (expressionOrVector | subQuery) CLOSE!
+    : { validateSoftKeyword("function") && LA(2) == OPEN && LA(3) == QUOTED_STRING }? jpaFunctionSyntax
+    | { validateSoftKeyword("cast") && LA(2) == OPEN }? castFunction
+	| identPrimary ( options {greedy=true;} : DOT^ "class" )?
+	| constant
+	| parameter
+	| OPEN! (expressionOrVector | subQuery) CLOSE!
+	;
+
+jpaFunctionSyntax!
+    : i:IDENT OPEN n:QUOTED_STRING COMMA a:exprList CLOSE {
+    	final String functionName = unquote( #n.getText() );
+
+    	if ( functionName.equalsIgnoreCase( "cast" ) ) {
+			#i.setType( CAST );
+			#i.setText( #i.getText() + " (" + functionName + ")" );
+			final AST expression = #a.getFirstChild();
+			final AST type = expression.getNextSibling();
+    		#jpaFunctionSyntax = #( #i, expression, type );
+    	}
+    	else {
+			#i.setType( METHOD_CALL );
+			#i.setText( #i.getText() + " (" + functionName + ")" );
+			#jpaFunctionSyntax = #( #i, [IDENT, unquote( #n.getText() )], #a );
+    	}
+    }
+    ;
+
+castFunction!
+	: c:IDENT OPEN e:expression (AS)? t:castTargetType CLOSE {
+		#c.setType( CAST );
+		#castFunction = #( #c, #e, #t );
+	}
+	;
+
+castTargetType
+	// the cast target type is Hibernate type name which is either:
+	//		1) a simple identifier
+	//		2) a simple identifier-(dot-identifier)* sequence
+	: identifier { handleDotIdent(); } ( options { greedy=true; } : DOT^ identifier )*
 	;
 
 parameter
-	: COLON^ identifier
+	: COLON^ { expectNamedParameterName(); } IDENT
 	| PARAM^ (NUM_INT)?
 	;
 
@@ -738,7 +777,9 @@ identPrimaryBase
     ;
 
 castedIdentPrimaryBase
-    : i:IDENT! OPEN! p:path AS! path! CLOSE! { i.getText().equals("treat") }?
+    : i:IDENT! OPEN! p:path AS! a:path! CLOSE! { i.getText().equals("treat") }? {
+        registerTreat( #p, #a );
+    }
     ;
 
 aggregate

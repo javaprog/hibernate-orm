@@ -96,7 +96,7 @@ public class PutFromLoadValidatorUnitTestCase {
 
    private void nakedPutTest(final boolean transactional) throws Exception {
       withCacheManager(new CacheManagerCallable(
-            TestCacheManagerFactory.createLocalCacheManager(false)) {
+            TestCacheManagerFactory.createCacheManager(false)) {
          @Override
          public void call() {
             try {
@@ -132,7 +132,7 @@ public class PutFromLoadValidatorUnitTestCase {
 
    private void registeredPutTest(final boolean transactional) throws Exception {
       withCacheManager(new CacheManagerCallable(
-            TestCacheManagerFactory.createLocalCacheManager(false)) {
+            TestCacheManagerFactory.createCacheManager(false)) {
          @Override
          public void call() {
             PutFromLoadValidator testee = new PutFromLoadValidator(cm,
@@ -179,7 +179,7 @@ public class PutFromLoadValidatorUnitTestCase {
    private void nakedPutAfterRemovalTest(final boolean transactional,
          final boolean removeRegion) throws Exception {
       withCacheManager(new CacheManagerCallable(
-            TestCacheManagerFactory.createLocalCacheManager(false)) {
+            TestCacheManagerFactory.createCacheManager(false)) {
          @Override
          public void call() {
             PutFromLoadValidator testee = new PutFromLoadValidator(cm,
@@ -231,7 +231,7 @@ public class PutFromLoadValidatorUnitTestCase {
    private void registeredPutAfterRemovalTest(final boolean transactional,
          final boolean removeRegion) throws Exception {
       withCacheManager(new CacheManagerCallable(
-            TestCacheManagerFactory.createLocalCacheManager(false)) {
+            TestCacheManagerFactory.createCacheManager(false)) {
          @Override
          public void call() {
             PutFromLoadValidator testee = new PutFromLoadValidator(cm,
@@ -285,7 +285,7 @@ public class PutFromLoadValidatorUnitTestCase {
          final boolean transactional, final boolean removeRegion)
          throws Exception {
       withCacheManager(new CacheManagerCallable(
-            TestCacheManagerFactory.createLocalCacheManager(false)) {
+            TestCacheManagerFactory.createCacheManager(false)) {
          @Override
          public void call() {
             PutFromLoadValidator testee = new PutFromLoadValidator(cm,
@@ -338,7 +338,7 @@ public class PutFromLoadValidatorUnitTestCase {
          final boolean transactional, final boolean removeRegion)
          throws Exception {
       withCacheManager(new CacheManagerCallable(
-            TestCacheManagerFactory.createLocalCacheManager(false)) {
+            TestCacheManagerFactory.createCacheManager(false)) {
          @Override
          public void call() {
             PutFromLoadValidator testee = new TestValidator(cm,
@@ -357,8 +357,7 @@ public class PutFromLoadValidatorUnitTestCase {
                boolean lockable = testee.acquirePutFromLoadLock(KEY1);
                try {
                   assertTrue(lockable);
-               }
-               finally {
+               } finally {
                   if (lockable) {
                      testee.releasePutFromLoadLock(KEY1);
                   }
@@ -382,7 +381,7 @@ public class PutFromLoadValidatorUnitTestCase {
 
    private void multipleRegistrationtest(final boolean transactional) throws Exception {
       withCacheManager(new CacheManagerCallable(
-            TestCacheManagerFactory.createLocalCacheManager(false)) {
+            TestCacheManagerFactory.createCacheManager(false)) {
          @Override
          public void call() {
             final PutFromLoadValidator testee = new PutFromLoadValidator(cm,
@@ -406,16 +405,14 @@ public class PutFromLoadValidatorUnitTestCase {
                         try {
                            log.trace("Put from load lock acquired for key = " + KEY1);
                            success.incrementAndGet();
-                        }
-                        finally {
+                        } finally {
                            testee.releasePutFromLoadLock(KEY1);
                         }
                      } else {
                         log.trace("Unable to acquired putFromLoad lock for key = " + KEY1);
                      }
                      finishedLatch.countDown();
-                  }
-                  catch (Exception e) {
+                  } catch (Exception e) {
                      e.printStackTrace();
                   }
                }
@@ -444,51 +441,6 @@ public class PutFromLoadValidatorUnitTestCase {
       });
    }
 
-   /**
-    * White box test for ensuring key removals get cleaned up. <b>Note</b>: Since this test is test sensitive, if you
-    * add trace logging, it might fail
-    *
-    * @throws Exception
-    */
-   @Test
-   public void testRemovalCleanup() throws Exception {
-      withCacheManager(new CacheManagerCallable(
-            TestCacheManagerFactory.createLocalCacheManager(false)) {
-         @Override
-         public void call() {
-            TestValidator testee = new TestValidator(cm, null, 200);
-            testee.invalidateKey("KEY1");
-            testee.invalidateKey("KEY2");
-            expectRemovalLenth(2, testee, 60000l);
-            assertEquals(2, testee.getRemovalQueueLength());
-            expectRemovalLenth(2, testee, 60000l);
-            assertEquals(2, testee.getRemovalQueueLength());
-            expectRemovalLenth(2, testee, 60000l);
-         }
-      });
-   }
-
-   private void expectRemovalLenth(int expectedLength, TestValidator testee, long timeout) {
-      long timeoutMilestone = System.currentTimeMillis() + timeout;
-      while ( true ) {
-         int queueLength = testee.getRemovalQueueLength();
-         if ( queueLength == expectedLength ) {
-            //finally it happened
-            return;
-         }
-         else {
-            if ( System.currentTimeMillis() > timeoutMilestone ) {
-               fail( "condition not reached after " + timeout + " milliseconds. giving up!" );
-            }
-            try {
-               Thread.sleep(20);
-            } catch (InterruptedException e) {
-               throw new RuntimeException(e);
-            }
-         }
-      }
-   }
-
    @Test
    public void testInvalidateKeyBlocksForInProgressPut() throws Exception {
       invalidationBlocksForInProgressPutTest(true);
@@ -501,7 +453,7 @@ public class PutFromLoadValidatorUnitTestCase {
 
    private void invalidationBlocksForInProgressPutTest(final boolean keyOnly) throws Exception {
       withCacheManager(new CacheManagerCallable(
-            TestCacheManagerFactory.createLocalCacheManager(false)) {
+            TestCacheManagerFactory.createCacheManager(false)) {
          @Override
          public void call() {
             final PutFromLoadValidator testee = new PutFromLoadValidator(

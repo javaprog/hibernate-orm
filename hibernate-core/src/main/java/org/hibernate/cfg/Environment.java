@@ -32,14 +32,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.Version;
 import org.hibernate.bytecode.spi.BytecodeProvider;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ConfigHelper;
 import org.hibernate.internal.util.config.ConfigurationHelper;
+
+import org.jboss.logging.Logger;
 
 
 /**
@@ -151,8 +151,8 @@ import org.hibernate.internal.util.config.ConfigurationHelper;
  *   Session</tt> (de)serialization.</td>
  * </tr>
  * <tr>
- *   <td><tt>hibernate.transaction.manager_lookup_class</tt></td>
- *   <td>classname of <tt>org.hibernate.transaction.TransactionManagerLookup</tt>
+ *   <td><tt>hibernate.transaction.jta.platform</tt></td>
+ *   <td>classname of <tt>org.hibernate.engine.transaction.jta.platform.spi.JtaPlatform</tt>
  *   implementor</td>
  * </tr>
  * <tr>
@@ -240,10 +240,14 @@ public final class Environment implements AvailableSettings {
 		}
 
 		try {
-			GLOBAL_PROPERTIES.putAll( System.getProperties() );
-		}
-		catch (SecurityException se) {
-			LOG.unableToCopySystemProperties();
+		    Properties systemProperties = System.getProperties();
+		    // Must be thread-safe in case an application changes System properties during Hibernate initialization.
+		    // See HHH-8383.
+		    synchronized (systemProperties) {
+		    	GLOBAL_PROPERTIES.putAll(systemProperties);
+		    }
+		} catch (SecurityException se) {
+		    LOG.unableToCopySystemProperties();
 		}
 
 		verifyProperties(GLOBAL_PROPERTIES);

@@ -22,6 +22,7 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.cfg.annotations.reflection;
+
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
@@ -33,22 +34,24 @@ import java.util.Map;
 import javax.persistence.EntityListeners;
 import javax.persistence.NamedNativeQuery;
 import javax.persistence.NamedQuery;
+import javax.persistence.NamedStoredProcedureQuery;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.SqlResultSetMapping;
 import javax.persistence.TableGenerator;
-
-import org.dom4j.Element;
 
 import org.hibernate.annotations.common.reflection.AnnotationReader;
 import org.hibernate.annotations.common.reflection.MetadataProvider;
 import org.hibernate.annotations.common.reflection.java.JavaMetadataProvider;
 import org.hibernate.internal.util.ReflectHelper;
 
+import org.dom4j.Element;
+
 /**
  * MetadataProvider aware of the JPA Deployment descriptor
  *
  * @author Emmanuel Bernard
  */
+@SuppressWarnings("unchecked")
 public class JPAMetadataProvider implements MetadataProvider, Serializable {
 	private transient MetadataProvider delegate = new JavaMetadataProvider();
 	private transient Map<Object, Object> defaults;
@@ -152,6 +155,16 @@ public class JPAMetadataProvider implements MetadataProvider, Serializable {
 						element, xmlDefaults
 				);
 				sqlResultSetMappings.addAll( currentSqlResultSetMappings );
+
+				List<NamedStoredProcedureQuery> namedStoredProcedureQueries = (List<NamedStoredProcedureQuery>)defaults.get( NamedStoredProcedureQuery.class );
+				if(namedStoredProcedureQueries==null){
+					namedStoredProcedureQueries = new ArrayList<NamedStoredProcedureQuery>(  );
+					defaults.put( NamedStoredProcedureQuery.class, namedStoredProcedureQueries );
+				}
+				List<NamedStoredProcedureQuery> currentNamedStoredProcedureQueries = JPAOverriddenAnnotationReader.buildNamedStoreProcedureQueries(
+						element, xmlDefaults
+				);
+				namedStoredProcedureQueries.addAll( currentNamedStoredProcedureQueries );
 			}
 		}
 		return defaults;

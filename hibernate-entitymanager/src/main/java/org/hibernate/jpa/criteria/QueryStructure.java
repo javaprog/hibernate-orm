@@ -172,6 +172,9 @@ public class QueryStructure<T> implements Serializable {
 		if ( correlationRoots != null ) {
 			correlatedJoins = new HashSet<Join<?,?>>();
 			for ( FromImplementor<?,?> correlationRoot : correlationRoots ) {
+				if (correlationRoot instanceof Join<?,?> && correlationRoot.isCorrelated()) {
+					correlatedJoins.add( (Join<?,?>) correlationRoot );
+				}
 				correlatedJoins.addAll( correlationRoot.getJoins() );
 			}
 		}
@@ -294,7 +297,7 @@ public class QueryStructure<T> implements Serializable {
 		}
 
 		if ( implicitSelection == null ) {
-			throw new IllegalStateException( "No explicit selection and an implicit one cold not be determined" );
+			throw new IllegalStateException( "No explicit selection and an implicit one could not be determined" );
 		}
 
 		return implicitSelection;

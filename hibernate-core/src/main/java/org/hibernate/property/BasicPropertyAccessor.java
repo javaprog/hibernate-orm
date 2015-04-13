@@ -22,21 +22,24 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.property;
+
 import java.beans.Introspector;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.Map;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.PropertyAccessException;
 import org.hibernate.PropertyNotFoundException;
+import org.hibernate.PropertySetterAccessException;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
+import org.hibernate.internal.CoreLogging;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.internal.util.ReflectHelper;
+
+import org.jboss.logging.Logger;
 
 /**
  * Accesses property values via a get/set pair, which may be nonpublic.
@@ -45,8 +48,7 @@ import org.hibernate.internal.util.ReflectHelper;
  * @author Gavin King
  */
 public class BasicPropertyAccessor implements PropertyAccessor {
-
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class, BasicPropertyAccessor.class.getName());
+	private static final CoreMessageLogger LOG = CoreLogging.messageLogger( BasicPropertyAccessor.class );
 
 	public static final class BasicSetter implements Setter {
 		private Class clazz;
@@ -59,6 +61,7 @@ public class BasicPropertyAccessor implements PropertyAccessor {
 			this.propertyName=propertyName;
 		}
 
+		@Override
 		public void set(Object target, Object value, SessionFactoryImplementor factory)
 		throws HibernateException {
 			try {
@@ -114,23 +117,27 @@ public class BasicPropertyAccessor implements PropertyAccessor {
 						);
 				}
 				else {
-                    LOG.illegalPropertySetterArgument(clazz.getName(), propertyName);
-                    LOG.expectedType(method.getParameterTypes()[0].getName(), value == null ? null : value.getClass().getName());
-					throw new PropertyAccessException(
+					final Class expectedType = method.getParameterTypes()[0];
+					LOG.illegalPropertySetterArgument( clazz.getName(), propertyName );
+					LOG.expectedType( expectedType.getName(), value == null ? null : value.getClass().getName() );
+					throw new PropertySetterAccessException(
 							iae,
-							"IllegalArgumentException occurred while calling",
-							true,
 							clazz,
-							propertyName
+							propertyName,
+							expectedType,
+							target,
+							value
 						);
 				}
 			}
 		}
 
+		@Override
 		public Method getMethod() {
 			return method;
 		}
 
+		@Override
 		public String getMethodName() {
 			return method.getName();
 		}
@@ -156,9 +163,7 @@ public class BasicPropertyAccessor implements PropertyAccessor {
 			this.propertyName=propertyName;
 		}
 
-		/**
-		 * {@inheritDoc}
-		 */
+		@Override
 		public Object get(Object target) throws HibernateException {
 			try {
 				return method.invoke( target, (Object[]) null );
@@ -194,37 +199,27 @@ public class BasicPropertyAccessor implements PropertyAccessor {
 			}
 		}
 
-		/**
-		 * {@inheritDoc}
-		 */
+		@Override
 		public Object getForInsert(Object target, Map mergeMap, SessionImplementor session) {
 			return get( target );
 		}
 
-		/**
-		 * {@inheritDoc}
-		 */
+		@Override
 		public Class getReturnType() {
 			return method.getReturnType();
 		}
 
-		/**
-		 * {@inheritDoc}
-		 */
+		@Override
 		public Member getMember() {
 			return method;
 		}
 
-		/**
-		 * {@inheritDoc}
-		 */
+		@Override
 		public Method getMethod() {
 			return method;
 		}
 
-		/**
-		 * {@inheritDoc}
-		 */
+		@Override
 		public String getMethodName() {
 			return method.getName();
 		}
@@ -240,13 +235,12 @@ public class BasicPropertyAccessor implements PropertyAccessor {
 	}
 
 
-	public Setter getSetter(Class theClass, String propertyName)
-	throws PropertyNotFoundException {
+	@Override
+	public Setter getSetter(Class theClass, String propertyName) throws PropertyNotFoundException {
 		return createSetter(theClass, propertyName);
 	}
 
-	private static Setter createSetter(Class theClass, String propertyName)
-	throws PropertyNotFoundException {
+	private static Setter createSetter(Class theClass, String propertyName) throws PropertyNotFoundException {
 		BasicSetter result = getSetterOrNull(theClass, propertyName);
 		if (result==null) {
 			throw new PropertyNotFoundException(
@@ -266,7 +260,7 @@ public class BasicPropertyAccessor implements PropertyAccessor {
 		Method method = setterMethod(theClass, propertyName);
 
 		if (method!=null) {
-			if ( !ReflectHelper.isPublic(theClass, method) ) method.setAccessible(true);
+			method.setAccessible(true);
 			return new BasicSetter(theClass, method, propertyName);
 		}
 		else {
@@ -283,7 +277,6 @@ public class BasicPropertyAccessor implements PropertyAccessor {
 	}
 
 	private static Method setterMethod(Class theClass, String propertyName) {
-
 		BasicGetter getter = getGetterOrNull(theClass, propertyName);
 		Class returnType = (getter==null) ? null : getter.getReturnType();
 
@@ -306,6 +299,7 @@ public class BasicPropertyAccessor implements PropertyAccessor {
 		return potentialSetter;
 	}
 
+	@Override
 	public Getter getGetter(Class theClass, String propertyName) throws PropertyNotFoundException {
 		return createGetter(theClass, propertyName);
 	}
@@ -331,9 +325,7 @@ public class BasicPropertyAccessor implements PropertyAccessor {
 		Method method = getterMethod(theClass, propertyName);
 
 		if (method!=null) {
-			if ( !ReflectHelper.isPublic( theClass, method ) ) {
-				method.setAccessible(true);
-			}
+			method.setAccessible(true);
 			return new BasicGetter(theClass, method, propertyName);
 		}
 		else {

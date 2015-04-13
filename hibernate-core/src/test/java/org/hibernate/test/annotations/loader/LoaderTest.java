@@ -23,16 +23,17 @@
  */
 package org.hibernate.test.annotations.loader;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
 import java.util.Iterator;
 import java.util.Set;
 
-import org.junit.Test;
-
+import org.hibernate.ObjectNotFoundException;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
-
-import static org.junit.Assert.assertEquals;
+import org.junit.Test;
 
 /**
  * @author Emmanuel Bernard
@@ -82,6 +83,23 @@ public class LoaderTest extends BaseCoreFunctionalTestCase {
 		catch (Exception e) {
 			e.printStackTrace();
 			if ( tx != null ) tx.rollback();
+		}
+		finally {
+			s.close();
+		}
+	}
+
+	@Test
+	public void testGetNotExisting() {
+		Session s = openSession();
+
+		try {
+			long notExistingId = 1l;
+			s.load( Team.class, notExistingId );
+			s.get( Team.class, notExistingId );
+		}
+		catch (ObjectNotFoundException e) {
+			fail("#get threw an ObjectNotFoundExcepton");
 		}
 		finally {
 			s.close();

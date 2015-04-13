@@ -41,7 +41,7 @@ public class LegacyBatchingCollectionInitializerBuilder extends BatchingCollecti
 	public static final LegacyBatchingCollectionInitializerBuilder INSTANCE = new LegacyBatchingCollectionInitializerBuilder();
 
 	@Override
-	public CollectionInitializer createRealBatchingCollectionInitializer(
+	protected CollectionInitializer createRealBatchingCollectionInitializer(
 			QueryableCollection persister,
 			int maxBatchSize,
 			SessionFactoryImplementor factory,
@@ -55,7 +55,7 @@ public class LegacyBatchingCollectionInitializerBuilder extends BatchingCollecti
 	}
 
 	@Override
-	public CollectionInitializer createRealBatchingOneToManyInitializer(
+	protected CollectionInitializer createRealBatchingOneToManyInitializer(
 			QueryableCollection persister,
 			int maxBatchSize,
 			SessionFactoryImplementor factory,

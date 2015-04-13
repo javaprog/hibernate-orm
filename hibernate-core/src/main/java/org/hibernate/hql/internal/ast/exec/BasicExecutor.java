@@ -23,12 +23,11 @@
  *
  */
 package org.hibernate.hql.internal.ast.exec;
+
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Iterator;
 import java.util.List;
-
-import antlr.RecognitionException;
 
 import org.hibernate.HibernateException;
 import org.hibernate.action.internal.BulkOperationCleanupAction;
@@ -42,6 +41,8 @@ import org.hibernate.hql.internal.ast.QuerySyntaxException;
 import org.hibernate.hql.internal.ast.SqlGenerator;
 import org.hibernate.param.ParameterSpecification;
 import org.hibernate.persister.entity.Queryable;
+
+import antlr.RecognitionException;
 
 /**
  * Implementation of BasicExecutor.
@@ -74,6 +75,11 @@ public class BasicExecutor implements StatementExecutor {
 	}
 
 	public int execute(QueryParameters parameters, SessionImplementor session) throws HibernateException {
+		return doExecute( parameters, session, sql, parameterSpecifications );
+	}
+	
+	protected int doExecute(QueryParameters parameters, SessionImplementor session, String sql,
+			List parameterSpecifications) throws HibernateException {
 		BulkOperationCleanupAction action = new BulkOperationCleanupAction( session, persister );
 		if ( session.isEventSource() ) {
 			( (EventSource) session ).getActionQueue().addAction( action );
@@ -88,10 +94,10 @@ public class BasicExecutor implements StatementExecutor {
 		try {
 			try {
 				st = session.getTransactionCoordinator().getJdbcCoordinator().getStatementPreparer().prepareStatement( sql, false );
-				Iterator parameterSpecifications = this.parameterSpecifications.iterator();
+				Iterator paramSpecItr = parameterSpecifications.iterator();
 				int pos = 1;
-				while ( parameterSpecifications.hasNext() ) {
-					final ParameterSpecification paramSpec = ( ParameterSpecification ) parameterSpecifications.next();
+				while ( paramSpecItr.hasNext() ) {
+					final ParameterSpecification paramSpec = (ParameterSpecification) paramSpecItr.next();
 					pos += paramSpec.bind( st, parameters, session, pos );
 				}
 				if ( selection != null ) {

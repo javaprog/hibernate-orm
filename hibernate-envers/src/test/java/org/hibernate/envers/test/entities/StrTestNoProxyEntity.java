@@ -75,20 +75,28 @@ public class StrTestNoProxyEntity implements Serializable {
 	}
 
 	public boolean equals(Object o) {
-		if ( this == o ) return true;
-		if ( !( o instanceof StrTestNoProxyEntity ) ) return false;
+		if ( this == o ) {
+			return true;
+		}
+		if ( !(o instanceof StrTestNoProxyEntity) ) {
+			return false;
+		}
 
 		StrTestNoProxyEntity that = (StrTestNoProxyEntity) o;
 
-		if ( id != null ? !id.equals( that.id ) : that.id != null ) return false;
-		if ( str != null ? !str.equals( that.str ) : that.str != null ) return false;
+		if ( id != null ? !id.equals( that.id ) : that.id != null ) {
+			return false;
+		}
+		if ( str != null ? !str.equals( that.str ) : that.str != null ) {
+			return false;
+		}
 
 		return true;
 	}
 
 	public int hashCode() {
-		int result = ( id != null ? id.hashCode() : 0 );
-		result = 31 * result + ( str != null ? str.hashCode() : 0 );
+		int result = (id != null ? id.hashCode() : 0);
+		result = 31 * result + (str != null ? str.hashCode() : 0);
 		return result;
 	}
 

@@ -29,6 +29,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.Calendar;
 
 import org.hibernate.type.descriptor.ValueBinder;
 import org.hibernate.type.descriptor.ValueExtractor;
@@ -44,7 +45,6 @@ public class TimestampTypeDescriptor implements SqlTypeDescriptor {
 	public static final TimestampTypeDescriptor INSTANCE = new TimestampTypeDescriptor();
 
 	public TimestampTypeDescriptor() {
-		SqlTypeDescriptorRegistry.INSTANCE.addDescriptor( this );
 	}
 
 	@Override
@@ -62,7 +62,13 @@ public class TimestampTypeDescriptor implements SqlTypeDescriptor {
 		return new BasicBinder<X>( javaTypeDescriptor, this ) {
 			@Override
 			protected void doBind(PreparedStatement st, X value, int index, WrapperOptions options) throws SQLException {
-				st.setTimestamp( index, javaTypeDescriptor.unwrap( value, Timestamp.class, options ) );
+				final Timestamp timestamp = javaTypeDescriptor.unwrap( value, Timestamp.class, options );
+				if ( value instanceof Calendar ) {
+					st.setTimestamp( index, timestamp, (Calendar) value );
+				}
+				else {
+					st.setTimestamp( index, timestamp );
+				}
 			}
 		};
 	}

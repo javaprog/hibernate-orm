@@ -27,8 +27,6 @@ package org.hibernate.persister.entity;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.MappingException;
 import org.hibernate.QueryException;
 import org.hibernate.engine.spi.Mapping;
@@ -40,6 +38,8 @@ import org.hibernate.type.AssociationType;
 import org.hibernate.type.CompositeType;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
+
+import org.jboss.logging.Logger;
 
 /**
  * Basic implementation of the {@link PropertyMapping} contract.
@@ -171,8 +171,9 @@ public abstract class AbstractPropertyMapping implements PropertyMapping {
 			String[] columnReaders,
 			String[] columnReaderTemplates,
 			final String[] formulaTemplates,
-			final Mapping factory)
-	throws MappingException {
+			final Mapping factory) throws MappingException {
+		assert columns != null : "Incoming columns should not be null : " + path;
+		assert type != null : "Incoming type should not be null : " + path;
 
 		if ( columns.length!=type.getColumnSpan(factory) ) {
 			throw new MappingException(

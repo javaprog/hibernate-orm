@@ -23,9 +23,8 @@
  */
 package org.hibernate.integrator.spi;
 
-import org.hibernate.cfg.Configuration;
+import org.hibernate.boot.Metadata;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
-import org.hibernate.metamodel.source.MetadataImplementor;
 import org.hibernate.service.spi.SessionFactoryServiceRegistry;
 
 /**
@@ -33,42 +32,23 @@ import org.hibernate.service.spi.SessionFactoryServiceRegistry;
  * <p/>
  * IMPL NOTE: called during session factory initialization (constructor), so not all parts of the passed session factory
  * will be available.
- * <p/>
- * For more information, see the following jiras:<ul>
- *     <li><a href="https://hibernate.onjira.com/browse/HHH-5562">HHH-5562</a></li>
- *     <li><a href="https://hibernate.onjira.com/browse/HHH-6081">HHH-6081</a></li>
- * </ul>
  *
  * @author Steve Ebersole
  * @since 4.0
- *
- * @todo : the signature here *will* change, guaranteed
- * @todo : better name ?
  */
 public interface Integrator {
 
 	/**
 	 * Perform integration.
 	 *
-	 * @param configuration The configuration used to create the session factory
+	 * @param metadata The "compiled" representation of the mapping information
 	 * @param sessionFactory The session factory being created
 	 * @param serviceRegistry The session factory's service registry
 	 */
 	public void integrate(
-			Configuration configuration,
+			Metadata metadata,
 			SessionFactoryImplementor sessionFactory,
 			SessionFactoryServiceRegistry serviceRegistry);
-
-	/**
-     * Perform integration.
-     *
-     * @param metadata The metadata used to create the session factory
-     * @param sessionFactory The session factory being created
-     * @param serviceRegistry The session factory's service registry
-     */
-    public void integrate( MetadataImplementor metadata,
-                           SessionFactoryImplementor sessionFactory,
-                           SessionFactoryServiceRegistry serviceRegistry );
 
 	/**
 	 * Tongue-in-cheek name for a shutdown callback.

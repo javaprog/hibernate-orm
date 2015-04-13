@@ -1,16 +1,26 @@
 package org.hibernate.test.annotations.enumerated;
 
+import javax.persistence.Column;
+import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.JoinTable;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.hibernate.annotations.Formula;
 import org.hibernate.annotations.Type;
 import org.hibernate.annotations.TypeDef;
 import org.hibernate.annotations.TypeDefs;
 
 /**
  * @author Janario Oliveira
+ * @author Brett Meyer
  */
 @Entity
 @TypeDefs({ @TypeDef(typeClass = LastNumberType.class, defaultForType = EntityEnum.LastNumber.class) })
@@ -31,6 +41,11 @@ public class EntityEnum {
 		NUMBER_1, NUMBER_2, NUMBER_3
 	}
 
+	enum Trimmed {
+
+		A, B, C
+	}
+
 	@Id
 	@GeneratedValue
 	private long id;
@@ -42,6 +57,19 @@ public class EntityEnum {
 	private LastNumber lastNumber;
 	@Enumerated(EnumType.STRING)
 	private LastNumber explicitOverridingImplicit;
+	@Column(columnDefinition = "char(5)")
+	@Enumerated(EnumType.STRING)
+	private Trimmed trimmed;
+
+	@Formula("upper('a')")
+	@Enumerated(EnumType.STRING)
+	private Trimmed formula;
+
+	@Enumerated(EnumType.STRING)
+	@ElementCollection(targetClass = Common.class, fetch = FetchType.LAZY)
+	@JoinTable(name = "set_enum", joinColumns = { @JoinColumn(name = "entity_id") })
+	@Column(name = "common_enum", nullable = false)
+	private Set<Common> set = new HashSet<Common>();
 
 	public long getId() {
 		return id;
@@ -89,5 +117,29 @@ public class EntityEnum {
 
 	public void setExplicitOverridingImplicit(LastNumber explicitOverridingImplicit) {
 		this.explicitOverridingImplicit = explicitOverridingImplicit;
+	}
+
+	public Trimmed getTrimmed() {
+		return trimmed;
+	}
+
+	public void setTrimmed(Trimmed trimmed) {
+		this.trimmed = trimmed;
+	}
+
+	public Trimmed getFormula() {
+		return formula;
+	}
+
+	public void setFormula(Trimmed formula) {
+		this.formula = formula;
+	}
+
+	public Set<Common> getSet() {
+		return set;
+	}
+
+	public void setSet(Set<Common> set) {
+		this.set = set;
 	}
 }

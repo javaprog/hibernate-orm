@@ -22,17 +22,19 @@
  * Boston, MA  02110-1301  USA
  */
 package org.hibernate.mapping;
+
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
+import org.hibernate.boot.model.naming.Identifier;
+import org.hibernate.boot.model.relational.Schema;
 import org.hibernate.internal.util.collections.JoinedIterator;
 
 /**
  * @author Gavin King
  */
+@SuppressWarnings("unchecked")
 public class DenormalizedTable extends Table {
 	
 	private final Table includedTable;
@@ -41,7 +43,25 @@ public class DenormalizedTable extends Table {
 		this.includedTable = includedTable;
 		includedTable.setHasDenormalizedTables();
 	}
-	
+
+	public DenormalizedTable(Schema schema, Identifier physicalTableName, boolean isAbstract, Table includedTable) {
+		super( schema, physicalTableName, isAbstract );
+		this.includedTable = includedTable;
+		includedTable.setHasDenormalizedTables();
+	}
+
+	public DenormalizedTable(Schema schema, Identifier physicalTableName, String subselectFragment, boolean isAbstract, Table includedTable) {
+		super( schema, physicalTableName, subselectFragment, isAbstract );
+		this.includedTable = includedTable;
+		includedTable.setHasDenormalizedTables();
+	}
+
+	public DenormalizedTable(Schema schema, String subselect, boolean isAbstract, Table includedTable) {
+		super( schema, subselect, isAbstract );
+		this.includedTable = includedTable;
+		includedTable.setHasDenormalizedTables();
+	}
+
 	@Override
     public void createForeignKeys() {
 		includedTable.createForeignKeys();
@@ -49,9 +69,14 @@ public class DenormalizedTable extends Table {
 		while ( iter.hasNext() ) {
 			ForeignKey fk = (ForeignKey) iter.next();
 			createForeignKey( 
-					fk.getName() + Integer.toHexString( getName().hashCode() ), 
+					Constraint.generateName(
+							fk.generatedConstraintNamePrefix(),
+							this,
+							fk.getColumns()
+					),
 					fk.getColumns(), 
-					fk.getReferencedEntityName() 
+					fk.getReferencedEntityName(),
+					fk.getReferencedColumns()
 				);
 		}
 	}
@@ -64,6 +89,16 @@ public class DenormalizedTable extends Table {
 		}
 		else {
 			return includedTable.getColumn( column );
+		}
+	}
+
+	public Column getColumn(Identifier name) {
+		Column superColumn = super.getColumn( name );
+		if ( superColumn != null ) {
+			return superColumn;
+		}
+		else {
+			return includedTable.getColumn( name );
 		}
 	}
 
@@ -87,14 +122,12 @@ public class DenormalizedTable extends Table {
 
 	@Override
     public Iterator getUniqueKeyIterator() {
-		//wierd implementation because of hacky behavior
-		//of Table.sqlCreateString() which modifies the
-		//list of unique keys by side-effect on some
-		//dialects
-		Map uks = new HashMap();
-		uks.putAll( getUniqueKeys() );
-		uks.putAll( includedTable.getUniqueKeys() );
-		return uks.values().iterator();
+		Iterator iter = includedTable.getUniqueKeyIterator();
+		while ( iter.hasNext() ) {
+			UniqueKey uk = (UniqueKey) iter.next();
+			createUniqueKey( uk.getColumns() );
+		}
+		return getUniqueKeys().values().iterator();
 	}
 
 	@Override
@@ -115,4 +148,7 @@ public class DenormalizedTable extends Table {
 			);
 	}
 
+	public Table getIncludedTable() {
+		return includedTable;
+	}
 }

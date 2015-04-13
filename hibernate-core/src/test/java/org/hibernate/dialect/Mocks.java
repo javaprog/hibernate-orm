@@ -32,7 +32,6 @@ import java.sql.SQLException;
 /**
  * @author Steve Ebersole
  */
-@SuppressWarnings( {"UnnecessaryBoxing"})
 public class Mocks {
 
 	public static Connection createConnection(String databaseName, int majorVersion) {
@@ -135,7 +134,7 @@ public class Mocks {
 			}
 
 			if ( "hashCode".equals( methodName ) ) {
-				return new Integer( this.hashCode() );
+				return Integer.valueOf( this.hashCode() );
 			}
 
 			if ( canThrowSQLException( method ) ) {

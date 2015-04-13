@@ -8,8 +8,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Test;
-
 import org.hibernate.Hibernate;
 import org.hibernate.HibernateException;
 import org.hibernate.Query;
@@ -19,9 +17,24 @@ import org.hibernate.Session;
 import org.hibernate.Transaction;
 import org.hibernate.cfg.Configuration;
 import org.hibernate.cfg.Environment;
+import org.hibernate.dialect.AbstractHANADialect;
 import org.hibernate.dialect.H2Dialect;
 import org.hibernate.dialect.MySQL5Dialect;
+import org.hibernate.engine.query.spi.sql.NativeSQLQueryReturn;
+import org.hibernate.engine.spi.NamedSQLQueryDefinitionBuilder;
 import org.hibernate.internal.util.collections.ArrayHelper;
+import org.hibernate.transform.BasicTransformerAdapter;
+import org.hibernate.transform.DistinctRootEntityResultTransformer;
+import org.hibernate.transform.Transformers;
+import org.hibernate.type.FloatType;
+import org.hibernate.type.LongType;
+import org.hibernate.type.StringType;
+import org.hibernate.type.TimestampType;
+
+import org.hibernate.testing.FailureExpected;
+import org.hibernate.testing.RequiresDialect;
+import org.hibernate.testing.SkipForDialect;
+import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
 import org.hibernate.test.sql.hand.Dimension;
 import org.hibernate.test.sql.hand.Employment;
 import org.hibernate.test.sql.hand.Group;
@@ -33,17 +46,7 @@ import org.hibernate.test.sql.hand.Product;
 import org.hibernate.test.sql.hand.SpaceShip;
 import org.hibernate.test.sql.hand.Speech;
 import org.hibernate.test.sql.hand.TextHolder;
-import org.hibernate.testing.FailureExpected;
-import org.hibernate.testing.RequiresDialect;
-import org.hibernate.testing.SkipForDialect;
-import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
-import org.hibernate.transform.BasicTransformerAdapter;
-import org.hibernate.transform.DistinctRootEntityResultTransformer;
-import org.hibernate.transform.Transformers;
-import org.hibernate.type.FloatType;
-import org.hibernate.type.LongType;
-import org.hibernate.type.StringType;
-import org.hibernate.type.TimestampType;
+import org.junit.Test;
 
 import static org.hibernate.testing.junit4.ExtraAssertions.assertClassAssignability;
 import static org.junit.Assert.assertEquals;
@@ -57,7 +60,6 @@ import static org.junit.Assert.fail;
  *
  * @author Steve Ebersole
  */
-@SuppressWarnings({ "UnnecessaryBoxing", "UnnecessaryUnboxing" })
 public class NativeSQLQueriesTest extends BaseCoreFunctionalTestCase {
 	public String[] getMappings() {
 		return new String[] { "sql/hand/query/NativeSQLQueries.hbm.xml" };
@@ -140,6 +142,28 @@ public class NativeSQLQueriesTest extends BaseCoreFunctionalTestCase {
 			s.getTransaction().rollback();
 			s.close();
 		}
+	}
+	
+	@Test
+	public void testRegisteredNamedSQLQueryWithScalar()
+	{
+		final NamedSQLQueryDefinitionBuilder builder = new NamedSQLQueryDefinitionBuilder();
+		builder.setName("namedQuery");
+		builder.setQuery("select count(*) AS c from organization");
+		builder.setQueryReturns(new NativeSQLQueryReturn[1]);
+		
+		sessionFactory().registerNamedSQLQueryDefinition("namedQuery", builder.createNamedQueryDefinition());
+
+		final Session s = openSession();
+		s.beginTransaction();
+		final SQLQuery query = (SQLQuery) s.getNamedQuery("namedQuery");
+		query.addScalar("c");
+		final Number result = (Number) query.uniqueResult();
+ 		s.getTransaction().commit();
+		s.close();
+		
+		assertNotNull(result);
+		assertTrue(0 == result.intValue());
 	}
 
 	@Test
@@ -289,6 +313,7 @@ public class NativeSQLQueriesTest extends BaseCoreFunctionalTestCase {
 
 		Iterator iter = s.getNamedQuery( "orgNamesAndOrgs" ).list().iterator();
 		Object[] o = ( Object[] ) iter.next();
+		assertEquals( "expecting 2 values", 2, o.length );
 		assertEquals( o[0], "IFA" );
 		assertEquals( ( ( Organization ) o[1] ).getName(), "IFA" );
 		o = ( Object[] ) iter.next();
@@ -304,6 +329,7 @@ public class NativeSQLQueriesTest extends BaseCoreFunctionalTestCase {
 		// test that the ordering of the results is truly based on the order in which they were defined
 		iter = s.getNamedQuery( "orgsAndOrgNames" ).list().iterator();
 		Object[] row = ( Object[] ) iter.next();
+		assertEquals( "expecting 2 values", 2, row.length );
 		assertEquals( "expecting non-scalar result first", Organization.class, row[0].getClass() );
 		assertEquals( "expecting scalar result second", String.class, row[1].getClass() );
 		assertEquals( ( ( Organization ) row[0] ).getName(), "IFA" );
@@ -614,6 +640,7 @@ public class NativeSQLQueriesTest extends BaseCoreFunctionalTestCase {
 		enterprise.setDimensions( d );
 		s.save( enterprise );
 		Object[] result = (Object[]) s.getNamedQuery( "spaceship" ).uniqueResult();
+		assertEquals( "expecting 3 result values", 3, result.length );
 		enterprise = ( SpaceShip ) result[0];
 		assertTrue(50d == enterprise.getSpeed() );
 		assertTrue( 450d == extractDoubleValue( result[1] ) );
@@ -797,6 +824,7 @@ public class NativeSQLQueriesTest extends BaseCoreFunctionalTestCase {
 		s.close();
 	}
 
+	@SkipForDialect(value = AbstractHANADialect.class, comment = "On HANA, this returns an clob for the text column which doesn't get mapped to a String")
 	@Test
 	public void testTextTypeInSQLQuery() {
 		Session s = openSession();
@@ -817,6 +845,7 @@ public class NativeSQLQueriesTest extends BaseCoreFunctionalTestCase {
 		s.close();
 	}
 
+	@SkipForDialect(value = AbstractHANADialect.class, comment = "On HANA, this returns a blob for the image column which doesn't get mapped to a byte[]")
 	@Test
 	public void testImageTypeInSQLQuery() {
 		Session s = openSession();

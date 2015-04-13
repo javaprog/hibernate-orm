@@ -23,11 +23,14 @@
  */
 package org.hibernate.test.any;
 
-import org.junit.Test;
-
 import org.hibernate.Session;
+import org.hibernate.cfg.AvailableSettings;
+import org.hibernate.cfg.Configuration;
+import org.hibernate.hql.internal.ast.QuerySyntaxException;
+
 import org.hibernate.testing.TestForIssue;
 import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
+import org.junit.Test;
 
 /**
  * @author Steve Ebersole
@@ -40,9 +43,9 @@ public class AnyTypeTest extends BaseCoreFunctionalTestCase {
 	}
 
 	@Override
-	public String getCacheConcurrencyStrategy() {
+	protected void configure(Configuration configuration) {
 		// having second level cache causes a condition whereby the original test case would not fail...
-		return null;
+		configuration.setProperty( AvailableSettings.USE_SECOND_LEVEL_CACHE, "false" );
 	}
 
 	@Test
@@ -67,6 +70,16 @@ public class AnyTypeTest extends BaseCoreFunctionalTestCase {
 		session = openSession();
 		session.beginTransaction();
 		session.delete( person );
+		session.getTransaction().commit();
+		session.close();
+	}
+
+	@Test( expected = QuerySyntaxException.class )
+	public void testJoinFetchOfAnAnyTypeAttribute() {
+		// Query translator should dis-allow join fetching of an <any/> mapping.  Let's make sure it does...
+		Session session = openSession();
+		session.beginTransaction();
+		session.createQuery( "select p from Person p join fetch p.data" ).list();
 		session.getTransaction().commit();
 		session.close();
 	}

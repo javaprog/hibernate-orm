@@ -50,6 +50,7 @@ import org.hibernate.Query;
 import org.hibernate.QueryException;
 import org.hibernate.Session;
 import org.hibernate.dialect.Dialect;
+import org.hibernate.engine.query.spi.HQLQueryPlan;
 import org.hibernate.engine.query.spi.ParameterMetadata;
 import org.hibernate.engine.spi.QueryParameters;
 import org.hibernate.engine.spi.RowSelection;
@@ -66,6 +67,7 @@ import org.hibernate.transform.ResultTransformer;
 import org.hibernate.type.SerializableType;
 import org.hibernate.type.StandardBasicTypes;
 import org.hibernate.type.Type;
+
 import org.jboss.logging.Logger;
 
 /**
@@ -91,7 +93,7 @@ public abstract class AbstractQueryImpl implements Query {
 	private List values = new ArrayList(4);
 	private List types = new ArrayList(4);
 	private Map<String,TypedValue> namedParameters = new HashMap<String, TypedValue>(4);
-	private Map namedParameterLists = new HashMap(4);
+	private Map<String, TypedValue> namedParameterLists = new HashMap<String, TypedValue>(4);
 
 	private Object optionalObject;
 	private Serializable optionalId;
@@ -101,6 +103,7 @@ public abstract class AbstractQueryImpl implements Query {
 	private boolean cacheable;
 	private String cacheRegion;
 	private String comment;
+	private final List<String> queryHints = new ArrayList<String>();
 	private FlushMode flushMode;
 	private CacheMode cacheMode;
 	private FlushMode sessionFlushMode;
@@ -108,6 +111,8 @@ public abstract class AbstractQueryImpl implements Query {
 	private Serializable collectionKey;
 	private Boolean readOnly;
 	private ResultTransformer resultTransformer;
+	
+	private HQLQueryPlan queryPlan;
 
 	public AbstractQueryImpl(
 			String queryString,
@@ -192,6 +197,12 @@ public abstract class AbstractQueryImpl implements Query {
 		this.comment = comment;
 		return this;
 	}
+	  
+	@Override
+	public Query addQueryHint(String queryHint) {
+		queryHints.add( queryHint );
+		return this;
+	} 
 
 	@Override
 	public Integer getFirstResult() {
@@ -211,8 +222,8 @@ public abstract class AbstractQueryImpl implements Query {
 
 	@Override
 	public Query setMaxResults(int maxResults) {
-		if ( maxResults < 0 ) {
-			// treat negatives specically as meaning no limit...
+		if ( maxResults <= 0 ) {
+			// treat zero and negatives specically as meaning no limit...
 			selection.setMaxRows( null );
 		}
 		else {
@@ -256,24 +267,20 @@ public abstract class AbstractQueryImpl implements Query {
 		return this;
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public boolean isReadOnly() {
 		return ( readOnly == null ?
 				getSession().getPersistenceContext().isDefaultReadOnly() :
-				readOnly.booleanValue() 
+				readOnly
 		);
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
+	@Override
 	public Query setReadOnly(boolean readOnly) {
-		this.readOnly = Boolean.valueOf( readOnly );
+		this.readOnly = readOnly;
 		return this;
 	}
-
+	@Override
 	public Query setResultTransformer(ResultTransformer transformer) {
 		this.resultTransformer = transformer;
 		return this;
@@ -294,7 +301,7 @@ public abstract class AbstractQueryImpl implements Query {
 	SessionImplementor getSession() {
 		return session;
 	}
-
+	@Override
 	public abstract LockOptions getLockOptions();
 
 
@@ -305,8 +312,8 @@ public abstract class AbstractQueryImpl implements Query {
 	 *
 	 * @return Shallow copy of the named parameter value map
 	 */
-	protected Map getNamedParams() {
-		return new HashMap( namedParameters );
+	protected Map<String, TypedValue> getNamedParams() {
+		return new HashMap<String, TypedValue>( namedParameters );
 	}
 
 	/**
@@ -323,6 +330,7 @@ public abstract class AbstractQueryImpl implements Query {
 	 * @return Array of named parameter names.
 	 * @throws HibernateException
 	 */
+	@Override
 	public String[] getNamedParameters() throws HibernateException {
 		return ArrayHelper.toStringArray( parameterMetadata.getNamedParameterNames() );
 	}
@@ -343,7 +351,7 @@ public abstract class AbstractQueryImpl implements Query {
 	 *
 	 * @return The parameter list value map.
 	 */
-	protected Map getNamedParameterLists() {
+	protected Map<String, TypedValue> getNamedParameterLists() {
 		return namedParameterLists;
 	}
 
@@ -387,7 +395,7 @@ public abstract class AbstractQueryImpl implements Query {
 	 */
 	protected void verifyParameters(boolean reserveFirstParameter) throws HibernateException {
 		if ( parameterMetadata.getNamedParameterNames().size() != namedParameters.size() + namedParameterLists.size() ) {
-			Set missingParams = new HashSet( parameterMetadata.getNamedParameterNames() );
+			Set<String> missingParams = new HashSet<String>( parameterMetadata.getNamedParameterNames() );
 			missingParams.removeAll( namedParameterLists.keySet() );
 			missingParams.removeAll( namedParameters.keySet() );
 			throw new QueryException( "Not all named parameters have been set: " + missingParams, getQueryString() );
@@ -561,7 +569,7 @@ public abstract class AbstractQueryImpl implements Query {
 	}
 
 	public Query setCharacter(int position, char val) {
-		setParameter(position, new Character(val), StandardBasicTypes.CHARACTER);
+		setParameter( position, Character.valueOf( val ), StandardBasicTypes.CHARACTER );
 		return this;
 	}
 
@@ -776,6 +784,7 @@ public abstract class AbstractQueryImpl implements Query {
 		return this;
 	}
 
+	@Override
 	public Query setParameterList(String name, Collection vals, Type type) throws HibernateException {
 		if ( !parameterMetadata.getNamedParameterNames().contains( name ) ) {
 			throw new IllegalArgumentException("Parameter " + name + " does not exist as a named parameter in [" + getQueryString() + "]");
@@ -790,9 +799,8 @@ public abstract class AbstractQueryImpl implements Query {
 	 */
 	protected String expandParameterLists(Map namedParamsCopy) {
 		String query = this.queryString;
-		Iterator iter = namedParameterLists.entrySet().iterator();
-		while ( iter.hasNext() ) {
-			Map.Entry me = (Map.Entry) iter.next();
+		for ( Map.Entry<String, TypedValue> stringTypedValueEntry : namedParameterLists.entrySet() ) {
+			Map.Entry me = (Map.Entry) stringTypedValueEntry;
 			query = expandParameterList( query, (String) me.getKey(), (TypedValue) me.getValue(), namedParamsCopy );
 		}
 		return query;
@@ -851,8 +859,12 @@ public abstract class AbstractQueryImpl implements Query {
 		Iterator iter = vals.iterator();
 		int i = 0;
 		while ( iter.hasNext() ) {
-			String alias = ( isJpaPositionalParam ? 'x' + name : name ) + i++ + '_';
-			namedParamsCopy.put( alias, new TypedValue( type, iter.next() ) );
+			// Variable 'name' can represent a number or contain digit at the end. Surrounding it with
+			// characters to avoid ambiguous definition after concatenating value of 'i' counter.
+			String alias = ( isJpaPositionalParam ? 'x' + name : name ) + '_' + i++ + '_';
+			if ( namedParamsCopy.put( alias, new TypedValue( type, iter.next() ) ) != null ) {
+				throw new HibernateException( "Repeated usage of alias '" + alias + "' while expanding list parameter." );
+			}
 			list.append( ParserHelper.HQL_VARIABLE_PREFIX ).append( alias );
 			if ( iter.hasNext() ) {
 				list.append( ", " );
@@ -887,8 +899,8 @@ public abstract class AbstractQueryImpl implements Query {
 		return setParameterList( name, Arrays.asList(vals), type );
 	}
 
-	public Query setParameterList(String name, Object[] vals) throws HibernateException {
-		return setParameterList( name, Arrays.asList(vals) );
+	public Query setParameterList(String name, Object[] values) throws HibernateException {
+		return setParameterList( name, Arrays.asList( values ) );
 	}
 
 	public Query setProperties(Map map) throws HibernateException {
@@ -979,7 +991,7 @@ public abstract class AbstractQueryImpl implements Query {
 	}
 
 	public QueryParameters getQueryParameters(Map namedParams) {
-		return new QueryParameters(
+		QueryParameters queryParameters = new QueryParameters(
 				typeArray(),
 				valueArray(),
 				namedParams,
@@ -990,12 +1002,15 @@ public abstract class AbstractQueryImpl implements Query {
 				cacheable,
 				cacheRegion,
 				comment,
+				queryHints,
 				collectionKey == null ? null : new Serializable[] { collectionKey },
 				optionalObject,
 				optionalEntityName,
 				optionalId,
 				resultTransformer
 		);
+		queryParameters.setQueryPlan( queryPlan );
+		return queryParameters;
 	}
 	
 	protected void before() {
@@ -1018,5 +1033,13 @@ public abstract class AbstractQueryImpl implements Query {
 			getSession().setCacheMode(sessionCacheMode);
 			sessionCacheMode = null;
 		}
+	}
+
+	public HQLQueryPlan getQueryPlan() {
+		return queryPlan;
+	}
+
+	public void setQueryPlan(HQLQueryPlan queryPlan) {
+		this.queryPlan = queryPlan;
 	}
 }

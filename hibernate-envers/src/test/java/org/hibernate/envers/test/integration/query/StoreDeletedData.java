@@ -28,10 +28,8 @@ import java.util.List;
 import java.util.Map;
 import javax.persistence.EntityManager;
 
-import junit.framework.Assert;
-import org.junit.Test;
-
 import org.hibernate.envers.RevisionType;
+import org.hibernate.envers.configuration.EnversSettings;
 import org.hibernate.envers.enhanced.SequenceIdRevisionEntity;
 import org.hibernate.envers.query.AuditEntity;
 import org.hibernate.envers.query.criteria.AuditCriterion;
@@ -39,13 +37,17 @@ import org.hibernate.envers.query.criteria.AuditDisjunction;
 import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrIntTestEntity;
+
 import org.hibernate.testing.TestForIssue;
+import org.junit.Test;
+import junit.framework.Assert;
 
 /**
  * A test which checks if the data of a deleted entity is stored when the setting is on.
+ *
  * @author Adam Warski (adam at warski dot org)
  */
-@SuppressWarnings({ "unchecked" })
+@SuppressWarnings({"unchecked"})
 public class StoreDeletedData extends BaseEnversJPAFunctionalTestCase {
 	private Integer id1;
 	private Integer id2;
@@ -53,13 +55,13 @@ public class StoreDeletedData extends BaseEnversJPAFunctionalTestCase {
 
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class[] { StrIntTestEntity.class };
+		return new Class[] {StrIntTestEntity.class};
 	}
 
 	@Override
 	protected void addConfigOptions(Map options) {
 		super.addConfigOptions( options );
-		options.put( "org.hibernate.envers.storeDataAtDelete", "true" );
+		options.put( EnversSettings.STORE_DATA_AT_DELETE, "true" );
 	}
 
 	@Test
@@ -106,8 +108,8 @@ public class StoreDeletedData extends BaseEnversJPAFunctionalTestCase {
 				.getResultList();
 
 		Assert.assertEquals( 2, revs_id1.size() );
-		Assert.assertEquals( new StrIntTestEntity( "a", 10, id1 ), ( (Object[]) revs_id1.get( 0 ) )[0] );
-		Assert.assertEquals( new StrIntTestEntity( "a", 10, id1 ), ( (Object[]) revs_id1.get( 1 ) )[0] );
+		Assert.assertEquals( new StrIntTestEntity( "a", 10, id1 ), ((Object[]) revs_id1.get( 0 ))[0] );
+		Assert.assertEquals( new StrIntTestEntity( "a", 10, id1 ), ((Object[]) revs_id1.get( 1 ))[0] );
 	}
 
 	@Test
@@ -138,11 +140,11 @@ public class StoreDeletedData extends BaseEnversJPAFunctionalTestCase {
 
 		Assert.assertEquals( new StrIntTestEntity( "b", 20, id2 ), result1[0] );
 		// Making sure that we have received an entity added at revision 3.
-		Assert.assertEquals( 3, ( (SequenceIdRevisionEntity) result1[1] ).getId() );
+		Assert.assertEquals( 3, ((SequenceIdRevisionEntity) result1[1]).getId() );
 		Assert.assertEquals( RevisionType.ADD, result1[2] );
 		Assert.assertEquals( new StrIntTestEntity( "c", 30, id3 ), result2[0] );
 		// Making sure that we have received an entity added at revision 3.
-		Assert.assertEquals( 3, ( (SequenceIdRevisionEntity) result2[1] ).getId() );
+		Assert.assertEquals( 3, ((SequenceIdRevisionEntity) result2[1]).getId() );
 		Assert.assertEquals( RevisionType.ADD, result2[2] );
 	}
 }

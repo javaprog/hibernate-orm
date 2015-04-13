@@ -1,25 +1,16 @@
 package org.hibernate.test.annotations.uniqueconstraint;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.fail;
-
-import java.util.Iterator;
-
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.Id;
-import javax.persistence.Table;
-import javax.persistence.UniqueConstraint;
-
 import org.hibernate.JDBCException;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
-import org.hibernate.testing.TestForIssue;
 import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
 import org.junit.Test;
 
+import static org.junit.Assert.fail;
+
 /**
  * @author Manuel Bernhardt <bernhardt.manuel@gmail.com>
+ * @author Brett Meyer
  */
 public class UniqueConstraintTest extends BaseCoreFunctionalTestCase {
 	
@@ -27,14 +18,12 @@ public class UniqueConstraintTest extends BaseCoreFunctionalTestCase {
         return new Class[]{
                 Room.class,
                 Building.class,
-                House.class,
-                UniqueNoNameA.class,
-                UniqueNoNameB.class
+                House.class
         };
     }
 
 	@Test
-    public void testUniquenessConstraintWithSuperclassProperty() throws Exception {
+	public void testUniquenessConstraintWithSuperclassProperty() throws Exception {
         Session s = openSession();
         Transaction tx = s.beginTransaction();
         Room livingRoom = new Room();
@@ -64,51 +53,5 @@ public class UniqueConstraintTest extends BaseCoreFunctionalTestCase {
         tx.rollback();
         s.close();
     }
-	
-	@Test
-	@TestForIssue( jiraKey = "HHH-8026" )
-	public void testUnNamedConstraints() {
-		Iterator<org.hibernate.mapping.Table> iterator = configuration().getTableMappings();
-		org.hibernate.mapping.Table tableA = null;
-		org.hibernate.mapping.Table tableB = null;
-		while( iterator.hasNext() ) {
-			org.hibernate.mapping.Table table = iterator.next();
-			if ( table.getName().equals( "UniqueNoNameA" ) ) {
-				tableA = table;
-			}
-			else if ( table.getName().equals( "UniqueNoNameB" ) ) {
-				tableB = table;
-			}
-		}
-		
-		if ( tableA == null || tableB == null ) {
-			fail( "Could not find the expected tables." );
-		}
-		
-		assertFalse( tableA.getUniqueKeyIterator().next().getName().equals(
-				tableB.getUniqueKeyIterator().next().getName() ) );
-	}
-	
-	@Entity
-	@Table( name = "UniqueNoNameA",
-			uniqueConstraints = {@UniqueConstraint(columnNames={"name"})})
-	public static class UniqueNoNameA {
-		@Id
-		@GeneratedValue
-		public long id;
-		
-		public String name;
-	}
-	
-	@Entity
-	@Table( name = "UniqueNoNameB",
-			uniqueConstraints = {@UniqueConstraint(columnNames={"name"})})
-	public static class UniqueNoNameB {
-		@Id
-		@GeneratedValue
-		public long id;
-		
-		public String name;
-	}
     
 }

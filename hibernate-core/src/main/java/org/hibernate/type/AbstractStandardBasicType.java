@@ -30,22 +30,23 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Map;
 
-import org.dom4j.Node;
 import org.hibernate.Hibernate;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.cfg.Environment;
 import org.hibernate.engine.jdbc.LobCreator;
+import org.hibernate.engine.jdbc.Size;
 import org.hibernate.engine.spi.Mapping;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.ArrayHelper;
-import org.hibernate.metamodel.relational.Size;
 import org.hibernate.type.descriptor.WrapperOptions;
 import org.hibernate.type.descriptor.java.JavaTypeDescriptor;
 import org.hibernate.type.descriptor.java.MutabilityPlan;
 import org.hibernate.type.descriptor.sql.SqlTypeDescriptor;
+
+import org.dom4j.Node;
 
 /**
  * Convenience base class for {@link BasicType} implementations
@@ -63,9 +64,12 @@ public abstract class AbstractStandardBasicType<T>
 	// by DynamicParameterizedTypes.
 	private SqlTypeDescriptor sqlTypeDescriptor;
 	private JavaTypeDescriptor<T> javaTypeDescriptor;
+	// sqlTypes need always to be in sync with sqlTypeDescriptor
+	private int[] sqlTypes;
 
 	public AbstractStandardBasicType(SqlTypeDescriptor sqlTypeDescriptor, JavaTypeDescriptor<T> javaTypeDescriptor) {
 		this.sqlTypeDescriptor = sqlTypeDescriptor;
+		this.sqlTypes = new int[] { sqlTypeDescriptor.getSqlType() };
 		this.javaTypeDescriptor = javaTypeDescriptor;
 	}
 
@@ -140,9 +144,10 @@ public abstract class AbstractStandardBasicType<T>
 	public final SqlTypeDescriptor getSqlTypeDescriptor() {
 		return sqlTypeDescriptor;
 	}
-	
+
 	public final void setSqlTypeDescriptor( SqlTypeDescriptor sqlTypeDescriptor ) {
 		this.sqlTypeDescriptor = sqlTypeDescriptor;
+		this.sqlTypes = new int[] { sqlTypeDescriptor.getSqlType() };
 	}
 
 	public final Class getReturnedClass() {
@@ -150,11 +155,11 @@ public abstract class AbstractStandardBasicType<T>
 	}
 
 	public final int getColumnSpan(Mapping mapping) throws MappingException {
-		return sqlTypes( mapping ).length;
+		return 1;
 	}
 
 	public final int[] sqlTypes(Mapping mapping) throws MappingException {
-		return new int[] { sqlTypeDescriptor.getSqlType() };
+		return sqlTypes;
 	}
 
 	@Override
@@ -358,7 +363,7 @@ public abstract class AbstractStandardBasicType<T>
 			Object owner,
 			Map copyCache,
 			ForeignKeyDirection foreignKeyDirection) {
-		return ForeignKeyDirection.FOREIGN_KEY_FROM_PARENT == foreignKeyDirection
+		return ForeignKeyDirection.FROM_PARENT == foreignKeyDirection
 				? getReplacement( (T) original, (T) target, session )
 				: target;
 	}

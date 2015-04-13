@@ -38,6 +38,7 @@ import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.id.IdentifierGenerator;
 import org.hibernate.metadata.CollectionMetadata;
 import org.hibernate.persister.entity.EntityPersister;
+import org.hibernate.persister.walking.spi.CollectionDefinition;
 import org.hibernate.type.CollectionType;
 import org.hibernate.type.Type;
 
@@ -55,12 +56,27 @@ import org.hibernate.type.Type;
  * elements.<br>
  * <br>
  * May be considered an immutable view of the mapping object
+ * <p/>
+ * Unless a customer {@link org.hibernate.persister.spi.PersisterFactory} is used, it is expected
+ * that implementations of CollectionDefinition define a constructor accepting the following arguments:<ol>
+ *     <li>
+ *         {@link org.hibernate.mapping.Collection} - The metadata about the collection to be handled
+ *         by the persister
+ *     </li>
+ *     <li>
+ *         {@link CollectionRegionAccessStrategy} - the second level caching strategy for this collection
+ *     </li>
+ *     <li>
+ *         {@link org.hibernate.persister.spi.PersisterCreationContext} - access to additional
+ *         information useful while constructing the persister.
+ *     </li>
+ * </ol>
  *
  * @see QueryableCollection
  * @see org.hibernate.collection.spi.PersistentCollection
  * @author Gavin King
  */
-public interface CollectionPersister {
+public interface CollectionPersister extends CollectionDefinition {
 	/**
 	 * Initialize the given collection with the given key
 	 */
@@ -198,6 +214,16 @@ public interface CollectionPersister {
 		Serializable key,
 		SessionImplementor session)
 		throws HibernateException;
+	
+	/**
+	 * Process queued operations within the PersistentCollection.
+	 */
+	public void processQueuedOps(
+			PersistentCollection collection,
+			Serializable key,
+			SessionImplementor session)
+			throws HibernateException;
+	
 	/**
 	 * Get the name of this collection role (the fully qualified class name,
 	 * extended by a "property path")
@@ -308,4 +334,9 @@ public interface CollectionPersister {
 	public boolean elementExists(Serializable key, Object element, SessionImplementor session);
 	public Object getElementByIndex(Serializable key, Object index, SessionImplementor session, Object owner);
 	public int getBatchSize();
+
+	/**
+	 * @return the name of the property this collection is mapped by
+	 */
+	public String getMappedByProperty();
 }

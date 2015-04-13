@@ -27,19 +27,18 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLWarning;
 import java.sql.Statement;
-import java.util.Map;
 
-import org.hibernate.cfg.Mappings;
-import org.hibernate.engine.jdbc.spi.JdbcConnectionAccess;
+import org.hibernate.boot.spi.MetadataImplementor;
+import org.hibernate.engine.jdbc.connections.spi.JdbcConnectionAccess;
 import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.engine.jdbc.spi.SqlExceptionHelper;
-import org.hibernate.engine.spi.Mapping;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.hql.internal.ast.HqlSqlWalker;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.jdbc.AbstractWork;
 import org.hibernate.persister.entity.Queryable;
+
 import org.jboss.logging.Logger;
 
 /**
@@ -56,7 +55,7 @@ public class TemporaryTableBulkIdStrategy implements MultiTableBulkIdStrategy {
 	);
 
 	@Override
-	public void prepare(JdbcServices jdbcServices, JdbcConnectionAccess connectionAccess, Mappings mappings, Mapping mapping, Map settings) {
+	public void prepare(JdbcServices jdbcServices, JdbcConnectionAccess connectionAccess, MetadataImplementor metadata) {
 		// nothing to do
 	}
 
@@ -162,16 +161,14 @@ public class TemporaryTableBulkIdStrategy implements MultiTableBulkIdStrategy {
 		}
 	}
 
-	@SuppressWarnings({ "UnnecessaryUnboxing" })
 	protected boolean shouldIsolateTemporaryTableDDL(SessionImplementor session) {
 		Boolean dialectVote = session.getFactory().getDialect().performTemporaryTableDDLInIsolation();
 		if ( dialectVote != null ) {
-			return dialectVote.booleanValue();
+			return dialectVote;
 		}
 		return session.getFactory().getSettings().isDataDefinitionImplicitCommit();
 	}
 
-	@SuppressWarnings({ "UnnecessaryUnboxing" })
 	protected boolean shouldTransactIsolatedTemporaryTableDDL(SessionImplementor session) {
 		// is there ever a time when it makes sense to do this?
 //		return session.getFactory().getSettings().isDataDefinitionInTransactionSupported();

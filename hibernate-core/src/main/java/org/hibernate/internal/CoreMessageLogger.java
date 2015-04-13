@@ -38,27 +38,27 @@ import javax.naming.NamingException;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 
-import org.jboss.logging.BasicLogger;
-import org.jboss.logging.Cause;
-import org.jboss.logging.LogMessage;
-import org.jboss.logging.Message;
-import org.jboss.logging.MessageLogger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
 import org.hibernate.cache.CacheException;
 import org.hibernate.dialect.Dialect;
 import org.hibernate.engine.jdbc.dialect.spi.DialectResolver;
+import org.hibernate.engine.jndi.JndiException;
+import org.hibernate.engine.jndi.JndiNameException;
 import org.hibernate.engine.loading.internal.CollectionLoadContext;
 import org.hibernate.engine.loading.internal.EntityLoadContext;
 import org.hibernate.engine.spi.CollectionKey;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.id.IntegralDataTypeHolder;
-import org.hibernate.engine.jndi.JndiException;
-import org.hibernate.engine.jndi.JndiNameException;
 import org.hibernate.type.BasicType;
 import org.hibernate.type.SerializationException;
 import org.hibernate.type.Type;
+
+import org.jboss.logging.BasicLogger;
+import org.jboss.logging.annotations.Cause;
+import org.jboss.logging.annotations.LogMessage;
+import org.jboss.logging.annotations.Message;
+import org.jboss.logging.annotations.MessageLogger;
 
 import static org.jboss.logging.Logger.Level.DEBUG;
 import static org.jboss.logging.Logger.Level.ERROR;
@@ -384,8 +384,8 @@ public interface CoreMessageLogger extends BasicLogger {
 	void handlingTransientEntity();
 
 	@LogMessage(level = INFO)
-	@Message(value = "Hibernate connection pool size: %s", id = 115)
-	void hibernateConnectionPoolSize(int poolSize);
+	@Message(value = "Hibernate connection pool size: %s (min=%s)", id = 115)
+	void hibernateConnectionPoolSize(int poolSize, int minSize);
 
 	@LogMessage(level = WARN)
 	@Message(value = "Config specified explicit optimizer of [%s], but [%s=%s; honoring optimizer setting", id = 116)
@@ -612,9 +612,9 @@ public interface CoreMessageLogger extends BasicLogger {
 	@Message(value = "Package not found or wo package-info.java: %s", id = 194)
 	void packageNotFound(String packageName);
 
-	@LogMessage(level = WARN)
-	@Message(value = "Parameter position [%s] occurred as both JPA and Hibernate positional parameter", id = 195)
-	void parameterPositionOccurredAsBothJpaAndHibernatePositionalParameter(Integer position);
+//	@LogMessage(level = WARN)
+//	@Message(value = "Parameter position [%s] occurred as both JPA and Hibernate positional parameter", id = 195)
+//	void parameterPositionOccurredAsBothJpaAndHibernatePositionalParameter(Integer position);
 
 	@LogMessage(level = ERROR)
 	@Message(value = "Error parsing XML (%s) : %s", id = 196)
@@ -804,9 +804,9 @@ public interface CoreMessageLogger extends BasicLogger {
 	void splitQueries(String sourceQuery,
 					  int length);
 
-	@LogMessage(level = ERROR)
-	@Message(value = "SQLException escaped proxy", id = 246)
-	void sqlExceptionEscapedProxy(@Cause SQLException e);
+//	@LogMessage(level = ERROR)
+//	@Message(value = "SQLException escaped proxy", id = 246)
+//	void sqlExceptionEscapedProxy(@Cause SQLException e);
 
 	@LogMessage(level = WARN)
 	@Message(value = "SQL Error: %s, SQLState: %s", id = 247)
@@ -865,6 +865,10 @@ public interface CoreMessageLogger extends BasicLogger {
 	@LogMessage(level = INFO)
 	@Message(value = "Table not found: %s", id = 262)
 	void tableNotFound(String name);
+
+	@LogMessage(level = INFO)
+	@Message(value = "More than one table found: %s", id = 263)
+	void multipleTablesFound(String name);
 
 	@LogMessage(level = INFO)
 	@Message(value = "Transactions: %s", id = 266)
@@ -1342,7 +1346,9 @@ public interface CoreMessageLogger extends BasicLogger {
 	@Message(value = "ResultSet had no statement associated with it, but was not yet registered", id = 386)
 	void unregisteredResultSetWithoutStatement();
 
-	@LogMessage(level = WARN)
+	// Keep this at DEBUG level, rather than warn.  Numerous connection pool implementations can return a
+	// proxy/wrapper around the JDBC Statement, causing excessive logging here.  See HHH-8210.
+	@LogMessage(level = DEBUG)
 	@Message(value = "ResultSet's statement was not registered", id = 387)
 	void unregisteredStatement();
 
@@ -1409,7 +1415,7 @@ public interface CoreMessageLogger extends BasicLogger {
 	void usingDriver(String driverClassName,
 					 String url);
 
-	@LogMessage(level = INFO)
+	@LogMessage(level = WARN)
 	@Message(value = "Using Hibernate built-in connection pool (not for production use!)", id = 402)
 	void usingHibernateBuiltInConnectionPool();
 
@@ -1499,7 +1505,7 @@ public interface CoreMessageLogger extends BasicLogger {
 	void unableToCloseSessionButSwallowingError(HibernateException e);
 
 	@LogMessage(level = WARN)
-	@Message(value = "You should set hibernate.transaction.manager_lookup_class if cache is enabled", id = 426)
+	@Message(value = "You should set hibernate.transaction.jta.platform if cache is enabled", id = 426)
 	void setManagerLookupClass();
 
 //	@LogMessage(level = WARN)
@@ -1601,6 +1607,9 @@ public interface CoreMessageLogger extends BasicLogger {
 	)
 	void aliasSpecificLockingWithFollowOnLocking(LockMode lockMode);
 
+	/**
+	 * @see org.hibernate.internal.log.DeprecationLogger#logDeprecationOfEmbedXmlSupport()
+	 */
 	@LogMessage(level = WARN)
 	@Message(
 			value = "embed-xml attributes were intended to be used for DOM4J entity mode. Since that entity mode has been " +
@@ -1619,4 +1628,78 @@ public interface CoreMessageLogger extends BasicLogger {
 	@LogMessage(level = INFO)
 	@Message( value = "'javax.persistence.validation.mode' named multiple values : %s", id = 448 )
 	void multipleValidationModes(String modes);
+
+	@LogMessage(level = WARN)
+	@Message(
+			id = 449,
+			value = "@Convert annotation applied to Map attribute [%s] did not explicitly specify attributeName " +
+					"using 'key'/'value' as required by spec; attempting to DoTheRightThing"
+	)
+	void nonCompliantMapConversion(String collectionRole);
+
+	@LogMessage(level = WARN)
+	@Message(
+			id = 450,
+			value = "Encountered request for Service by non-primary service role [%s -> %s]; please update usage"
+	)
+	void alternateServiceRole(String requestedRole, String targetRole);
+
+	@LogMessage(level = WARN)
+	@Message(
+			id = 451,
+			value = "Transaction afterCompletion called by a background thread; " +
+					"delaying afterCompletion processing until the original thread can handle it. [status=%s]"
+	)
+	void rollbackFromBackgroundThread(int status);
+	
+	@LogMessage(level = WARN)
+	@Message(value = "Exception while loading a class or resource found during scanning", id = 452)
+	void unableToLoadScannedClassOrResource(@Cause Exception e);
+	
+	@LogMessage(level = WARN)
+	@Message(value = "Exception while discovering OSGi service implementations : %s", id = 453)
+	void unableToDiscoverOsgiService(String service, @Cause Exception e);
+
+	/**
+	 * @deprecated Use {@link org.hibernate.internal.log.DeprecationLogger#deprecatedManyToManyOuterJoin} instead
+	 */
+	@Deprecated
+	@LogMessage(level = WARN)
+	@Message(value = "The outer-join attribute on <many-to-many> has been deprecated. Instead of outer-join=\"false\", use lazy=\"extra\" with <map>, <set>, <bag>, <idbag>, or <list>, which will only initialize entities (not as a proxy) as needed.", id = 454)
+	void deprecatedManyToManyOuterJoin();
+
+	/**
+	 * @deprecated Use {@link org.hibernate.internal.log.DeprecationLogger#deprecatedManyToManyFetch} instead
+	 */
+	@Deprecated
+	@LogMessage(level = WARN)
+	@Message(value = "The fetch attribute on <many-to-many> has been deprecated. Instead of fetch=\"select\", use lazy=\"extra\" with <map>, <set>, <bag>, <idbag>, or <list>, which will only initialize entities (not as a proxy) as needed.", id = 455)
+	void deprecatedManyToManyFetch();
+
+	@LogMessage(level = WARN)
+	@Message(value = "Named parameters are used for a callable statement, but database metadata indicates named parameters are not supported.", id = 456)
+	void unsupportedNamedParameters();
+
+	@LogMessage(level = WARN)
+	@Message(
+			id = 457,
+			value = "Joined inheritance hierarchy [%1$s] defined explicit @DiscriminatorColumn.  Legacy Hibernate behavior " +
+					"was to ignore the @DiscriminatorColumn.  However, as part of issue HHH-6911 we now apply the " +
+					"explicit @DiscriminatorColumn.  If you would prefer the legacy behavior, enable the `%2$s` setting " +
+					"(%2$s=true)"
+	)
+	void applyingExplicitDiscriminatorColumnForJoined(String className, String overrideSetting);
+	
+	// 458-466 reserved for use by master (ORM 5.0.0)
+
+	@LogMessage(level = DEBUG)
+	@Message(value = "Creating pooled optimizer (lo) with [incrementSize=%s; returnClass=%s]", id = 467)
+	void creatingPooledLoOptimizer(int incrementSize, String name);
+
+	@LogMessage(level = WARN)
+	@Message(value = "Unable to interpret type [%s] as an AttributeConverter due to an exception : %s", id = 468)
+	void logBadHbmAttributeConverterType(String type, String exceptionMessage);
+
+	@Message(value = "The ClassLoaderService can not be reused. This instance was stopped already.", id = 469)
+	HibernateException usingStoppedClassLoaderService();
 }

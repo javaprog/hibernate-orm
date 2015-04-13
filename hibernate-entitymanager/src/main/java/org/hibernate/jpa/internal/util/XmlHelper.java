@@ -74,21 +74,18 @@ public final class XmlHelper {
 	 * @return The named child.
 	 * @throws Exception Child was not found or was not unique.
 	 */
-	public static Element getUniqueChild(Element element, String tagName)
-			throws Exception {
-		Iterator goodChildren = getChildrenByTagName( element, tagName );
+	public static Element getUniqueChild(Element element, String tagName) throws Exception {
+		final Iterator goodChildren = getChildrenByTagName( element, tagName );
 
 		if ( goodChildren != null && goodChildren.hasNext() ) {
-			Element child = (Element) goodChildren.next();
+			final Element child = (Element) goodChildren.next();
 			if ( goodChildren.hasNext() ) {
-				throw new Exception
-						( "expected only one " + tagName + " tag" );
+				throw new Exception( "expected only one " + tagName + " tag" );
 			}
 			return child;
 		}
 		else {
-			throw new Exception
-					( "expected one " + tagName + " tag" );
+			throw new Exception( "expected one " + tagName + " tag" );
 		}
 	}
 
@@ -101,8 +98,7 @@ public final class XmlHelper {
 	 * @param tagName the name of the desired child
 	 * @return either the named child or null
 	 */
-	public static Element getOptionalChild(Element element, String tagName)
-			throws Exception {
+	public static Element getOptionalChild(Element element, String tagName) throws Exception {
 		return getOptionalChild( element, tagName, null );
 	}
 
@@ -121,13 +117,12 @@ public final class XmlHelper {
 			Element element,
 			String tagName,
 			Element defaultElement) throws Exception {
-		Iterator goodChildren = getChildrenByTagName( element, tagName );
+		final Iterator goodChildren = getChildrenByTagName( element, tagName );
 
 		if ( goodChildren != null && goodChildren.hasNext() ) {
-			Element child = (Element) goodChildren.next();
+			final Element child = (Element) goodChildren.next();
 			if ( goodChildren.hasNext() ) {
-				throw new Exception
-						( "expected only one " + tagName + " tag" );
+				throw new Exception( "expected only one " + tagName + " tag" );
 			}
 			return child;
 		}
@@ -142,8 +137,7 @@ public final class XmlHelper {
 	 * @param element The element to get the content for.
 	 * @return The content of the element or null.
 	 */
-	public static String getElementContent(final Element element)
-			throws Exception {
+	public static String getElementContent(final Element element) throws Exception {
 		return getElementContent( element, null );
 	}
 
@@ -154,17 +148,16 @@ public final class XmlHelper {
 	 * @param defaultStr The default to return when there is no content.
 	 * @return The content of the element or the default.
 	 */
-	public static String getElementContent(Element element, String defaultStr)
-			throws Exception {
+	public static String getElementContent(Element element, String defaultStr) throws Exception {
 		if ( element == null ) {
 			return defaultStr;
 		}
 
-		NodeList children = element.getChildNodes();
-		StringBuilder result = new StringBuilder("");
+		final NodeList children = element.getChildNodes();
+		final StringBuilder result = new StringBuilder("");
 		for ( int i = 0; i < children.getLength() ; i++ ) {
-			if ( children.item( i ).getNodeType() == Node.TEXT_NODE ||
-					children.item( i ).getNodeType() == Node.CDATA_SECTION_NODE ) {
+			if ( children.item( i ).getNodeType() == Node.TEXT_NODE
+					|| children.item( i ).getNodeType() == Node.CDATA_SECTION_NODE ) {
 				result.append( children.item( i ).getNodeValue() );
 			}
 //			else if ( children.item( i ).getNodeType() == Node.COMMENT_NODE ) {
@@ -181,9 +174,7 @@ public final class XmlHelper {
 	 * @param tagName The name of the desired child.
 	 * @return The element content or null.
 	 */
-	public static String getUniqueChildContent(
-			Element element,
-			String tagName) throws Exception {
+	public static String getUniqueChildContent(Element element, String tagName) throws Exception {
 		return getElementContent( getUniqueChild( element, tagName ) );
 	}
 
@@ -194,9 +185,7 @@ public final class XmlHelper {
 	 * @param tagName The name of the desired child.
 	 * @return The element content or null.
 	 */
-	public static String getOptionalChildContent(
-			Element element,
-			String tagName) throws Exception {
+	public static String getOptionalChildContent(Element element, String tagName) throws Exception {
 		return getElementContent( getOptionalChild( element, tagName ) );
 	}
 
@@ -210,7 +199,4 @@ public final class XmlHelper {
 		return false;
 	}
 
-
 }
-
-

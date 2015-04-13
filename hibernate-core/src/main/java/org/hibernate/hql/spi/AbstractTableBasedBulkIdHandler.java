@@ -27,12 +27,8 @@ import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 
-import antlr.RecognitionException;
-import antlr.collections.AST;
-
 import org.hibernate.HibernateException;
 import org.hibernate.JDBCException;
-import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.hql.internal.ast.HqlSqlWalker;
@@ -45,10 +41,13 @@ import org.hibernate.sql.InsertSelect;
 import org.hibernate.sql.Select;
 import org.hibernate.sql.SelectValues;
 
+import antlr.RecognitionException;
+import antlr.collections.AST;
+
 /**
  * @author Steve Ebersole
  */
-public class AbstractTableBasedBulkIdHandler {
+public abstract class AbstractTableBasedBulkIdHandler {
 	private final SessionFactoryImplementor sessionFactory;
 	private final HqlSqlWalker walker;
 

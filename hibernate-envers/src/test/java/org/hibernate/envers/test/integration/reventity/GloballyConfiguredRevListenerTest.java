@@ -3,13 +3,14 @@ package org.hibernate.envers.test.integration.reventity;
 import java.util.Map;
 import javax.persistence.EntityManager;
 
-import org.junit.Assert;
-import org.junit.Test;
-
+import org.hibernate.envers.configuration.EnversSettings;
 import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.StrTestEntity;
+
 import org.hibernate.testing.TestForIssue;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
@@ -18,28 +19,28 @@ import org.hibernate.testing.TestForIssue;
 public class GloballyConfiguredRevListenerTest extends BaseEnversJPAFunctionalTestCase {
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class[] { StrTestEntity.class };
-    }
+		return new Class[] {StrTestEntity.class};
+	}
 
 	@Override
 	protected void addConfigOptions(Map options) {
 		super.addConfigOptions( options );
-		options.put("org.hibernate.envers.revision_listener", "org.hibernate.envers.test.integration.reventity.CountingRevisionListener");
+		options.put( EnversSettings.REVISION_LISTENER, CountingRevisionListener.class.getName() );
 	}
 
 	@Test
-    @Priority(10)
-    public void initData() {
-        EntityManager em = getEntityManager();
+	@Priority(10)
+	public void initData() {
+		EntityManager em = getEntityManager();
 
-        CountingRevisionListener.revisionCount = 0;
+		CountingRevisionListener.revisionCount = 0;
 
-        // Revision 1
-        em.getTransaction().begin();
-        StrTestEntity te = new StrTestEntity("data");
-        em.persist(te);
-        em.getTransaction().commit();
+		// Revision 1
+		em.getTransaction().begin();
+		StrTestEntity te = new StrTestEntity( "data" );
+		em.persist( te );
+		em.getTransaction().commit();
 
-        Assert.assertEquals(1, CountingRevisionListener.revisionCount);
-    }
+		Assert.assertEquals( 1, CountingRevisionListener.revisionCount );
+	}
 }

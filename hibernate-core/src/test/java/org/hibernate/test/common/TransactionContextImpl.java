@@ -24,7 +24,7 @@
 package org.hibernate.test.common;
 
 import org.hibernate.ConnectionReleaseMode;
-import org.hibernate.engine.jdbc.spi.JdbcConnectionAccess;
+import org.hibernate.engine.jdbc.connections.spi.JdbcConnectionAccess;
 import org.hibernate.engine.transaction.spi.TransactionContext;
 import org.hibernate.engine.transaction.spi.TransactionEnvironment;
 import org.hibernate.engine.transaction.spi.TransactionImplementor;
@@ -118,5 +118,29 @@ public class TransactionContextImpl implements TransactionContext {
 	@Override
 	public String onPrepareStatement(String sql) {
 		return sql;
+	}
+
+	@Override
+	public void startPrepareStatement() {
+	}
+
+	@Override
+	public void endPrepareStatement() {
+	}
+
+	@Override
+	public void startStatementExecution() {
+	}
+
+	@Override
+	public void endStatementExecution() {
+	}
+
+	@Override
+	public void startBatchExecution() {
+	}
+
+	@Override
+	public void endBatchExecution() {
 	}
 }

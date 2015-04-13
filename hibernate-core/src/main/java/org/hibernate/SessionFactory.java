@@ -27,10 +27,12 @@ import java.io.Serializable;
 import java.sql.Connection;
 import java.util.Map;
 import java.util.Set;
-
 import javax.naming.Referenceable;
 
 import org.hibernate.boot.registry.StandardServiceRegistry;
+import org.hibernate.cfg.Settings;
+import org.hibernate.context.spi.CurrentTenantIdentifierResolver;
+import org.hibernate.dialect.function.SQLFunction;
 import org.hibernate.engine.spi.FilterDefinition;
 import org.hibernate.metadata.ClassMetadata;
 import org.hibernate.metadata.CollectionMetadata;
@@ -54,13 +56,49 @@ import org.hibernate.stat.Statistics;
  * @author Steve Ebersole
  */
 public interface SessionFactory extends Referenceable, Serializable {
-
+	/**
+	 * Aggregator of special options used to build the SessionFactory.
+	 */
 	public interface SessionFactoryOptions {
+		/**
+		 * The service registry to use in building the factory.
+		 *
+		 * @return The service registry to use.
+		 */
 		public StandardServiceRegistry getServiceRegistry();
+
+		/**
+		 * Get the interceptor to use by default for all sessions opened from this factory.
+		 *
+		 * @return The interceptor to use factory wide.  May be {@code null}
+		 */
 		public Interceptor getInterceptor();
+
+		public CustomEntityDirtinessStrategy getCustomEntityDirtinessStrategy();
+		public CurrentTenantIdentifierResolver getCurrentTenantIdentifierResolver();
+		public SessionFactoryObserver[] getSessionFactoryObservers();
+		public EntityNameResolver[] getEntityNameResolvers();
+		public Settings getSettings();
+
+		/**
+		 * Get the delegate for handling entity-not-found exception conditions.
+		 *
+		 * @return The specific EntityNotFoundDelegate to use,  May be {@code null}
+		 */
 		public EntityNotFoundDelegate getEntityNotFoundDelegate();
+
+		public Map<String, SQLFunction> getCustomSqlFunctionMap();
+
+		public Object getBeanManagerReference();
+
+		public Object getValidatorFactoryReference();
 	}
 
+	/**
+	 * Get the special options used to build the factory.
+	 *
+	 * @return The special options used to build the factory.
+	 */
 	public SessionFactoryOptions getSessionFactoryOptions();
 
 	/**
@@ -172,7 +210,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	public Map<String,ClassMetadata> getAllClassMetadata();
 
 	/**
-	 * Get the {@link CollectionMetadata} for all mapped collections
+	 * Get the {@link CollectionMetadata} for all mapped collections.
 	 *
 	 * @return a map from <tt>String</tt> to <tt>CollectionMetadata</tt>
 	 *
@@ -229,7 +267,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictEntityRegion(Class)} accessed through
 	 * {@link #getCache()} instead.
 	 */
-    @Deprecated
+	@Deprecated
 	public void evict(Class persistentClass) throws HibernateException;
 
 	/**
@@ -247,7 +285,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#containsEntity(Class, Serializable)} accessed through
 	 * {@link #getCache()} instead.
 	 */
-    @Deprecated
+	@Deprecated
 	public void evict(Class persistentClass, Serializable id) throws HibernateException;
 
 	/**
@@ -264,7 +302,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictEntityRegion(String)} accessed through
 	 * {@link #getCache()} instead.
 	 */
-    @Deprecated
+	@Deprecated
 	public void evictEntity(String entityName) throws HibernateException;
 
 	/**
@@ -282,7 +320,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictEntity(String,Serializable)} accessed through
 	 * {@link #getCache()} instead.
 	 */
-    @Deprecated
+	@Deprecated
 	public void evictEntity(String entityName, Serializable id) throws HibernateException;
 
 	/**
@@ -299,7 +337,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictCollectionRegion(String)} accessed through
 	 * {@link #getCache()} instead.
 	 */
-    @Deprecated
+	@Deprecated
 	public void evictCollection(String roleName) throws HibernateException;
 
 	/**
@@ -317,7 +355,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictCollection(String,Serializable)} accessed through
 	 * {@link #getCache()} instead.
 	 */
-    @Deprecated
+	@Deprecated
 	public void evictCollection(String roleName, Serializable id) throws HibernateException;
 
 	/**
@@ -331,7 +369,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictQueryRegion(String)} accessed through
 	 * {@link #getCache()} instead.
 	 */
-    @Deprecated
+	@Deprecated
 	public void evictQueries(String cacheRegion) throws HibernateException;
 
 	/**
@@ -343,7 +381,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	 * @deprecated Use {@link Cache#evictQueryRegions} accessed through
 	 * {@link #getCache()} instead.
 	 */
-    @Deprecated
+	@Deprecated
 	public void evictQueries() throws HibernateException;
 
 	/**
@@ -372,7 +410,7 @@ public interface SessionFactory extends Referenceable, Serializable {
 	public boolean containsFetchProfileDefinition(String name);
 
 	/**
-	 * Retrieve this factory's {@link TypeHelper}
+	 * Retrieve this factory's {@link TypeHelper}.
 	 *
 	 * @return The factory's {@link TypeHelper}
 	 */

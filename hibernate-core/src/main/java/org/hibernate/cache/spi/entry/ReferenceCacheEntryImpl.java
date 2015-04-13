@@ -25,20 +25,36 @@ package org.hibernate.cache.spi.entry;
 
 import java.io.Serializable;
 
-import org.hibernate.Interceptor;
-import org.hibernate.event.spi.EventSource;
 import org.hibernate.persister.entity.EntityPersister;
 
 /**
+ * Specialized CacheEntry for storing direct references to entity instances.
+ *
  * @author Steve Ebersole
  */
 public class ReferenceCacheEntryImpl implements CacheEntry {
 	private final Object reference;
-	private final String subclass;
+	// passing the persister avoids a costly persister lookup by class name at cache retrieval time
+	private final EntityPersister subclassPersister;
 
-	public ReferenceCacheEntryImpl(Object reference, String subclass) {
+	/**
+	 * Constructs a ReferenceCacheEntryImpl
+	 *
+	 * @param reference The reference entity instance
+	 * @param subclassPersister The specific subclass persister
+	 */
+	public ReferenceCacheEntryImpl(Object reference, EntityPersister subclassPersister) {
 		this.reference = reference;
-		this.subclass = subclass;
+		this.subclassPersister = subclassPersister;
+	}
+
+	/**
+	 * Provides access to the stored reference.
+	 *
+	 * @return The stored reference
+	 */
+	public Object getReference() {
+		return reference;
 	}
 
 	@Override
@@ -48,7 +64,11 @@ public class ReferenceCacheEntryImpl implements CacheEntry {
 
 	@Override
 	public String getSubclass() {
-		return subclass;
+		return subclassPersister.getEntityName();
+	}
+
+	public EntityPersister getSubclassPersister() {
+		return subclassPersister;
 	}
 
 	@Override
@@ -67,9 +87,5 @@ public class ReferenceCacheEntryImpl implements CacheEntry {
 	public Serializable[] getDisassembledState() {
 		// reference data is not disassembled into the cache
 		return null;
-	}
-
-	public Object getReference() {
-		return reference;
 	}
 }

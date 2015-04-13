@@ -1,19 +1,18 @@
 package org.hibernate.jpa.test.packaging;
 
-import java.lang.annotation.Annotation;
-import java.net.URL;
-import java.util.Set;
-
-import org.hibernate.jpa.packaging.internal.NativeScanner;
-import org.hibernate.jpa.packaging.spi.NamedInputStream;
-import org.hibernate.jpa.packaging.spi.Scanner;
+import org.hibernate.boot.archive.scan.internal.StandardScanner;
+import org.hibernate.boot.archive.scan.spi.ScanEnvironment;
+import org.hibernate.boot.archive.scan.spi.ScanOptions;
+import org.hibernate.boot.archive.scan.spi.ScanParameters;
+import org.hibernate.boot.archive.scan.spi.ScanResult;
+import org.hibernate.boot.archive.scan.spi.Scanner;
 
 /**
  * @author Emmanuel Bernard
  */
 public class CustomScanner implements Scanner {
 	public static boolean isUsed = false;
-	private Scanner scanner = new NativeScanner();
+	private Scanner delegate = new StandardScanner();
 
 	public static boolean isUsed() {
 		return isUsed;
@@ -23,28 +22,13 @@ public class CustomScanner implements Scanner {
 		isUsed = false;
 	}
 
-	public Set<Package> getPackagesInJar(URL jartoScan, Set<Class<? extends Annotation>> annotationsToLookFor) {
+	@Override
+	public ScanResult scan(
+			ScanEnvironment environment,
+			ScanOptions options,
+			ScanParameters parameters) {
 		isUsed = true;
-		return scanner.getPackagesInJar( jartoScan, annotationsToLookFor );
-	}
-
-	public Set<Class<?>> getClassesInJar(URL jartoScan, Set<Class<? extends Annotation>> annotationsToLookFor) {
-		isUsed = true;
-		return scanner.getClassesInJar( jartoScan, annotationsToLookFor );
-	}
-
-	public Set<NamedInputStream> getFilesInJar(URL jartoScan, Set<String> filePatterns) {
-		isUsed = true;
-		return scanner.getFilesInJar( jartoScan, filePatterns );
-	}
-
-	public Set<NamedInputStream> getFilesInClasspath(Set<String> filePatterns) {
-		isUsed = true;
-		return scanner.getFilesInClasspath( filePatterns );
-	}
-
-	public String getUnqualifiedJarName(URL jarUrl) {
-		isUsed = true;
-		return scanner.getUnqualifiedJarName( jarUrl );
+		return delegate.scan( environment, options, parameters );
 	}
 }
+

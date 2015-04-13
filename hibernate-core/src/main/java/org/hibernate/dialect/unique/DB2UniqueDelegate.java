@@ -22,10 +22,9 @@ package org.hibernate.dialect.unique;
 
 import java.util.Iterator;
 
+import org.hibernate.boot.Metadata;
 import org.hibernate.dialect.Dialect;
-import org.hibernate.metamodel.relational.Column;
-import org.hibernate.metamodel.relational.Index;
-import org.hibernate.metamodel.relational.UniqueKey;
+import org.hibernate.mapping.UniqueKey;
 
 /**
  * DB2 does not allow unique constraints on nullable columns.  Rather than
@@ -34,72 +33,53 @@ import org.hibernate.metamodel.relational.UniqueKey;
  * @author Brett Meyer
  */
 public class DB2UniqueDelegate extends DefaultUniqueDelegate {
-	
+	/**
+	 * Constructs a DB2UniqueDelegate
+	 *
+	 * @param dialect The dialect
+	 */
 	public DB2UniqueDelegate( Dialect dialect ) {
 		super( dialect );
 	}
-	
+
 	@Override
-	public String applyUniquesOnAlter( org.hibernate.mapping.UniqueKey uniqueKey,
-			String defaultCatalog, String defaultSchema ) {
+	public String getAlterTableToAddUniqueKeyCommand(UniqueKey uniqueKey, Metadata metadata) {
 		if ( hasNullable( uniqueKey ) ) {
 			return org.hibernate.mapping.Index.buildSqlCreateIndexString(
-					dialect, uniqueKey.getName(), uniqueKey.getTable(),
-					uniqueKey.columnIterator(), uniqueKey.getColumnOrderMap(), true, defaultCatalog,
-					defaultSchema );
-		} else {
-			return super.applyUniquesOnAlter(
-					uniqueKey, defaultCatalog, defaultSchema );
+					dialect,
+					uniqueKey.getName(),
+					uniqueKey.getTable(),
+					uniqueKey.columnIterator(),
+					uniqueKey.getColumnOrderMap(),
+					true,
+					metadata
+			);
+		}
+		else {
+			return super.getAlterTableToAddUniqueKeyCommand( uniqueKey, metadata );
 		}
 	}
 	
 	@Override
-	public String applyUniquesOnAlter( UniqueKey uniqueKey ) {
-		if ( hasNullable( uniqueKey ) ) {
-			return Index.buildSqlCreateIndexString(
-					dialect, uniqueKey.getName(), uniqueKey.getTable(),
-					uniqueKey.getColumns(), true );
-		} else {
-			return super.applyUniquesOnAlter( uniqueKey );
-		}
-	}
-	
-	@Override
-	public String dropUniquesOnAlter( org.hibernate.mapping.UniqueKey uniqueKey,
-			String defaultCatalog, String defaultSchema ) {
+	public String getAlterTableToDropUniqueKeyCommand(UniqueKey uniqueKey, Metadata metadata) {
 		if ( hasNullable( uniqueKey ) ) {
 			return org.hibernate.mapping.Index.buildSqlDropIndexString(
-					dialect, uniqueKey.getTable(), uniqueKey.getName(),
-					defaultCatalog, defaultSchema );
-		} else {
-			return super.dropUniquesOnAlter(
-					uniqueKey, defaultCatalog, defaultSchema );
+					uniqueKey.getName(),
+					metadata.getDatabase().getJdbcEnvironment().getQualifiedObjectNameFormatter().format(
+							uniqueKey.getTable().getQualifiedTableName(),
+							metadata.getDatabase().getJdbcEnvironment().getDialect()
+					)
+			);
+		}
+		else {
+			return super.getAlterTableToDropUniqueKeyCommand( uniqueKey, metadata );
 		}
 	}
 	
-	@Override
-	public String dropUniquesOnAlter( UniqueKey uniqueKey ) {
-		if ( hasNullable( uniqueKey ) ) {
-			return Index.buildSqlDropIndexString(
-					dialect, uniqueKey.getTable(), uniqueKey.getName() );
-		} else {
-			return super.dropUniquesOnAlter( uniqueKey );
-		}
-	}
-	
-	private boolean hasNullable( org.hibernate.mapping.UniqueKey uniqueKey ) {
-		Iterator<org.hibernate.mapping.Column> iter = uniqueKey.columnIterator();
+	private boolean hasNullable(org.hibernate.mapping.UniqueKey uniqueKey) {
+		final Iterator<org.hibernate.mapping.Column> iter = uniqueKey.columnIterator();
 		while ( iter.hasNext() ) {
 			if ( iter.next().isNullable() ) {
-				return true;
-			}
-		}
-		return false;
-	}
-	
-	private boolean hasNullable( UniqueKey uniqueKey ) {
-		for ( Column column : uniqueKey.getColumns() ) {
-			if ( column.isNullable() ) {
 				return true;
 			}
 		}

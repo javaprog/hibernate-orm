@@ -28,11 +28,10 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.dialect.Dialect;
+import org.hibernate.engine.jdbc.env.spi.JdbcEnvironment;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.id.insert.AbstractReturningDelegate;
 import org.hibernate.id.insert.IdentifierGeneratingInsert;
@@ -40,6 +39,8 @@ import org.hibernate.id.insert.InsertGeneratedIdentifierDelegate;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.sql.Insert;
 import org.hibernate.type.Type;
+
+import org.jboss.logging.Logger;
 
 /**
  * A generator which combines sequence generation with immediate retrieval
@@ -53,7 +54,10 @@ import org.hibernate.type.Type;
  * are completely disabled.
  *
  * @author Steve Ebersole
+ *
+ * @deprecated See deprecation discussion on {@link SequenceGenerator}
  */
+@Deprecated
 public class SequenceIdentityGenerator
 		extends SequenceGenerator
 		implements PostInsertIdentifierGenerator {
@@ -68,6 +72,7 @@ public class SequenceIdentityGenerator
 		return IdentifierGeneratorHelper.POST_INSERT_INDICATOR;
 	}
 
+	@Override
 	public InsertGeneratedIdentifierDelegate getInsertGeneratedIdentifierDelegate(
 			PostInsertIdentityPersister persister,
 	        Dialect dialect,
@@ -76,8 +81,8 @@ public class SequenceIdentityGenerator
 	}
 
 	@Override
-    public void configure(Type type, Properties params, Dialect dialect) throws MappingException {
-		super.configure( type, params, dialect );
+    public void configure(Type type, Properties params, JdbcEnvironment env) throws MappingException {
+		super.configure( type, params, env );
 	}
 
 	public static class Delegate extends AbstractReturningDelegate {

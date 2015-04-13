@@ -82,11 +82,11 @@ public final class MessageHelper {
 	 *
 	 * @param persister The persister for the entity
 	 * @param id The entity id value
-	 * @param factory The session factory
+	 * @param factory The session factory - Could be null!
 	 * @return An info string, in the form [FooBar#1]
 	 */
 	public static String infoString(
-			EntityPersister persister, 
+			EntityPersister persister,
 			Object id, 
 			SessionFactoryImplementor factory) {
 		StringBuilder s = new StringBuilder();
@@ -110,7 +110,12 @@ public final class MessageHelper {
 				s.append( id );
 			}
 			else {
-				s.append( idType.toLoggableString( id, factory ) );
+				if ( factory != null ) {
+					s.append( idType.toLoggableString( id, factory ) );
+				}
+				else {
+					s.append( "<not loggable>" );
+				}
 			}
 		}
 		s.append( ']' );

@@ -37,6 +37,8 @@ import org.hibernate.engine.jdbc.spi.SqlExceptionHelper;
 import org.hibernate.engine.jdbc.spi.StatementPreparer;
 
 /**
+ * Standard implementation of StatementPreparer
+ *
  * @author Steve Ebersole
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  * @author Brett Meyer
@@ -44,6 +46,11 @@ import org.hibernate.engine.jdbc.spi.StatementPreparer;
 class StatementPreparerImpl implements StatementPreparer {
 	private JdbcCoordinatorImpl jdbcCoordinator;
 
+	/**
+	 * Construct a StatementPreparerImpl
+	 *
+	 * @param jdbcCoordinator The JdbcCoordinatorImpl
+	 */
 	StatementPreparerImpl(JdbcCoordinatorImpl jdbcCoordinator) {
 		this.jdbcCoordinator = jdbcCoordinator;
 	}
@@ -61,9 +68,7 @@ class StatementPreparerImpl implements StatementPreparer {
 	}
 
 	protected final SqlExceptionHelper sqlExceptionHelper() {
-		return jdbcCoordinator.getTransactionCoordinator()
-				.getTransactionContext()
-				.getTransactionEnvironment()
+		return jdbcCoordinator.getTransactionCoordinator().getTransactionContext().getTransactionEnvironment()
 				.getJdbcServices()
 				.getSqlExceptionHelper();
 	}
@@ -71,7 +76,7 @@ class StatementPreparerImpl implements StatementPreparer {
 	@Override
 	public Statement createStatement() {
 		try {
-			Statement statement = connection().createStatement();
+			final Statement statement = connection().createStatement();
 			jdbcCoordinator.register( statement );
 			return statement;
 		}
@@ -141,22 +146,18 @@ class StatementPreparerImpl implements StatementPreparer {
 			if ( ! settings().isScrollableResultSetsEnabled() ) {
 				throw new AssertionFailure("scrollable result sets are not enabled");
 			}
-			PreparedStatement ps = new QueryStatementPreparationTemplate( sql ) {
+			final PreparedStatement ps = new QueryStatementPreparationTemplate( sql ) {
 				public PreparedStatement doPrepare() throws SQLException {
 						return isCallable
-								? connection().prepareCall(
-								sql, scrollMode.toResultSetType(), ResultSet.CONCUR_READ_ONLY
-						)
-								: connection().prepareStatement(
-								sql, scrollMode.toResultSetType(), ResultSet.CONCUR_READ_ONLY
-						);
+								? connection().prepareCall( sql, scrollMode.toResultSetType(), ResultSet.CONCUR_READ_ONLY )
+								: connection().prepareStatement( sql, scrollMode.toResultSetType(), ResultSet.CONCUR_READ_ONLY );
 				}
 			}.prepareStatement();
 			jdbcCoordinator.registerLastQuery( ps );
 			return ps;
 		}
 		else {
-			PreparedStatement ps = new QueryStatementPreparationTemplate( sql ) {
+			final PreparedStatement ps = new QueryStatementPreparationTemplate( sql ) {
 				public PreparedStatement doPrepare() throws SQLException {
 						return isCallable
 								? connection().prepareCall( sql )
@@ -178,9 +179,16 @@ class StatementPreparerImpl implements StatementPreparer {
 		public PreparedStatement prepareStatement() {
 			try {
 				jdbcCoordinator.getLogicalConnection().getJdbcServices().getSqlStatementLogger().logStatement( sql );
-				
-				PreparedStatement preparedStatement = doPrepare();
-				setStatementTimeout( preparedStatement );
+
+				final PreparedStatement preparedStatement;
+				try {
+					jdbcCoordinator.getTransactionCoordinator().getTransactionContext().startPrepareStatement();
+					preparedStatement = doPrepare();
+					setStatementTimeout( preparedStatement );
+				}
+				finally {
+					jdbcCoordinator.getTransactionCoordinator().getTransactionContext().endPrepareStatement();
+				}
 				postProcess( preparedStatement );
 				return preparedStatement;
 			}

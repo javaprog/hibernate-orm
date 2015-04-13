@@ -27,8 +27,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.cache.spi.Region;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.internal.CoreMessageLogger;
@@ -40,6 +38,8 @@ import org.hibernate.stat.NaturalIdCacheStatistics;
 import org.hibernate.stat.QueryStatistics;
 import org.hibernate.stat.SecondLevelCacheStatistics;
 import org.hibernate.stat.spi.StatisticsImplementor;
+
+import org.jboss.logging.Logger;
 
 /**
  * Implementation of {@link org.hibernate.stat.Statistics} based on the {@link java.util.concurrent} package.
@@ -187,6 +187,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 		entityStatistics.clear();
 		collectionStatistics.clear();
 		queryStatistics.clear();
+		naturalIdCacheStatistics.clear();
 
 		startTime = System.currentTimeMillis();
 	}
@@ -406,9 +407,9 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 		}
 	}
 
-	@SuppressWarnings({ "UnnecessaryBoxing" })
+	@Override
 	public void queryExecuted(String hql, int rows, long time) {
-        LOG.hql(hql, Long.valueOf(time), Long.valueOf(rows));
+        LOG.hql(hql, time, (long) rows );
 		queryExecutionCount.getAndIncrement();
 		boolean isLongestQuery = false;
 		for ( long old = queryExecutionMaxTime.get();
@@ -424,7 +425,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 			qs.executed( rows, time );
 		}
 	}
-
+	@Override
 	public void queryCacheHit(String hql, String regionName) {
 		queryCacheHitCount.getAndIncrement();
 		if ( hql != null ) {
@@ -436,7 +437,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 		);
 		slcs.incrementHitCount();
 	}
-
+	@Override
 	public void queryCacheMiss(String hql, String regionName) {
 		queryCacheMissCount.getAndIncrement();
 		if ( hql != null ) {
@@ -448,7 +449,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 		);
 		slcs.incrementMissCount();
 	}
-
+	@Override
 	public void queryCachePut(String hql, String regionName) {
 		queryCachePutCount.getAndIncrement();
 		if ( hql != null ) {
@@ -483,6 +484,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	 *
 	 * @return QueryStatistics
 	 */
+	@Override
 	public QueryStatistics getQueryStatistics(String queryString) {
 		ConcurrentQueryStatisticsImpl qs = (ConcurrentQueryStatisticsImpl) queryStatistics.get( queryString );
 		if ( qs == null ) {
@@ -500,6 +502,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return entity deletion count
 	 */
+	@Override
 	public long getEntityDeleteCount() {
 		return entityDeleteCount.get();
 	}
@@ -507,6 +510,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return entity insertion count
 	 */
+	@Override
 	public long getEntityInsertCount() {
 		return entityInsertCount.get();
 	}
@@ -514,6 +518,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return entity load (from DB)
 	 */
+	@Override
 	public long getEntityLoadCount() {
 		return entityLoadCount.get();
 	}
@@ -521,6 +526,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return entity fetch (from DB)
 	 */
+	@Override
 	public long getEntityFetchCount() {
 		return entityFetchCount.get();
 	}
@@ -528,34 +534,35 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return entity update
 	 */
+	@Override
 	public long getEntityUpdateCount() {
 		return entityUpdateCount.get();
 	}
-
+	@Override
 	public long getQueryExecutionCount() {
 		return queryExecutionCount.get();
 	}
-
+	@Override
 	public long getQueryCacheHitCount() {
 		return queryCacheHitCount.get();
 	}
-
+	@Override
 	public long getQueryCacheMissCount() {
 		return queryCacheMissCount.get();
 	}
-
+	@Override
 	public long getQueryCachePutCount() {
 		return queryCachePutCount.get();
 	}
-
+	@Override
 	public long getUpdateTimestampsCacheHitCount() {
 		return updateTimestampsCacheHitCount.get();
 	}
-
+	@Override
 	public long getUpdateTimestampsCacheMissCount() {
 		return updateTimestampsCacheMissCount.get();
 	}
-
+	@Override
 	public long getUpdateTimestampsCachePutCount() {
 		return updateTimestampsCachePutCount.get();
 	}
@@ -563,6 +570,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return flush
 	 */
+	@Override
 	public long getFlushCount() {
 		return flushCount.get();
 	}
@@ -570,6 +578,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return session connect
 	 */
+	@Override
 	public long getConnectCount() {
 		return connectCount.get();
 	}
@@ -577,6 +586,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return second level cache hit
 	 */
+	@Override
 	public long getSecondLevelCacheHitCount() {
 		return secondLevelCacheHitCount.get();
 	}
@@ -584,6 +594,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return second level cache miss
 	 */
+	@Override
 	public long getSecondLevelCacheMissCount() {
 		return secondLevelCacheMissCount.get();
 	}
@@ -591,6 +602,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return second level cache put
 	 */
+	@Override
 	public long getSecondLevelCachePutCount() {
 		return secondLevelCachePutCount.get();
 	}
@@ -628,6 +640,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return session closing
 	 */
+	@Override
 	public long getSessionCloseCount() {
 		return sessionCloseCount.get();
 	}
@@ -635,6 +648,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return session opening
 	 */
+	@Override
 	public long getSessionOpenCount() {
 		return sessionOpenCount.get();
 	}
@@ -642,6 +656,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return collection loading (from DB)
 	 */
+	@Override
 	public long getCollectionLoadCount() {
 		return collectionLoadCount.get();
 	}
@@ -649,6 +664,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return collection fetching (from DB)
 	 */
+	@Override
 	public long getCollectionFetchCount() {
 		return collectionFetchCount.get();
 	}
@@ -656,6 +672,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return collection update
 	 */
+	@Override
 	public long getCollectionUpdateCount() {
 		return collectionUpdateCount.get();
 	}
@@ -664,6 +681,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	 * @return collection removal
 	 *         FIXME: even if isInverse="true"?
 	 */
+	@Override
 	public long getCollectionRemoveCount() {
 		return collectionRemoveCount.get();
 	}
@@ -671,6 +689,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return collection recreation
 	 */
+	@Override
 	public long getCollectionRecreateCount() {
 		return collectionRecreateCount.get();
 	}
@@ -678,6 +697,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * @return start time in ms (JVM standards {@link System#currentTimeMillis()})
 	 */
+	@Override
 	public long getStartTime() {
 		return startTime;
 	}
@@ -685,6 +705,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * log in info level the main statistics
 	 */
+	@Override
 	public void logSummary() {
 		LOG.loggingStatistics();
 		LOG.startTime( startTime );
@@ -728,6 +749,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * Are statistics logged
 	 */
+	@Override
 	public boolean isStatisticsEnabled() {
 		return isStatisticsEnabled;
 	}
@@ -735,6 +757,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * Enable statistics logs (this is a dynamic parameter)
 	 */
+	@Override
 	public void setStatisticsEnabled(boolean b) {
 		isStatisticsEnabled = b;
 	}
@@ -743,6 +766,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	 * @return Returns the max query execution time,
 	 *         for all queries
 	 */
+	@Override
 	public long getQueryExecutionMaxTime() {
 		return queryExecutionMaxTime.get();
 	}
@@ -750,6 +774,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * Get all executed query strings
 	 */
+	@Override
 	public String[] getQueries() {
 		return ArrayHelper.toStringArray( queryStatistics.keySet() );
 	}
@@ -757,6 +782,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * Get the names of all entities
 	 */
+	@Override
 	public String[] getEntityNames() {
 		if ( sessionFactory == null ) {
 			return ArrayHelper.toStringArray( entityStatistics.keySet() );
@@ -769,6 +795,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * Get the names of all collection roles
 	 */
+	@Override
 	public String[] getCollectionRoleNames() {
 		if ( sessionFactory == null ) {
 			return ArrayHelper.toStringArray( collectionStatistics.keySet() );
@@ -781,6 +808,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 	/**
 	 * Get all second-level cache region names
 	 */
+	@Override
 	public String[] getSecondLevelCacheRegionNames() {
 		if ( sessionFactory == null ) {
 			return ArrayHelper.toStringArray( secondLevelCacheStatistics.keySet() );
@@ -789,43 +817,43 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 			return ArrayHelper.toStringArray( sessionFactory.getAllSecondLevelCacheRegions().keySet() );
 		}
 	}
-
+	@Override
 	public void endTransaction(boolean success) {
 		transactionCount.getAndIncrement();
 		if ( success ) {
 			committedTransactionCount.getAndIncrement();
 		}
 	}
-
+	@Override
 	public long getSuccessfulTransactionCount() {
 		return committedTransactionCount.get();
 	}
-
+	@Override
 	public long getTransactionCount() {
 		return transactionCount.get();
 	}
-
+	@Override
 	public void closeStatement() {
 		closeStatementCount.getAndIncrement();
 	}
-
+	@Override
 	public void prepareStatement() {
 		prepareStatementCount.getAndIncrement();
 	}
-
+	@Override
 	public long getCloseStatementCount() {
 		return closeStatementCount.get();
 	}
-
+	@Override
 	public long getPrepareStatementCount() {
 		return prepareStatementCount.get();
 	}
-
+	@Override
 	public void optimisticFailure(String entityName) {
 		optimisticFailureCount.getAndIncrement();
 		( (ConcurrentEntityStatisticsImpl) getEntityStatistics( entityName ) ).incrementOptimisticFailureCount();
 	}
-
+	@Override
 	public long getOptimisticFailureCount() {
 		return optimisticFailureCount.get();
 	}
@@ -873,7 +901,7 @@ public class ConcurrentStatisticsImpl implements StatisticsImplementor, Service 
 				.append( ']' )
 				.toString();
 	}
-
+	@Override
 	public String getQueryExecutionMaxTimeQueryString() {
 		return queryExecutionMaxTimeQueryString;
 	}

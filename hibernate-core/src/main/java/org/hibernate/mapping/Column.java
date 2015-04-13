@@ -46,13 +46,13 @@ public class Column implements Selectable, Serializable, Cloneable {
 	private int precision=DEFAULT_PRECISION;
 	private int scale=DEFAULT_SCALE;
 	private Value value;
-	private int typeIndex = 0;
+	private int typeIndex;
 	private String name;
 	private boolean nullable=true;
-	private boolean unique=false;
+	private boolean unique;
 	private String sqlType;
 	private Integer sqlTypeCode;
-	private boolean quoted=false;
+	private boolean quoted;
 	int uniqueInteger;
 	private String checkConstraint;
 	private String comment;
@@ -108,38 +108,38 @@ public class Column implements Selectable, Serializable, Cloneable {
 			name;
 	}
 	
-	/**
-	 * For any column name, generate an alias that is unique
-	 * to that column name, and also 10 characters or less
-	 * in length.
-	 */
+	@Override
 	public String getAlias(Dialect dialect) {
+		final int lastLetter = StringHelper.lastIndexOfLetter( name );
+		final String suffix = Integer.toString(uniqueInteger) + '_';
+
 		String alias = name;
-		String unique = Integer.toString(uniqueInteger) + '_';
-		int lastLetter = StringHelper.lastIndexOfLetter(name);
 		if ( lastLetter == -1 ) {
 			alias = "column";
 		}
-		else if ( lastLetter < name.length()-1 ) {
-			alias = name.substring(0, lastLetter+1);
+		else if ( name.length() > lastLetter + 1 ) {
+			alias = name.substring( 0, lastLetter + 1 );
 		}
-		if ( alias.length() > dialect.getMaxAliasLength() ) {
-			alias = alias.substring( 0, dialect.getMaxAliasLength() - unique.length() );
+
+		boolean useRawName = name.length() + suffix.length() <= dialect.getMaxAliasLength()
+				&& !quoted && !name.toLowerCase().equals( "rowid" );
+		if ( !useRawName ) {
+			if ( suffix.length() >= dialect.getMaxAliasLength() ) {
+				throw new MappingException( String.format(
+						"Unique suffix [%s] length must be less than maximum [%d]",
+						suffix, dialect.getMaxAliasLength() ) );
+			}
+			if ( alias.length() + suffix.length() > dialect.getMaxAliasLength() ) {
+				alias = alias.substring( 0, dialect.getMaxAliasLength() - suffix.length() );
+			}
 		}
-		boolean useRawName = name.equals(alias) && 
-			!quoted && 
-			!name.toLowerCase().equals("rowid");
-		if ( useRawName ) {
-			return alias;
-		}
-		else {
-			return alias + unique;
-		}
+		return alias + suffix;
 	}
 	
 	/**
 	 * Generate a column alias that is unique across multiple tables
 	 */
+	@Override
 	public String getAlias(Dialect dialect, Table table) {
 		return getAlias(dialect) + table.getUniqueInteger() + '_';
 	}
@@ -163,13 +163,15 @@ public class Column implements Selectable, Serializable, Cloneable {
 		return unique;
 	}
 
-	//used also for generation of FK names!
+	@Override
 	public int hashCode() {
+		//used also for generation of FK names!
 		return isQuoted() ?
 			name.hashCode() :
 			name.toLowerCase().hashCode();
 	}
 
+	@Override
 	public boolean equals(Object object) {
 		return object instanceof Column && equals( (Column) object );
 	}
@@ -245,6 +247,7 @@ public class Column implements Selectable, Serializable, Cloneable {
 		return quoted;
 	}
 
+	@Override
 	public String toString() {
 		return getClass().getName() + '(' + getName() + ')';
 	}
@@ -261,6 +264,7 @@ public class Column implements Selectable, Serializable, Cloneable {
 		return checkConstraint!=null;
 	}
 
+	@Override
 	public String getTemplate(Dialect dialect, SQLFunctionRegistry functionRegistry) {
 		return hasCustomRead()
 				? Template.renderWhereStringTemplate( customRead, dialect, functionRegistry )
@@ -278,14 +282,18 @@ public class Column implements Selectable, Serializable, Cloneable {
 	public String getWriteExpr() {
 		return ( customWrite != null && customWrite.length() > 0 ) ? customWrite : "?";
 	}
-	
+
+	@Override
 	public boolean isFormula() {
 		return false;
 	}
 
+	@Override
 	public String getText(Dialect d) {
 		return getQuotedName(d);
 	}
+
+	@Override
 	public String getText() {
 		return getName();
 	}

@@ -23,160 +23,210 @@
  */
 package org.hibernate.jpa.criteria.compile;
 
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import javax.persistence.FlushModeType;
 import javax.persistence.LockModeType;
 import javax.persistence.Parameter;
 import javax.persistence.TemporalType;
 import javax.persistence.TypedQuery;
 import javax.persistence.criteria.ParameterExpression;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import org.hibernate.Query;
 import org.hibernate.ejb.HibernateQuery;
 import org.hibernate.jpa.internal.QueryImpl;
+import org.hibernate.jpa.spi.HibernateEntityManagerImplementor;
 
 /**
  * @author Steve Ebersole
  */
 public class CriteriaQueryTypeQueryAdapter<X> implements TypedQuery<X>, HibernateQuery {
-	private final QueryImpl<X> jpaqlQuery;
-	private final Map<ParameterExpression<?>, String> explicitParameterMapping;
-	private final Map<String, ParameterExpression<?>> explicitParameterNameMapping;
+	private final HibernateEntityManagerImplementor entityManager;
+	private final QueryImpl<X> jpqlQuery;
+	private final Map<ParameterExpression<?>, ExplicitParameterInfo<?>> explicitParameterInfoMap;
 
 	public CriteriaQueryTypeQueryAdapter(
-			QueryImpl<X> jpaqlQuery,
-			Map<ParameterExpression<?>, String> explicitParameterMapping,
-			Map<String, ParameterExpression<?>> explicitParameterNameMapping) {
-		this.jpaqlQuery = jpaqlQuery;
-		this.explicitParameterMapping = explicitParameterMapping;
-		this.explicitParameterNameMapping = explicitParameterNameMapping;
+			HibernateEntityManagerImplementor entityManager,
+			QueryImpl<X> jpqlQuery,
+			Map<ParameterExpression<?>, ExplicitParameterInfo<?>> explicitParameterInfoMap) {
+		this.entityManager = entityManager;
+		this.jpqlQuery = jpqlQuery;
+		this.explicitParameterInfoMap = explicitParameterInfoMap;
 	}
 
 	@Override
 	public Query getHibernateQuery() {
-		return jpaqlQuery.getHibernateQuery();
+		return jpqlQuery.getHibernateQuery();
 	}
 
 	public List<X> getResultList() {
-		return jpaqlQuery.getResultList();
+		return jpqlQuery.getResultList();
 	}
 
 	public X getSingleResult() {
-		return jpaqlQuery.getSingleResult();
+		return jpqlQuery.getSingleResult();
 	}
 
 	public int getMaxResults() {
-		return jpaqlQuery.getMaxResults();
+		return jpqlQuery.getMaxResults();
 	}
 
 	public TypedQuery<X> setMaxResults(int i) {
-		jpaqlQuery.setMaxResults( i );
+		jpqlQuery.setMaxResults( i );
 		return this;
 	}
 
 	public int getFirstResult() {
-		return jpaqlQuery.getFirstResult();
+		return jpqlQuery.getFirstResult();
 	}
 
 	public TypedQuery<X> setFirstResult(int i) {
-		jpaqlQuery.setFirstResult( i );
+		jpqlQuery.setFirstResult( i );
 		return this;
 	}
 
 	public Map<String, Object> getHints() {
-		return jpaqlQuery.getHints();
+		return jpqlQuery.getHints();
 	}
 
 	public TypedQuery<X> setHint(String name, Object value) {
-		jpaqlQuery.setHint( name, value);
+		jpqlQuery.setHint( name, value );
 		return this;
 	}
 
 	public FlushModeType getFlushMode() {
-		return jpaqlQuery.getFlushMode();
+		return jpqlQuery.getFlushMode();
 	}
 
 	public TypedQuery<X> setFlushMode(FlushModeType flushModeType) {
-		jpaqlQuery.setFlushMode( flushModeType );
+		jpqlQuery.setFlushMode( flushModeType );
 		return this;
 	}
 
 	public LockModeType getLockMode() {
-		return jpaqlQuery.getLockMode();
+		return jpqlQuery.getLockMode();
 	}
 
 	public TypedQuery<X> setLockMode(LockModeType lockModeType) {
-		jpaqlQuery.setLockMode( lockModeType );
+		jpqlQuery.setLockMode( lockModeType );
 		return this;
 	}
 
 	@SuppressWarnings({ "unchecked" })
-	public Set getParameters() {
-		return explicitParameterMapping.keySet();
+	public Set<Parameter<?>> getParameters() {
+		entityManager.checkOpen( false );
+		return new HashSet( explicitParameterInfoMap.values() );
 	}
 
 	public boolean isBound(Parameter<?> param) {
-		return jpaqlQuery.isBound( param );
+		entityManager.checkOpen( false );
+		return jpqlQuery.isBound( param );
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	public <T> T getParameterValue(Parameter<T> param) {
-		return ( T ) jpaqlQuery.getParameterValue( mapToNamedParameter( param ) );
+		entityManager.checkOpen( false );
+		final ExplicitParameterInfo parameterInfo = resolveParameterInfo( param );
+		if ( parameterInfo.isNamed() ) {
+			return ( T ) jpqlQuery.getParameterValue( parameterInfo.getName() );
+		}
+		else {
+			return ( T ) jpqlQuery.getParameterValue( parameterInfo.getPosition() );
+		}
+	}
+
+	private <T> ExplicitParameterInfo resolveParameterInfo(Parameter<T> param) {
+		if ( ExplicitParameterInfo.class.isInstance( param ) ) {
+			return (ExplicitParameterInfo) param;
+		}
+		else if ( ParameterExpression.class.isInstance( param ) ) {
+			return explicitParameterInfoMap.get( (ParameterExpression) param );
+		}
+		else {
+			for ( ExplicitParameterInfo parameterInfo : explicitParameterInfoMap.values() ) {
+				if ( param.getName() != null && param.getName().equals( parameterInfo.getName() ) ) {
+					return parameterInfo;
+				}
+				else if ( param.getPosition() != null && param.getPosition().equals( parameterInfo.getPosition() ) ) {
+					return parameterInfo;
+				}
+			}
+		}
+		throw new IllegalArgumentException( "Unable to locate parameter [" + param + "] in query" );
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	public <T> TypedQuery<X> setParameter(Parameter<T> param, T t) {
-		jpaqlQuery.setParameter( mapToNamedParameter( param ), t );
+		entityManager.checkOpen( false );
+		final ExplicitParameterInfo parameterInfo = resolveParameterInfo( param );
+		if ( parameterInfo.isNamed() ) {
+			jpqlQuery.setParameter( parameterInfo.getName(), t );
+		}
+		else {
+			jpqlQuery.setParameter( parameterInfo.getPosition(), t );
+		}
 		return this;
-	}
-
-	@SuppressWarnings({ "RedundantCast" })
-	private Parameter mapToNamedParameter(Parameter criteriaParameter) {
-		return jpaqlQuery.getParameter(
-				explicitParameterMapping.get( criteriaParameter )
-		);
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	public TypedQuery<X> setParameter(Parameter<Calendar> param, Calendar calendar, TemporalType temporalType) {
-		jpaqlQuery.setParameter( mapToNamedParameter( param ), calendar, temporalType );
+		entityManager.checkOpen( false );
+		final ExplicitParameterInfo parameterInfo = resolveParameterInfo( param );
+		if ( parameterInfo.isNamed() ) {
+			jpqlQuery.setParameter( parameterInfo.getName(), calendar, temporalType );
+		}
+		else {
+			jpqlQuery.setParameter( parameterInfo.getPosition(), calendar, temporalType );
+		}
 		return this;
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	public TypedQuery<X> setParameter(Parameter<Date> param, Date date, TemporalType temporalType) {
-		jpaqlQuery.setParameter( mapToNamedParameter( param ), date, temporalType );
+		entityManager.checkOpen( false );
+		final ExplicitParameterInfo parameterInfo = resolveParameterInfo( param );
+		if ( parameterInfo.isNamed() ) {
+			jpqlQuery.setParameter( parameterInfo.getName(), date, temporalType );
+		}
+		else {
+			jpqlQuery.setParameter( parameterInfo.getPosition(), date, temporalType );
+		}
 		return this;
 	}
 
 	public <T> T unwrap(Class<T> cls) {
-		return jpaqlQuery.unwrap( cls );
+		return jpqlQuery.unwrap( cls );
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	public Object getParameterValue(String name) {
-		return getParameterValue( resolveExplicitCriteriaParameterName( name ) );
+		entityManager.checkOpen( false );
+		locateParameterByName( name );
+		return jpqlQuery.getParameter( name );
 	}
 
-	private Parameter resolveExplicitCriteriaParameterName(String name) {
-		Parameter parameter = explicitParameterNameMapping.get( name );
-		if ( parameter == null ) {
-			throw new IllegalArgumentException( "Named parameter [" + name + "] not encountered" );
+	private ExplicitParameterInfo locateParameterByName(String name) {
+		for ( ExplicitParameterInfo parameterInfo : explicitParameterInfoMap.values() ) {
+			if ( parameterInfo.isNamed() && parameterInfo.getName().equals( name ) ) {
+				return parameterInfo;
+			}
 		}
-		return parameter;
+		throw new IllegalArgumentException( "Unable to locate parameter registered with that name [" + name + "]" );
 	}
 
 	public Parameter<?> getParameter(String name) {
-		return mapToNamedParameter( resolveExplicitCriteriaParameterName( name ) );
+		entityManager.checkOpen( false );
+		return locateParameterByName( name );
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	public <T> Parameter<T> getParameter(String name, Class<T> type) {
-		Parameter parameter = resolveExplicitCriteriaParameterName( name );
+		entityManager.checkOpen( false );
+		Parameter parameter = locateParameterByName( name );
 		if ( type.isAssignableFrom( parameter.getParameterType() ) ) {
 			return parameter;
 		}
@@ -188,53 +238,28 @@ public class CriteriaQueryTypeQueryAdapter<X> implements TypedQuery<X>, Hibernat
 
 	@SuppressWarnings({ "unchecked" })
 	public TypedQuery<X> setParameter(String name, Object value) {
-		setParameter(
-				resolveExplicitCriteriaParameterName( name, value ),
-				value
-		);
+		entityManager.checkOpen( true );
+		ExplicitParameterInfo parameterInfo = locateParameterByName( name );
+		parameterInfo.validateBindValue( value );
+		jpqlQuery.setParameter( name, value );
 		return this;
-	}
-
-	private Parameter resolveExplicitCriteriaParameterName(String name, Object value) {
-		Parameter parameter = resolveExplicitCriteriaParameterName( name );
-		// todo : is null valid?
-		if ( value != null ) {
-			if ( ! parameter.getParameterType().isInstance( value ) ) {
-				throw new IllegalArgumentException(
-						"Named parameter [" + name + "] type mismatch; expecting ["
-								+ parameter.getParameterType().getName() + "], found ["
-								+ value.getClass().getName() + "]"
-				);
-			}
-		}
-		return parameter;
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	public TypedQuery<X> setParameter(String name, Calendar calendar, TemporalType temporalType) {
-		Parameter parameter = resolveExplicitCriteriaParameterName( name );
-		if ( ! Calendar.class.isAssignableFrom( parameter.getParameterType() ) ) {
-			throw new IllegalArgumentException(
-					"Named parameter [" + name + "] type mismatch; expecting ["
-							+ Calendar.class.getName() + "], found ["
-							+ parameter.getParameterType().getName() + "]"
-			);
-		}
-		setParameter( parameter, calendar, temporalType );
+		entityManager.checkOpen( true );
+		ExplicitParameterInfo parameterInfo = locateParameterByName( name );
+		parameterInfo.validateCalendarBind();
+		jpqlQuery.setParameter( name, calendar, temporalType );
 		return this;
 	}
 
 	@SuppressWarnings({ "unchecked" })
 	public TypedQuery<X> setParameter(String name, Date date, TemporalType temporalType) {
-		Parameter parameter = resolveExplicitCriteriaParameterName( name );
-		if ( ! Date.class.isAssignableFrom( parameter.getParameterType() ) ) {
-			throw new IllegalArgumentException(
-					"Named parameter [" + name + "] type mismatch; expecting ["
-							+ Date.class.getName() + "], found ["
-							+ parameter.getParameterType().getName() + "]"
-			);
-		}
-		setParameter( parameter, date, temporalType );
+		entityManager.checkOpen( true );
+		ExplicitParameterInfo parameterInfo = locateParameterByName( name );
+		parameterInfo.validateDateBind();
+		jpqlQuery.setParameter( name, date, temporalType );
 		return this;
 	}
 
@@ -242,7 +267,7 @@ public class CriteriaQueryTypeQueryAdapter<X> implements TypedQuery<X>, Hibernat
 	// unsupported stuff ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	public int executeUpdate() {
-		throw new IllegalArgumentException( "Criteria queries do not support update queries" );
+		throw new IllegalStateException( "Typed criteria queries do not support executeUpdate" );
 	}
 
 	public TypedQuery<X> setParameter(int i, Object o) {

@@ -23,9 +23,9 @@
  *
  */
 package org.hibernate.loader;
+
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
 import org.hibernate.FetchMode;
@@ -172,9 +172,7 @@ public abstract class AbstractEntityJoinWalker extends JoinWalker {
 				: rootPropertyName;
 		String fetchRole = persister.getEntityName() + "." + relativePropertyPath;
 
-		Iterator profiles = getLoadQueryInfluencers().getEnabledFetchProfileNames().iterator();
-		while ( profiles.hasNext() ) {
-			final String profileName = ( String ) profiles.next();
+		for ( String profileName : getLoadQueryInfluencers().getEnabledFetchProfileNames() ) {
 			final FetchProfile profile = getFactory().getFetchProfile( profileName );
 			final Fetch fetch = profile.getFetchByRole( fetchRole );
 			if ( fetch != null && Fetch.Style.JOIN == fetch.getStyle() ) {
@@ -204,6 +202,16 @@ public abstract class AbstractEntityJoinWalker extends JoinWalker {
 
 	public final String getAlias() {
 		return alias;
+	}
+	
+	/**
+	 * For entities, orderings added by, for example, Criteria#addOrder need to come before the associations' @OrderBy
+	 * values.  However, other sub-classes of JoinWalker (BasicCollectionJoinWalker, OneToManyJoinWalker, etc.)
+	 * still need the other way around.  So, override here instead.  See HHH-7116.
+	 */
+	@Override
+	protected String orderBy(final List associations, final String orderBy) {
+		return mergeOrderings( orderBy, orderBy( associations ) );
 	}
 
 	public String toString() {

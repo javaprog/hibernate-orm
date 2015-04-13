@@ -27,16 +27,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Set;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
-import org.hibernate.cfg.Configuration;
+import org.hibernate.boot.Metadata;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
+import org.hibernate.engine.config.spi.ConfigurationService;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.integrator.spi.Integrator;
 import org.hibernate.internal.CoreMessageLogger;
-import org.hibernate.metamodel.source.MetadataImplementor;
-import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 import org.hibernate.service.spi.SessionFactoryServiceRegistry;
+
+import org.jboss.logging.Logger;
 
 /**
  * @author Steve Ebersole
@@ -69,9 +69,7 @@ public class BeanValidationIntegrator implements Integrator {
 			final Class activatorClass = BeanValidationIntegrator.class.getClassLoader().loadClass( ACTIVATOR_CLASS_NAME );
 			try {
 				final Method validateMethod = activatorClass.getMethod( VALIDATE_SUPPLIED_FACTORY_METHOD_NAME, Object.class );
-				if ( ! validateMethod.isAccessible() ) {
-					validateMethod.setAccessible( true );
-				}
+				validateMethod.setAccessible( true );
 				try {
 					validateMethod.invoke( null, object );
 				}
@@ -102,11 +100,12 @@ public class BeanValidationIntegrator implements Integrator {
 
 	@Override
 	public void integrate(
-			final Configuration configuration,
+			final Metadata metadata,
 			final SessionFactoryImplementor sessionFactory,
 			final SessionFactoryServiceRegistry serviceRegistry) {
+		final ConfigurationService cfgService = serviceRegistry.getService( ConfigurationService.class );
 		// IMPL NOTE : see the comments on ActivationContext.getValidationModes() as to why this is multi-valued...
-		final Set<ValidationMode> modes = ValidationMode.getModes( configuration.getProperties().get( MODE_PROPERTY ) );
+		final Set<ValidationMode> modes = ValidationMode.getModes( cfgService.getSettings().get( MODE_PROPERTY ) );
 		if ( modes.size() > 1 ) {
 			LOG.multipleValidationModes( ValidationMode.loggable( modes ) );
 		}
@@ -131,8 +130,8 @@ public class BeanValidationIntegrator implements Integrator {
 					}
 
 					@Override
-					public Configuration getConfiguration() {
-						return configuration;
+					public Metadata getMetadata() {
+						return metadata;
 					}
 
 					@Override
@@ -201,15 +200,6 @@ public class BeanValidationIntegrator implements Integrator {
 		catch (Exception e) {
 			throw new HibernateException( "Unable to load TypeSafeActivator class", e );
 		}
-	}
-
-
-
-	@Override
-	public void integrate(
-			MetadataImplementor metadata,
-			SessionFactoryImplementor sessionFactory,
-			SessionFactoryServiceRegistry serviceRegistry ) {
 	}
 
 	@Override

@@ -1,10 +1,10 @@
 /*
  * Hibernate, Relational Persistence for Idiomatic Java
  *
- * Copyright (c) 2008, Red Hat Middleware LLC or third-party contributors as
+ * Copyright (c) 2013, Red Hat Inc. or third-party contributors as
  * indicated by the @author tags or express copyright attribution
  * statements applied by the authors.  All third-party contributions are
- * distributed under license by Red Hat Middleware LLC.
+ * distributed under license by Red Hat Inc.
  *
  * This copyrighted material is made available to anyone wishing to use, modify,
  * copy, or redistribute it subject to the terms and conditions of the GNU
@@ -20,10 +20,9 @@
  * Free Software Foundation, Inc.
  * 51 Franklin Street, Fifth Floor
  * Boston, MA  02110-1301  USA
- *
  */
 package org.hibernate.hql.internal.ast;
-import java.io.InputStream;
+
 import java.io.Reader;
 
 import org.hibernate.QueryException;
@@ -36,46 +35,39 @@ import antlr.Token;
  * in order to keep the grammar source file clean.
  */
 class HqlLexer extends HqlBaseLexer {
-	/**
-	 * A logger for this class. *
-	 */
-	private boolean possibleID = false;
+	private boolean possibleID;
 
-	public HqlLexer(InputStream in) {
+	public HqlLexer(Reader in) {
 		super( in );
 	}
 
-    public HqlLexer(Reader in) {
-        super(in);
-    }
-
+	@Override
 	public void setTokenObjectClass(String cl) {
 		this.tokenObjectClass = HqlToken.class;
 	}
 
+	@Override
 	protected void setPossibleID(boolean possibleID) {
 		this.possibleID = possibleID;
 	}
 
+	@Override
 	protected Token makeToken(int i) {
-		HqlToken token = ( HqlToken ) super.makeToken( i );
+		HqlToken token = (HqlToken) super.makeToken( i );
 		token.setPossibleID( possibleID );
 		possibleID = false;
 		return token;
 	}
 
-	public int testLiteralsTable(int i) {
-		int ttype = super.testLiteralsTable( i );
-		return ttype;
-	}
-
+	@Override
 	public void panic() {
 		//overriden to avoid System.exit
-		panic("CharScanner: panic");
+		panic( "CharScanner: panic" );
 	}
 
+	@Override
 	public void panic(String s) {
 		//overriden to avoid System.exit
-		throw new QueryException(s);
+		throw new QueryException( s );
 	}
 }

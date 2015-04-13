@@ -24,8 +24,8 @@
 package org.hibernate.ejb.packaging;
 
 /**
- * @deprecated Use {@link org.hibernate.jpa.packaging.spi.Scanner} instead
+ * @deprecated Use {@link org.hibernate.boot.archive.scan.spi.Scanner} instead
  */
 @Deprecated
-public interface Scanner extends org.hibernate.jpa.packaging.spi.Scanner {
+public interface Scanner extends org.hibernate.boot.archive.scan.spi.Scanner {
 }

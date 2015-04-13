@@ -29,85 +29,86 @@ import java.util.Properties;
 import javax.persistence.EntityManager;
 
 import org.hibernate.boot.registry.BootstrapServiceRegistryBuilder;
-import org.hibernate.jpa.test.PersistenceUnitDescriptorAdapter;
-import org.hibernate.envers.test.AbstractEnversTest;
-import org.junit.Before;
-
+import org.hibernate.boot.registry.internal.StandardServiceRegistryImpl;
 import org.hibernate.cfg.Environment;
 import org.hibernate.dialect.Dialect;
+import org.hibernate.envers.AuditReader;
+import org.hibernate.envers.AuditReaderFactory;
+import org.hibernate.envers.configuration.EnversSettings;
+import org.hibernate.envers.boot.internal.EnversIntegrator;
+import org.hibernate.envers.test.AbstractEnversTest;
 import org.hibernate.jpa.AvailableSettings;
 import org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl;
 import org.hibernate.jpa.boot.spi.Bootstrap;
 import org.hibernate.jpa.internal.EntityManagerFactoryImpl;
-import org.hibernate.envers.AuditReader;
-import org.hibernate.envers.AuditReaderFactory;
-import org.hibernate.envers.event.EnversIntegrator;
-import org.hibernate.boot.registry.internal.StandardServiceRegistryImpl;
+import org.hibernate.jpa.test.PersistenceUnitDescriptorAdapter;
+
 import org.hibernate.testing.AfterClassOnce;
 import org.hibernate.testing.BeforeClassOnce;
+import org.junit.Before;
 
 /**
  * @author Adam Warski (adam at warski dot org)
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 public abstract class AbstractEntityManagerTest extends AbstractEnversTest {
-    public static final Dialect DIALECT = Dialect.getDialect();
+	public static final Dialect DIALECT = Dialect.getDialect();
 
 	private EntityManagerFactoryBuilderImpl entityManagerFactoryBuilder;
 	private StandardServiceRegistryImpl serviceRegistry;
 	private EntityManagerFactoryImpl emf;
-    private EntityManager entityManager;
-    private AuditReader auditReader;
-    private boolean audited;
+	private EntityManager entityManager;
+	private AuditReader auditReader;
+	private boolean audited;
 
-    public void addConfigurationProperties(Properties configuration) {
+	public void addConfigurationProperties(Properties configuration) {
 	}
 
-    protected static Dialect getDialect() {
-        return DIALECT;
-    }
+	protected static Dialect getDialect() {
+		return DIALECT;
+	}
 
-    private void closeEntityManager() {
-        if (entityManager != null) {
-            entityManager.close();
-            entityManager = null;
-        }
-    }
+	private void closeEntityManager() {
+		if ( entityManager != null ) {
+			entityManager.close();
+			entityManager = null;
+		}
+	}
 
-    @Before
-    public void newEntityManager() {
-        closeEntityManager();
-        
-        entityManager = emf.createEntityManager();
+	@Before
+	public void newEntityManager() {
+		closeEntityManager();
 
-        if (audited) {
-            auditReader = AuditReaderFactory.get(entityManager);
-        }
-    }
+		entityManager = emf.createEntityManager();
 
-    @BeforeClassOnce
-    public void init() throws IOException {
-        init(true, getAuditStrategy());
-    }
+		if ( audited ) {
+			auditReader = AuditReaderFactory.get( entityManager );
+		}
+	}
 
-    protected void init(boolean audited, String auditStrategy) throws IOException {
-        this.audited = audited;
+	@BeforeClassOnce
+	public void init() throws IOException {
+		init( true, getAuditStrategy() );
+	}
 
-        Properties configurationProperties = new Properties();
+	protected void init(boolean audited, String auditStrategy) throws IOException {
+		this.audited = audited;
+
+		Properties configurationProperties = new Properties();
 		configurationProperties.putAll( Environment.getProperties() );
-        if (!audited) {
-			configurationProperties.setProperty(EnversIntegrator.AUTO_REGISTER, "false");
-        }
+		if ( !audited ) {
+			configurationProperties.setProperty( EnversIntegrator.AUTO_REGISTER, "false" );
+		}
 		if ( createSchema() ) {
 			configurationProperties.setProperty( Environment.HBM2DDL_AUTO, "create-drop" );
 			configurationProperties.setProperty( Environment.USE_NEW_ID_GENERATOR_MAPPINGS, "true" );
-			configurationProperties.setProperty("org.hibernate.envers.use_revision_entity_with_native_id", "false");
+			configurationProperties.setProperty( EnversSettings.USE_REVISION_ENTITY_WITH_NATIVE_ID, "false" );
 		}
-        if (auditStrategy != null && !"".equals(auditStrategy)) {
-            configurationProperties.setProperty("org.hibernate.envers.audit_strategy", auditStrategy);
-        }
+		if ( auditStrategy != null && !"".equals( auditStrategy ) ) {
+			configurationProperties.setProperty( "org.hibernate.envers.audit_strategy", auditStrategy );
+		}
 
-        addConfigurationProperties( configurationProperties );
+		addConfigurationProperties( configurationProperties );
 
 		configurationProperties.put( AvailableSettings.LOADED_CLASSES, Arrays.asList( getAnnotatedClasses() ) );
 
@@ -116,12 +117,14 @@ public abstract class AbstractEntityManagerTest extends AbstractEnversTest {
 				configurationProperties
 		);
 
-        emf = (EntityManagerFactoryImpl) entityManagerFactoryBuilder.build();
+		emf = (EntityManagerFactoryImpl) entityManagerFactoryBuilder.build();
 
-		serviceRegistry = (StandardServiceRegistryImpl) emf.getSessionFactory().getServiceRegistry().getParentServiceRegistry();
+		serviceRegistry = (StandardServiceRegistryImpl) emf.getSessionFactory()
+				.getServiceRegistry()
+				.getParentServiceRegistry();
 
-        newEntityManager();
-    }
+		newEntityManager();
+	}
 
 	protected Class[] getAnnotatedClasses() {
 		return new Class[0];
@@ -136,17 +139,17 @@ public abstract class AbstractEntityManagerTest extends AbstractEnversTest {
 	}
 
 	@AfterClassOnce
-    public void close() {
-        closeEntityManager();
-        emf.close();
+	public void close() {
+		closeEntityManager();
+		emf.close();
 		//NOTE we don't build the service registry so we don't destroy it
-    }
+	}
 
-    public EntityManager getEntityManager() {
-        return entityManager;
-    }
+	public EntityManager getEntityManager() {
+		return entityManager;
+	}
 
-    public AuditReader getAuditReader() {
-        return auditReader;
-    }
+	public AuditReader getAuditReader() {
+		return auditReader;
+	}
 }

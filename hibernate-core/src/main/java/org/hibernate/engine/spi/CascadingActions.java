@@ -27,8 +27,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
@@ -43,6 +41,8 @@ import org.hibernate.proxy.HibernateProxy;
 import org.hibernate.type.CollectionType;
 import org.hibernate.type.EntityType;
 import org.hibernate.type.Type;
+
+import org.jboss.logging.Logger;
 
 /**
  * @author Steve Ebersole
@@ -155,7 +155,7 @@ public class CascadingActions {
 				boolean isCascadeDeleteEnabled)
 				throws HibernateException {
 			LOG.tracev( "Cascading to refresh: {0}", entityName );
-			session.refresh( child, (Map) anything );
+			session.refresh( entityName, child, (Map) anything );
 		}
 
 		@Override

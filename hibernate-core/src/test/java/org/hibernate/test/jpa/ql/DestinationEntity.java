@@ -42,8 +42,8 @@ import javax.persistence.Table;
 				+ "values (:generatedId, :fromId, :fullName)"),
 		@NamedNativeQuery(name = "DestinationEntity.update", query = "update destination_entity set from_id=:idFrom, fullNameFrom=:fullName"
 				+ " where id in (:ids)"),
-		@NamedNativeQuery(name = "DestinationEntity.delete", query = "delete destination_entity where id in (:ids)"),
-		@NamedNativeQuery(name = "DestinationEntity.selectIds", query = "select id, from_id, fullNameFrom from destination_entity where id in (:ids)") })
+		@NamedNativeQuery(name = "DestinationEntity.delete", query = "delete from destination_entity where id in (:ids)"),
+		@NamedNativeQuery(name = "DestinationEntity.selectIds", query = "select id, from_id, fullNameFrom from destination_entity where id in (:ids) order by id") })
 public class DestinationEntity {
 
 	@Id

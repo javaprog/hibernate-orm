@@ -4,23 +4,27 @@ import java.util.Arrays;
 import java.util.List;
 import javax.persistence.EntityManager;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
+
 import org.hibernate.testing.TestForIssue;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
 @TestForIssue(jiraKey = "HHH-7934")
 public class ProtectedConstructorTest extends BaseEnversJPAFunctionalTestCase {
-	private final ProtectedConstructorEntity testEntity = new ProtectedConstructorEntity( new WrappedStringId( "embeddedStringId" ), "string" );
+	private final ProtectedConstructorEntity testEntity = new ProtectedConstructorEntity(
+			new WrappedStringId(
+					"embeddedStringId"
+			), "string"
+	);
 
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class<?>[] { WrappedStringId.class, ProtectedConstructorEntity.class };
+		return new Class<?>[] {WrappedStringId.class, ProtectedConstructorEntity.class};
 	}
 
 	@Test
@@ -36,7 +40,9 @@ public class ProtectedConstructorTest extends BaseEnversJPAFunctionalTestCase {
 
 	@Test
 	public void testAuditEntityInstantiation() {
-		List result = getAuditReader().createQuery().forEntitiesAtRevision( ProtectedConstructorEntity.class, 1 ).getResultList();
+		List result = getAuditReader().createQuery()
+				.forEntitiesAtRevision( ProtectedConstructorEntity.class, 1 )
+				.getResultList();
 		Assert.assertEquals( Arrays.asList( testEntity ), result );
 	}
 }

@@ -3,13 +3,13 @@ package org.hibernate.envers.test.integration.inheritance.tableperclass.abstract
 import java.util.Iterator;
 import javax.persistence.EntityManager;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
 import org.hibernate.mapping.Table;
+
 import org.hibernate.testing.TestForIssue;
+import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
@@ -18,7 +18,7 @@ import org.hibernate.testing.TestForIssue;
 public class AuditedAbstractParentTest extends BaseEnversJPAFunctionalTestCase {
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class<?>[] { AbstractEntity.class, EffectiveEntity1.class };
+		return new Class<?>[] {AbstractEntity.class, EffectiveEntity1.class};
 	}
 
 	@Test
@@ -37,9 +37,7 @@ public class AuditedAbstractParentTest extends BaseEnversJPAFunctionalTestCase {
 
 	@Test
 	public void testAbstractTableExistence() {
-		Iterator<Table> tableIterator = getCfg().getTableMappings();
-		while ( tableIterator.hasNext() ) {
-			Table table = tableIterator.next();
+		for ( Table table : metadata().collectTableMappings() ) {
 			if ( "AbstractEntity_AUD".equals( table.getName() ) ) {
 				Assert.assertFalse( table.isPhysicalTable() );
 				return;

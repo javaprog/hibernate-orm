@@ -30,14 +30,15 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.EntityMode;
 import org.hibernate.cache.spi.CacheKey;
 import org.hibernate.collection.spi.PersistentCollection;
-import org.hibernate.internal.CoreMessageLogger;
+import org.hibernate.engine.internal.CacheHelper;
+import org.hibernate.internal.CoreLogging;
 import org.hibernate.persister.collection.CollectionPersister;
 import org.hibernate.persister.entity.EntityPersister;
+
+import org.jboss.logging.Logger;
 
 /**
  * Tracks entity and collection keys that are available for batch
@@ -49,7 +50,7 @@ import org.hibernate.persister.entity.EntityPersister;
  * @author Guenther Demetz
  */
 public class BatchFetchQueue {
-	private static final CoreMessageLogger LOG = Logger.getMessageLogger( CoreMessageLogger.class, BatchFetchQueue.class.getName() );
+	private static final Logger LOG = CoreLogging.logger( BatchFetchQueue.class );
 
 	private final PersistenceContext context;
 
@@ -217,13 +218,13 @@ public class BatchFetchQueue {
 	}
 
 	private boolean isCached(EntityKey entityKey, EntityPersister persister) {
-		if ( persister.hasCache() ) {
-			CacheKey key = context.getSession().generateCacheKey(
+		if ( context.getSession().getCacheMode().isGetEnabled() && persister.hasCache() ) {
+			final CacheKey key = context.getSession().generateCacheKey(
 					entityKey.getIdentifier(),
 					persister.getIdentifierType(),
 					entityKey.getEntityName()
 			);
-			return persister.getCacheAccessStrategy().get( key, context.getSession().getTimestamp() ) != null;
+			return CacheHelper.fromSharedCache( context.getSession(), key, persister.getCacheAccessStrategy() ) != null;
 		}
 		return false;
 	}
@@ -330,13 +331,13 @@ public class BatchFetchQueue {
 	}
 
 	private boolean isCached(Serializable collectionKey, CollectionPersister persister) {
-		if ( persister.hasCache() ) {
+		if ( context.getSession().getCacheMode().isGetEnabled() && persister.hasCache() ) {
 			CacheKey cacheKey = context.getSession().generateCacheKey(
 					collectionKey,
-			        persister.getKeyType(),
-			        persister.getRole()
+					persister.getKeyType(),
+					persister.getRole()
 			);
-			return persister.getCacheAccessStrategy().get( cacheKey, context.getSession().getTimestamp() ) != null;
+			return CacheHelper.fromSharedCache( context.getSession(), cacheKey, persister.getCacheAccessStrategy() ) != null;
 		}
 		return false;
 	}

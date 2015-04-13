@@ -33,10 +33,10 @@ import org.hibernate.AssertionFailure;
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.engine.internal.ForeignKeys;
+import org.hibernate.engine.jdbc.Size;
 import org.hibernate.engine.spi.EntityKey;
 import org.hibernate.engine.spi.Mapping;
 import org.hibernate.engine.spi.SessionImplementor;
-import org.hibernate.metamodel.relational.Size;
 import org.hibernate.persister.entity.EntityPersister;
 
 /**
@@ -67,13 +67,12 @@ public class ManyToOneType extends EntityType {
 	 * @param lazy Should the association be handled lazily
 	 */
 	public ManyToOneType(TypeFactory.TypeScope scope, String referencedEntityName, boolean lazy) {
-		this( scope, referencedEntityName, null, lazy, true, false, false, false );
+		this( scope, referencedEntityName, true, null, lazy, true, false, false );
 	}
 
 
 	/**
-	 * @deprecated Use {@link #ManyToOneType(TypeFactory.TypeScope, String, String, boolean, boolean, boolean, boolean ) } instead.
-	 * See Jira issue: <a href="https://hibernate.onjira.com/browse/HHH-7771">HHH-7771</a>
+	 * @deprecated Use {@link #ManyToOneType(TypeFactory.TypeScope, String, boolean, String, boolean, boolean, boolean, boolean ) } instead.
 	 */
 	@Deprecated
 	public ManyToOneType(
@@ -85,11 +84,14 @@ public class ManyToOneType extends EntityType {
 			boolean isEmbeddedInXML,
 			boolean ignoreNotFound,
 			boolean isLogicalOneToOne) {
-		super( scope, referencedEntityName, uniqueKeyPropertyName, !lazy, isEmbeddedInXML, unwrapProxy );
-		this.ignoreNotFound = ignoreNotFound;
-		this.isLogicalOneToOne = isLogicalOneToOne;
+		this( scope, referencedEntityName, uniqueKeyPropertyName == null, uniqueKeyPropertyName, lazy, unwrapProxy, ignoreNotFound, isLogicalOneToOne );
 	}
 
+	/**
+	 * @deprecated Use {@link #ManyToOneType(TypeFactory.TypeScope, String, boolean, String, boolean, boolean, boolean, boolean ) } instead.
+	 * See Jira issue: <a href="https://hibernate.onjira.com/browse/HHH-7771">HHH-7771</a>
+	 */
+	@Deprecated
 	public ManyToOneType(
 			TypeFactory.TypeScope scope,
 			String referencedEntityName,
@@ -98,7 +100,19 @@ public class ManyToOneType extends EntityType {
 			boolean unwrapProxy,
 			boolean ignoreNotFound,
 			boolean isLogicalOneToOne) {
-		super( scope, referencedEntityName, uniqueKeyPropertyName, !lazy, unwrapProxy );
+		this( scope, referencedEntityName, uniqueKeyPropertyName == null, uniqueKeyPropertyName, lazy, unwrapProxy, ignoreNotFound, isLogicalOneToOne );
+	}
+
+	public ManyToOneType(
+			TypeFactory.TypeScope scope,
+			String referencedEntityName,
+			boolean referenceToPrimaryKey,
+			String uniqueKeyPropertyName,
+			boolean lazy,
+			boolean unwrapProxy,
+			boolean ignoreNotFound,
+			boolean isLogicalOneToOne) {
+		super( scope, referencedEntityName, referenceToPrimaryKey, uniqueKeyPropertyName, !lazy, unwrapProxy );
 		this.ignoreNotFound = ignoreNotFound;
 		this.isLogicalOneToOne = isLogicalOneToOne;
 	}
@@ -124,22 +138,33 @@ public class ManyToOneType extends EntityType {
 	}
 
 	public int getColumnSpan(Mapping mapping) throws MappingException {
-		// our column span is the number of columns in the PK
-		return getIdentifierOrUniqueKeyType( mapping ).getColumnSpan( mapping );
+		return requireIdentifierOrUniqueKeyType( mapping ).getColumnSpan( mapping );
+	}
+
+	private Type requireIdentifierOrUniqueKeyType(Mapping mapping) {
+		final Type fkTargetType = getIdentifierOrUniqueKeyType( mapping );
+		if ( fkTargetType == null ) {
+			throw new MappingException(
+					"Unable to determine FK target Type for many-to-one mapping: " +
+							"referenced-entity-name=[" + getAssociatedEntityName() +
+							"], referenced-entity-attribute-name=[" + getLHSPropertyName() + "]"
+			);
+		}
+		return fkTargetType;
 	}
 
 	public int[] sqlTypes(Mapping mapping) throws MappingException {
-		return getIdentifierOrUniqueKeyType( mapping ).sqlTypes( mapping );
+		return requireIdentifierOrUniqueKeyType( mapping ).sqlTypes( mapping );
 	}
 
 	@Override
 	public Size[] dictatedSizes(Mapping mapping) throws MappingException {
-		return getIdentifierOrUniqueKeyType( mapping ).dictatedSizes( mapping );
+		return requireIdentifierOrUniqueKeyType( mapping ).dictatedSizes( mapping );
 	}
 
 	@Override
 	public Size[] defaultSizes(Mapping mapping) throws MappingException {
-		return getIdentifierOrUniqueKeyType( mapping ).defaultSizes( mapping );
+		return requireIdentifierOrUniqueKeyType( mapping ).defaultSizes( mapping );
 	}
 
 	public void nullSafeSet(
@@ -148,7 +173,7 @@ public class ManyToOneType extends EntityType {
 			int index,
 			boolean[] settable,
 			SessionImplementor session) throws HibernateException, SQLException {
-		getIdentifierOrUniqueKeyType( session.getFactory() )
+		requireIdentifierOrUniqueKeyType( session.getFactory() )
 				.nullSafeSet( st, getIdentifier( value, session ), index, settable, session );
 	}
 
@@ -157,12 +182,12 @@ public class ManyToOneType extends EntityType {
 			Object value,
 			int index,
 			SessionImplementor session) throws HibernateException, SQLException {
-		getIdentifierOrUniqueKeyType( session.getFactory() )
+		requireIdentifierOrUniqueKeyType( session.getFactory() )
 				.nullSafeSet( st, getIdentifier( value, session ), index, session );
 	}
 
 	public ForeignKeyDirection getForeignKeyDirection() {
-		return ForeignKeyDirection.FOREIGN_KEY_FROM_PARENT;
+		return ForeignKeyDirection.FROM_PARENT;
 	}
 
 	public Object hydrate(
@@ -173,7 +198,7 @@ public class ManyToOneType extends EntityType {
 		// return the (fully resolved) identifier value, but do not resolve
 		// to the actual referenced entity instance
 		// NOTE: the owner of the association is not really the owner of the id!
-		Serializable id = (Serializable) getIdentifierOrUniqueKeyType( session.getFactory() )
+		final Serializable id = (Serializable) getIdentifierOrUniqueKeyType( session.getFactory() )
 				.nullSafeGet( rs, names, session, null );
 		scheduleBatchLoadIfNeeded( id, session );
 		return id;
@@ -186,14 +211,16 @@ public class ManyToOneType extends EntityType {
 	private void scheduleBatchLoadIfNeeded(Serializable id, SessionImplementor session) throws MappingException {
 		//cannot batch fetch by unique key (property-ref associations)
 		if ( uniqueKeyPropertyName == null && id != null ) {
-			final EntityPersister persister = session.getFactory().getEntityPersister( getAssociatedEntityName() );
-			final EntityKey entityKey = session.generateEntityKey( id, persister );
-			if ( entityKey.isBatchLoadable() && !session.getPersistenceContext().containsEntity( entityKey ) ) {
-				session.getPersistenceContext().getBatchFetchQueue().addBatchLoadableEntityKey( entityKey );
+			final EntityPersister persister = getAssociatedEntityPersister( session.getFactory() );
+			if ( persister.isBatchLoadable() ) {
+				final EntityKey entityKey = session.generateEntityKey( id, persister );
+				if ( !session.getPersistenceContext().containsEntity( entityKey ) ) {
+					session.getPersistenceContext().getBatchFetchQueue().addBatchLoadableEntityKey( entityKey );
+				}
 			}
 		}
 	}
-	
+
 	public boolean useLHSPrimaryKey() {
 		return false;
 	}

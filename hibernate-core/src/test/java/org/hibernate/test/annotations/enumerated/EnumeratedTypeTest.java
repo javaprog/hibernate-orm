@@ -1,28 +1,43 @@
 package org.hibernate.test.annotations.enumerated;
 
 import java.io.Serializable;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.List;
+
+import org.hibernate.Query;
 import org.hibernate.Session;
-import org.hibernate.cfg.Configuration;
 import org.hibernate.criterion.Restrictions;
+import org.hibernate.dialect.AbstractHANADialect;
+import org.hibernate.dialect.Oracle8iDialect;
+import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.mapping.PersistentClass;
-import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
 import org.hibernate.type.EnumType;
 import org.hibernate.type.Type;
+
 import org.junit.Test;
+
+import org.hibernate.testing.SkipForDialect;
+import org.hibernate.testing.TestForIssue;
+import org.hibernate.testing.junit4.BaseNonConfigCoreFunctionalTestCase;
+import org.hibernate.test.annotations.enumerated.EntityEnum.Common;
+import org.hibernate.test.annotations.enumerated.EntityEnum.FirstLetter;
+import org.hibernate.test.annotations.enumerated.EntityEnum.LastNumber;
+import org.hibernate.test.annotations.enumerated.EntityEnum.Trimmed;
+
 import static org.junit.Assert.assertEquals;
-import static org.hibernate.test.annotations.enumerated.EntityEnum.*;
 
 /**
  * Test type definition for enum
  * 
  * @author Janario Oliveira
  */
-public class EnumeratedTypeTest extends BaseCoreFunctionalTestCase {
+public class EnumeratedTypeTest extends BaseNonConfigCoreFunctionalTestCase {
 
 	@Test
 	public void testTypeDefinition() {
-		Configuration cfg = configuration();
-		PersistentClass pc = cfg.getClassMapping( EntityEnum.class.getName() );
+		PersistentClass pc = metadata().getEntityBinding( EntityEnum.class.getName() );
 
 		// ordinal default of EnumType
 		Type ordinalEnum = pc.getProperty( "ordinal" ).getType();
@@ -62,6 +77,7 @@ public class EnumeratedTypeTest extends BaseCoreFunctionalTestCase {
 
 		session.getTransaction().commit();
 		session.close();
+
 		session = openSession();
 		session.getTransaction().begin();
 
@@ -91,6 +107,7 @@ public class EnumeratedTypeTest extends BaseCoreFunctionalTestCase {
 
 		session.getTransaction().commit();
 		session.close();
+
 		session = openSession();
 		session.getTransaction().begin();
 
@@ -119,6 +136,7 @@ public class EnumeratedTypeTest extends BaseCoreFunctionalTestCase {
 
 		session.getTransaction().commit();
 		session.close();
+
 		session = openSession();
 		session.getTransaction().begin();
 
@@ -148,6 +166,7 @@ public class EnumeratedTypeTest extends BaseCoreFunctionalTestCase {
 
 		session.getTransaction().commit();
 		session.close();
+
 		session = openSession();
 		session.getTransaction().begin();
 
@@ -177,6 +196,7 @@ public class EnumeratedTypeTest extends BaseCoreFunctionalTestCase {
 
 		session.getTransaction().commit();
 		session.close();
+
 		session = openSession();
 		session.getTransaction().begin();
 
@@ -327,6 +347,102 @@ public class EnumeratedTypeTest extends BaseCoreFunctionalTestCase {
 		session.close();
 
 	}
+	
+	@Test
+	@TestForIssue(jiraKey = "HHH-4699")
+	@SkipForDialect(value = { Oracle8iDialect.class, AbstractHANADialect.class }, jiraKey = "HHH-8516",
+			comment = "HHH-4699 was specifically for using a CHAR, but Oracle/HANA do not handle the 2nd query correctly without VARCHAR. ")
+	public void testTrimmedEnumChar() throws SQLException {
+		// use native SQL to insert, forcing whitespace to occur
+		final Session s = openSession();
+        final Connection connection = ((SessionImplementor)s).connection();
+        final Statement statement = connection.createStatement();
+        statement.execute("insert into EntityEnum (id, trimmed) values(1, '" + Trimmed.A.name() + "')");
+        statement.execute("insert into EntityEnum (id, trimmed) values(2, '" + Trimmed.B.name() + "')");
+
+        s.getTransaction().begin();
+
+        // ensure EnumType can do #fromName with the trimming
+        List<EntityEnum> resultList = s.createQuery("select e from EntityEnum e").list();
+        assertEquals( resultList.size(), 2 );
+        assertEquals( resultList.get(0).getTrimmed(), Trimmed.A );
+        assertEquals( resultList.get(1).getTrimmed(), Trimmed.B );
+
+        // ensure querying works
+        final Query query = s.createQuery("select e from EntityEnum e where e.trimmed=?");
+        query.setParameter( 0, Trimmed.A );
+        resultList = query.list();
+        assertEquals( resultList.size(), 1 );
+        assertEquals( resultList.get(0).getTrimmed(), Trimmed.A );
+
+		statement.execute( "delete from EntityEnum" );
+
+        s.getTransaction().commit();
+        s.close();
+	}
+
+	@Test
+	@TestForIssue(jiraKey = "HHH-9369")
+	public void testFormula() throws SQLException {
+		// use native SQL to insert, forcing whitespace to occur
+		final Session s = openSession();
+		final Connection connection = ((SessionImplementor)s).connection();
+		final Statement statement = connection.createStatement();
+		statement.execute("insert into EntityEnum (id) values(1)");
+
+		s.getTransaction().begin();
+
+		// ensure EnumType can do #fromName with the trimming
+		List<EntityEnum> resultList = s.createQuery("select e from EntityEnum e").list();
+		assertEquals( resultList.size(), 1 );
+		assertEquals( resultList.get(0).getFormula(), Trimmed.A );
+
+		statement.execute( "delete from EntityEnum" );
+
+		s.getTransaction().commit();
+		s.close();
+	}
+
+
+	@Test
+	@TestForIssue(jiraKey = "HHH-9605")
+	public void testSet() throws SQLException {
+
+		// **************
+		Session session = openSession();
+		session.getTransaction().begin();
+
+		// persist
+		EntityEnum entityEnum = new EntityEnum();
+		entityEnum.setString( Common.B2 );
+		entityEnum.getSet().add( Common.B2 );
+		Serializable id = session.save( entityEnum );
+
+		session.getTransaction().commit();
+		session.close();
+		session = openSession();
+		session.getTransaction().begin();
+
+		String sql = "select e from EntityEnum e where :param in elements( e.set ) ";
+		Query queryObject = session.createQuery( sql );
+		queryObject.setParameter( "param", Common.B2 );
+
+		// ensure EnumType can do #fromName with the trimming
+		List<EntityEnum> resultList = queryObject.list();
+		assertEquals( resultList.size(), 1 );
+		entityEnum = resultList.get( 0 );
+
+		assertEquals( id, entityEnum.getId() );
+		assertEquals( Common.B2, entityEnum.getSet().iterator().next() );
+
+		// delete
+		assertEquals( 1, session.createSQLQuery( "DELETE FROM set_enum" ).executeUpdate() );
+		assertEquals( 1, session.createSQLQuery( "DELETE FROM EntityEnum" ).executeUpdate() );
+
+		session.getTransaction().commit();
+		session.close();
+	}
+
 
 	@Override
 	protected Class[] getAnnotatedClasses() {

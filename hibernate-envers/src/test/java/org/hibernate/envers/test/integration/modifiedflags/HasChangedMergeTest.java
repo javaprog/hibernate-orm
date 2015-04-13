@@ -4,12 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.persistence.EntityManager;
 
-import org.junit.Test;
-
 import org.hibernate.envers.test.Priority;
 import org.hibernate.envers.test.entities.onetomany.ListRefEdEntity;
 import org.hibernate.envers.test.entities.onetomany.ListRefIngEntity;
+
 import org.hibernate.testing.TestForIssue;
+import org.junit.Test;
 
 import static org.hibernate.envers.test.tools.TestTools.extractRevisionNumbers;
 import static org.hibernate.envers.test.tools.TestTools.makeList;
@@ -27,7 +27,7 @@ public class HasChangedMergeTest extends AbstractModifiedFlagsEntityTest {
 
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class<?>[] { ListRefEdEntity.class, ListRefIngEntity.class };
+		return new Class<?>[] {ListRefEdEntity.class, ListRefIngEntity.class};
 	}
 
 	@Test

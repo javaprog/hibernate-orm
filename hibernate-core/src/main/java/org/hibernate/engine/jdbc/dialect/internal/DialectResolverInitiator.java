@@ -29,7 +29,6 @@ import org.hibernate.HibernateException;
 import org.hibernate.boot.registry.StandardServiceInitiator;
 import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 import org.hibernate.cfg.AvailableSettings;
-import org.hibernate.engine.jdbc.dialect.spi.DatabaseInfoDialectResolver;
 import org.hibernate.engine.jdbc.dialect.spi.DialectResolver;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.service.spi.ServiceException;
@@ -40,7 +39,11 @@ import org.hibernate.service.spi.ServiceRegistryImplementor;
  *
  * @author Steve Ebersole
  */
+@SuppressWarnings("deprecation")
 public class DialectResolverInitiator implements StandardServiceInitiator<DialectResolver> {
+	/**
+	 * Singleton access
+	 */
 	public static final DialectResolverInitiator INSTANCE = new DialectResolverInitiator();
 
 	@Override
@@ -51,12 +54,10 @@ public class DialectResolverInitiator implements StandardServiceInitiator<Dialec
 	@Override
 	public DialectResolver initiateService(Map configurationValues, ServiceRegistryImplementor registry) {
 		final DialectResolverSet resolver = new DialectResolverSet();
+
 		applyCustomerResolvers( resolver, registry, configurationValues );
-		resolver.addResolver(
-				new StandardDatabaseMetaDataDialectResolver(
-						registry.getService( DatabaseInfoDialectResolver.class )
-				)
-		);
+		resolver.addResolver(StandardDialectResolver.INSTANCE );
+
 		return resolver;
 	}
 

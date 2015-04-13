@@ -23,13 +23,13 @@
  */
 package org.hibernate.jpa.criteria;
 
+import java.util.ArrayList;
+import java.util.List;
 import javax.persistence.criteria.CriteriaUpdate;
 import javax.persistence.criteria.Expression;
 import javax.persistence.criteria.Path;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.metamodel.SingularAttribute;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.hibernate.jpa.criteria.compile.RenderingContext;
 import org.hibernate.jpa.criteria.path.SingularAttributePath;
@@ -142,12 +142,12 @@ public class CriteriaUpdateImpl<T> extends AbstractManipulationCriteriaQuery<T> 
 		jpaql.append( " set " );
 		boolean first = true;
 		for ( Assignment assignment : assignments ) {
-			jpaql.append( assignment.attributePath.render( renderingContext ) )
-					.append( " = " )
-					.append( assignment.value.render( renderingContext ) );
 			if ( ! first ) {
 				jpaql.append( ", " );
 			}
+			jpaql.append( assignment.attributePath.render( renderingContext ) )
+					.append( " = " )
+					.append( assignment.value.render( renderingContext ) );
 			first = false;
 		}
 	}

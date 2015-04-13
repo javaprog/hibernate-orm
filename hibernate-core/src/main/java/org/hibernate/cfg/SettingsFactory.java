@@ -27,21 +27,24 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.Properties;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.ConnectionReleaseMode;
 import org.hibernate.EntityMode;
 import org.hibernate.HibernateException;
 import org.hibernate.MultiTenancyStrategy;
 import org.hibernate.NullPrecedence;
+import org.hibernate.SessionEventListener;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 import org.hibernate.boot.registry.selector.spi.StrategySelector;
 import org.hibernate.cache.internal.NoCachingRegionFactory;
 import org.hibernate.cache.internal.RegionFactoryInitiator;
 import org.hibernate.cache.internal.StandardQueryCacheFactory;
 import org.hibernate.cache.spi.QueryCacheFactory;
 import org.hibernate.cache.spi.RegionFactory;
-import org.hibernate.engine.jdbc.spi.ExtractedDatabaseMetaData;
+import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
+import org.hibernate.engine.jdbc.connections.spi.MultiTenantConnectionProvider;
+import org.hibernate.engine.jdbc.env.spi.ExtractedDatabaseMetaData;
 import org.hibernate.engine.jdbc.spi.JdbcServices;
+import org.hibernate.engine.transaction.jta.platform.spi.JtaPlatform;
 import org.hibernate.engine.transaction.spi.TransactionFactory;
 import org.hibernate.hql.spi.MultiTableBulkIdStrategy;
 import org.hibernate.hql.spi.PersistentTableBulkIdStrategy;
@@ -52,11 +55,9 @@ import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.config.ConfigurationHelper;
 import org.hibernate.loader.BatchFetchStyle;
 import org.hibernate.service.ServiceRegistry;
-import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
-import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
-import org.hibernate.engine.jdbc.connections.spi.MultiTenantConnectionProvider;
-import org.hibernate.engine.transaction.jta.platform.spi.JtaPlatform;
 import org.hibernate.tuple.entity.EntityTuplizerFactory;
+
+import org.jboss.logging.Logger;
 
 /**
  * Reads configuration properties and builds a {@link Settings} instance.
@@ -74,14 +75,16 @@ public class SettingsFactory implements Serializable {
 	public SettingsFactory() {
 	}
 
-	public Settings buildSettings(Properties props, ServiceRegistry serviceRegistry) {
+	public Settings buildSettings(Map props, ServiceRegistry serviceRegistry) {
 		final boolean debugEnabled =  LOG.isDebugEnabled();
 		final JdbcServices jdbcServices = serviceRegistry.getService( JdbcServices.class );
+		final StrategySelector strategySelector = serviceRegistry.getService( StrategySelector.class );
+
 		Settings settings = new Settings();
 
 		//SessionFactory name:
 
-		String sessionFactoryName = props.getProperty( AvailableSettings.SESSION_FACTORY_NAME );
+		String sessionFactoryName = (String) props.get( AvailableSettings.SESSION_FACTORY_NAME );
 		settings.setSessionFactoryName( sessionFactoryName );
 		settings.setSessionFactoryNameAlsoJndiName(
 				ConfigurationHelper.getBoolean( AvailableSettings.SESSION_FACTORY_NAME_IS_JNDI, props, true )
@@ -103,11 +106,10 @@ public class SettingsFactory implements Serializable {
 		// Transaction settings:
 		settings.setJtaPlatform( serviceRegistry.getService( JtaPlatform.class ) );
 
-		MultiTableBulkIdStrategy multiTableBulkIdStrategy = serviceRegistry.getService( StrategySelector.class )
-				.resolveStrategy(
-						MultiTableBulkIdStrategy.class,
-						properties.getProperty( AvailableSettings.HQL_BULK_ID_STRATEGY )
-				);
+		MultiTableBulkIdStrategy multiTableBulkIdStrategy = strategySelector.resolveStrategy(
+				MultiTableBulkIdStrategy.class,
+				properties.getProperty( AvailableSettings.HQL_BULK_ID_STRATEGY )
+		);
 		if ( multiTableBulkIdStrategy == null ) {
 			multiTableBulkIdStrategy = jdbcServices.getDialect().supportsTemporaryTables()
 					? TemporaryTableBulkIdStrategy.INSTANCE
@@ -290,9 +292,7 @@ public class SettingsFactory implements Serializable {
 			settings.setQueryCacheFactory( createQueryCacheFactory( properties, serviceRegistry ) );
 		}
 
-		// The cache provider is needed when we either have second-level cache enabled
-		// or query cache enabled.  Note that useSecondLevelCache is enabled by default
-		settings.setRegionFactory( createRegionFactory( properties, ( useSecondLevelCache || useQueryCache ), serviceRegistry ) );
+		settings.setRegionFactory( serviceRegistry.getService( RegionFactory.class ) );
 
 		boolean useMinimalPuts = ConfigurationHelper.getBoolean(
 				AvailableSettings.USE_MINIMAL_PUTS, properties, settings.getRegionFactory().isMinimalPutsEnabledByDefault()
@@ -327,6 +327,12 @@ public class SettingsFactory implements Serializable {
 		}
 		settings.setDirectReferenceCacheEntriesEnabled( useDirectReferenceCacheEntries );
 
+		boolean autoEvictCollectionCache = ConfigurationHelper.getBoolean( AvailableSettings.AUTO_EVICT_COLLECTION_CACHE, properties, false);
+		if ( debugEnabled ) {
+			LOG.debugf( "Automatic eviction of collection cache: %s", enabledDisabled(autoEvictCollectionCache) );
+		}
+		settings.setAutoEvictCollectionCache( autoEvictCollectionCache );
+
 		//Statistics and logging:
 
 		boolean useStatistics = ConfigurationHelper.getBoolean( AvailableSettings.GENERATE_STATISTICS, properties );
@@ -347,15 +353,18 @@ public class SettingsFactory implements Serializable {
 		if ( "validate".equals(autoSchemaExport) ) {
 			settings.setAutoValidateSchema( true );
 		}
-		if ( "update".equals(autoSchemaExport) ) {
+		else if ( "update".equals(autoSchemaExport) ) {
 			settings.setAutoUpdateSchema( true );
 		}
-		if ( "create".equals(autoSchemaExport) ) {
+		else if ( "create".equals(autoSchemaExport) ) {
 			settings.setAutoCreateSchema( true );
 		}
-		if ( "create-drop".equals( autoSchemaExport ) ) {
+		else if ( "create-drop".equals( autoSchemaExport ) ) {
 			settings.setAutoCreateSchema( true );
 			settings.setAutoDropSchema( true );
+		}
+		else if ( !StringHelper.isEmpty( autoSchemaExport ) ) {
+			LOG.warn( "Unrecognized value for \"hibernate.hbm2ddl.auto\": " + autoSchemaExport );
 		}
 		settings.setImportFiles( properties.getProperty( AvailableSettings.HBM2DDL_IMPORT_FILES ) );
 
@@ -395,6 +404,31 @@ public class SettingsFactory implements Serializable {
 		}
 		settings.setInitializeLazyStateOutsideTransactions( initializeLazyStateOutsideTransactionsEnabled );
 
+		boolean jtaTrackByThread = ConfigurationHelper.getBoolean(
+				AvailableSettings.JTA_TRACK_BY_THREAD,
+				properties,
+				true
+		);
+		if ( debugEnabled ) {
+			LOG.debugf( "JTA Track by Thread: %s", enabledDisabled(jtaTrackByThread) );
+		}
+		settings.setJtaTrackByThread( jtaTrackByThread );
+
+		final String autoSessionEventsListenerName = properties.getProperty( AvailableSettings.AUTO_SESSION_EVENTS_LISTENER );
+		final Class<? extends SessionEventListener> autoSessionEventsListener = autoSessionEventsListenerName == null
+				? null
+				: strategySelector.selectStrategyImplementor( SessionEventListener.class, autoSessionEventsListenerName );
+
+		final boolean logSessionMetrics = ConfigurationHelper.getBoolean(
+				AvailableSettings.LOG_SESSION_METRICS,
+				properties,
+				useStatistics
+
+		);
+		settings.setBaselineSessionEventsListenerBuilder(
+				new BaselineSessionEventsListenerBuilder( logSessionMetrics, autoSessionEventsListener )
+		);
+
 		return settings;
 
 	}
@@ -425,39 +459,6 @@ public class SettingsFactory implements Serializable {
 		}
 		catch (Exception e) {
 			throw new HibernateException( "could not instantiate QueryCacheFactory: " + queryCacheFactoryClassName, e );
-		}
-	}
-
-	private static RegionFactory createRegionFactory(Properties properties, boolean cachingEnabled, ServiceRegistry serviceRegistry) {
-		String regionFactoryClassName = RegionFactoryInitiator.mapLegacyNames(
-				ConfigurationHelper.getString(
-						AvailableSettings.CACHE_REGION_FACTORY, properties, null
-				)
-		);
-		if ( regionFactoryClassName == null || !cachingEnabled) {
-			regionFactoryClassName = DEF_CACHE_REG_FACTORY;
-		}
-		LOG.debugf( "Cache region factory : %s", regionFactoryClassName );
-		try {
-			try {
-				return (RegionFactory) serviceRegistry.getService( ClassLoaderService.class )
-						.classForName( regionFactoryClassName )
-						.getConstructor( Properties.class )
-						.newInstance( properties );
-			}
-			catch ( NoSuchMethodException e ) {
-				// no constructor accepting Properties found, try no arg constructor
-				LOG.debugf(
-						"%s did not provide constructor accepting java.util.Properties; attempting no-arg constructor.",
-						regionFactoryClassName
-				);
-				return (RegionFactory) serviceRegistry.getService( ClassLoaderService.class )
-						.classForName( regionFactoryClassName )
-						.newInstance();
-			}
-		}
-		catch ( Exception e ) {
-			throw new HibernateException( "could not instantiate RegionFactory [" + regionFactoryClassName + "]", e );
 		}
 	}
 	//todo remove this once we move to new metamodel

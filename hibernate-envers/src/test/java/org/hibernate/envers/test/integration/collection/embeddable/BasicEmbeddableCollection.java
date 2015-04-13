@@ -26,23 +26,23 @@ package org.hibernate.envers.test.integration.collection.embeddable;
 import java.util.Arrays;
 import javax.persistence.EntityManager;
 
-import junit.framework.Assert;
-import org.junit.Test;
-
 import org.hibernate.envers.test.BaseEnversJPAFunctionalTestCase;
 import org.hibernate.envers.test.Priority;
+
 import org.hibernate.testing.TestForIssue;
+import org.junit.Test;
+import junit.framework.Assert;
 
 /**
  * @author Lukasz Antoniak (lukasz dot antoniak at gmail dot com)
  */
-@TestForIssue( jiraKey = "HHH-6613" )
+@TestForIssue(jiraKey = "HHH-6613")
 public class BasicEmbeddableCollection extends BaseEnversJPAFunctionalTestCase {
 	private int id = -1;
 
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class<?>[] { DarkCharacter.class };
+		return new Class<?>[] {DarkCharacter.class};
 	}
 
 	@Test

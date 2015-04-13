@@ -28,7 +28,7 @@ import java.io.Serializable;
 import org.hibernate.procedure.ProcedureCall;
 
 /**
- * Contract methods shared between {@link Session} and {@link StatelessSession}
+ * Contract methods shared between {@link Session} and {@link StatelessSession}.
  * 
  * @author Steve Ebersole
  */
@@ -87,6 +87,17 @@ public interface SharedSessionContract extends Serializable {
 	public SQLQuery createSQLQuery(String queryString);
 
 	/**
+	 * Gets a ProcedureCall based on a named template
+	 *
+	 * @param name The name given to the template
+	 *
+	 * @return The ProcedureCall
+	 *
+	 * @see javax.persistence.NamedStoredProcedureQuery
+	 */
+	public ProcedureCall getNamedProcedureCall(String name);
+
+	/**
 	 * Creates a call to a stored procedure.
 	 *
 	 * @param procedureName The name of the procedure.
@@ -107,7 +118,7 @@ public interface SharedSessionContract extends Serializable {
 	public ProcedureCall createStoredProcedureCall(String procedureName, Class... resultClasses);
 
 	/**
-	 * Creates a call to a stored procedure with specific result set entity mappings
+	 * Creates a call to a stored procedure with specific result set entity mappings.
 	 *
 	 * @param procedureName The name of the procedure.
 	 * @param resultSetMappings The explicit result set mapping(s) to use for mapping the results
@@ -117,7 +128,7 @@ public interface SharedSessionContract extends Serializable {
 	public ProcedureCall createStoredProcedureCall(String procedureName, String... resultSetMappings);
 
 	/**
-	 * Create {@link Criteria} instance for the given class (entity or subclasses/implementors)
+	 * Create {@link Criteria} instance for the given class (entity or subclasses/implementors).
 	 *
 	 * @param persistentClass The class, which is an entity, or has entity subclasses/implementors
 	 *
@@ -154,5 +165,4 @@ public interface SharedSessionContract extends Serializable {
 	 * @return The criteria instance for manipulation and execution
 	 */
 	public Criteria createCriteria(String entityName, String alias);
-
 }

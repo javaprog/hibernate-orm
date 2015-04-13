@@ -23,6 +23,7 @@
  */
 package org.hibernate.jpa.test.criteria;
 
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import javax.persistence.EntityManager;
@@ -38,6 +39,7 @@ import org.hibernate.jpa.test.metamodel.AbstractMetamodelSpecificTest;
 import org.hibernate.jpa.test.metamodel.Customer;
 import org.hibernate.jpa.test.metamodel.Customer_;
 import org.hibernate.testing.SkipForDialect;
+import org.hibernate.testing.TestForIssue;
 import org.junit.Test;
 
 /**
@@ -106,9 +108,29 @@ public class ManipulationCriteriaTest extends AbstractMetamodelSpecificTest {
 			em.createQuery( updateCriteria ).executeUpdate();
 			fail( "Expecting failure due to no assignments" );
 		}
-		catch (IllegalStateException ise) {
+		catch (IllegalArgumentException iae) {
 			// expected
 		}
+
+		// changed to rollback since HHH-8442 causes transaction to be marked for rollback only
+		assertTrue( em.getTransaction().getRollbackOnly() );
+		em.getTransaction().rollback();
+		em.close();
+	}
+	
+	@Test
+	@TestForIssue(jiraKey = "HHH-8434")
+	public void basicMultipleAssignments() {
+		EntityManager em = getOrCreateEntityManager();
+		em.getTransaction().begin();
+
+		CriteriaBuilder builder = em.getCriteriaBuilder();
+
+		CriteriaUpdate<Customer> updateCriteria = builder.createCriteriaUpdate( Customer.class );
+		updateCriteria.from( Customer.class );
+		updateCriteria.set( Customer_.name, "Bob" );
+		updateCriteria.set( Customer_.age, 99 );
+		em.createQuery( updateCriteria ).executeUpdate();
 
 		em.getTransaction().commit();
 		em.close();

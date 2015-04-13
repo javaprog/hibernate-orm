@@ -23,9 +23,6 @@
  */
 package org.hibernate.test.querycache;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,25 +30,30 @@ import java.util.Map;
 import org.hibernate.Criteria;
 import org.hibernate.Hibernate;
 import org.hibernate.Query;
+import org.hibernate.SQLQuery;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
-import org.hibernate.cfg.Configuration;
-import org.hibernate.cfg.Environment;
+import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.criterion.Restrictions;
 import org.hibernate.stat.EntityStatistics;
 import org.hibernate.stat.QueryStatistics;
+import org.hibernate.transform.Transformers;
+
 import org.hibernate.testing.DialectChecks;
 import org.hibernate.testing.RequiresDialectFeature;
 import org.hibernate.testing.TestForIssue;
-import org.hibernate.testing.junit4.BaseCoreFunctionalTestCase;
-import org.hibernate.transform.Transformers;
+import org.hibernate.testing.junit4.BaseNonConfigCoreFunctionalTestCase;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * @author Gavin King
  * @author Brett Meyer
  */
-public class QueryCacheTest extends BaseCoreFunctionalTestCase {
+public class QueryCacheTest extends BaseNonConfigCoreFunctionalTestCase {
 
 	private static final CompositeKey PK = new CompositeKey(1, 2);
 	
@@ -71,12 +73,11 @@ public class QueryCacheTest extends BaseCoreFunctionalTestCase {
 	}
 
 	@Override
-	public void configure(Configuration cfg) {
-		super.configure( cfg );
-		cfg.setProperty( Environment.USE_QUERY_CACHE, "true" );
-		cfg.setProperty( Environment.CACHE_REGION_PREFIX, "foo" );
-		cfg.setProperty( Environment.USE_SECOND_LEVEL_CACHE, "true" );
-		cfg.setProperty( Environment.GENERATE_STATISTICS, "true" );
+	protected void addSettings(Map settings) {
+		settings.put( AvailableSettings.USE_QUERY_CACHE, "true" );
+		settings.put( AvailableSettings.CACHE_REGION_PREFIX, "foo" );
+		settings.put( AvailableSettings.USE_SECOND_LEVEL_CACHE, "true" );
+		settings.put( AvailableSettings.GENERATE_STATISTICS, "true" );
 	}
 
 	@Override
@@ -280,6 +281,7 @@ public class QueryCacheTest extends BaseCoreFunctionalTestCase {
 		sessionFactory().evictQueries();
 		sessionFactory().getStatistics().clear();
 
+		// persist our 2 items.  This saves them to the db, but also into the second level entity cache region
 		Session s = openSession();
 		Transaction t = s.beginTransaction();
 		Item i = new Item();
@@ -299,18 +301,24 @@ public class QueryCacheTest extends BaseCoreFunctionalTestCase {
 
 		Thread.sleep(200);
 
+		// perform the cacheable query.  this will execute the query (no query cache hit), but the Items will be
+		// found in second level entity cache region
 		s = openSession();
 		t = s.beginTransaction();
-		List result = s.createQuery( queryString ).setCacheable(true).list();
+		List result = s.createQuery( queryString ).setCacheable( true ).list();
 		assertEquals( result.size(), 2 );
 		t.commit();
 		s.close();
-
 		assertEquals( qs.getCacheHitCount(), 0 );
 		assertEquals( s.getSessionFactory().getStatistics().getEntityFetchCount(), 0 );
 
+
+		// evict the Items from the second level entity cache region
 		sessionFactory().evict(Item.class);
 
+		// now, perform the cacheable query again.  this time we should not execute the query (query cache hit).
+		// However, the Items will not be found in second level entity cache region this time (we evicted them above)
+		// nor are they in associated with the session.
 		s = openSession();
 		t = s.beginTransaction();
 		result = s.createQuery( queryString ).setCacheable(true).list();
@@ -478,6 +486,50 @@ public class QueryCacheTest extends BaseCoreFunctionalTestCase {
 		assertEquals( 1, c.list().size() );
 		s.getTransaction().rollback();
 		s.close();
+	}
+
+	@Test
+	@TestForIssue( jiraKey = "HHH-3051" )
+	public void testScalarSQLQuery() {
+		sessionFactory().getCache().evictQueryRegions();
+		sessionFactory().getStatistics().clear();
+
+		Session s = openSession();
+		s.beginTransaction();
+		Item item = new Item();
+		item.setName("fooName");
+		item.setDescription("fooDescription");
+		s.persist(item);
+		s.getTransaction().commit();
+		s.close();
+
+		s = openSession();
+		s.beginTransaction();
+		
+		// Note: StandardQueryCache#put handles single results and multiple results differently.  So, test both
+		// 1 and 2+ scalars.
+		
+        String sqlQuery = "select name, description from Items";
+        SQLQuery query = s.createSQLQuery(sqlQuery);
+        query.setCacheable(true);
+        query.addScalar("name");
+        query.addScalar("description");
+        Object[] result1 = (Object[]) query.uniqueResult();
+        assertNotNull( result1 );
+        assertEquals( result1.length, 2 );
+        assertEquals( result1[0], "fooName" );
+        assertEquals( result1[1], "fooDescription" );
+		
+        sqlQuery = "select name from Items";
+        query = s.createSQLQuery(sqlQuery);
+        query.setCacheable(true);
+        query.addScalar("name");
+        String result2 = (String) query.uniqueResult();
+        assertNotNull( result2 );
+        assertEquals( result2, "fooName" );
+        
+        s.getTransaction().commit();
+        s.close();
 	}
 
 //	@Test

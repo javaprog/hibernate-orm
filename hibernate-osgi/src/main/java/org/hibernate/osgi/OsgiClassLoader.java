@@ -24,44 +24,69 @@
 package org.hibernate.osgi;
 
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
 
+import org.hibernate.service.spi.Stoppable;
 import org.osgi.framework.Bundle;
 
 /**
- * Custom OSGI ClassLoader helper which knows all the "interesting" bundles and
- * encapsulates the OSGi related capabilities.
+ * Custom OSGI ClassLoader helper which knows all the "interesting"
+ * class loaders and bundles.  Encapsulates the OSGi related CL capabilities.
  * 
  * @author Brett Meyer
+ * @author Tim Ward
  */
-public class OsgiClassLoader extends ClassLoader {
+public class OsgiClassLoader extends ClassLoader implements Stoppable {
+	// Leave these as Sets -- addClassLoader or addBundle may be called more
+	// than once if a SF or EMF is closed and re-created.
+	private Set<ClassLoader> classLoaders = new LinkedHashSet<ClassLoader>();
+	private Set<Bundle> bundles = new LinkedHashSet<Bundle>();
 
-	private Map<String, CachedBundle> bundles = new HashMap<String, CachedBundle>();
-	
 	private Map<String, Class<?>> classCache = new HashMap<String, Class<?>>();
-	
 	private Map<String, URL> resourceCache = new HashMap<String, URL>();
 	
-	private Map<String, Enumeration<URL>> resourceListCache = new HashMap<String, Enumeration<URL>>();
+	public OsgiClassLoader() {
+		// DO NOT use ClassLoader#parent, which is typically the SystemClassLoader for most containers.  Instead,
+		// allow the ClassNotFoundException to be thrown.  ClassLoaderServiceImpl will check the SystemClassLoader
+		// later on.  This is especially important for embedded OSGi containers, etc.
+		super( null );
+	}
 
 	/**
-	 * Load the class and break on first found match.
+	 * Load the class and break on first found match.  
+	 * 
 	 * TODO: Should this throw a different exception or warn if multiple
 	 * classes were found? Naming collisions can and do happen in OSGi...
 	 */
-	@SuppressWarnings("rawtypes")
 	@Override
+	@SuppressWarnings("rawtypes")
 	protected Class<?> findClass(String name) throws ClassNotFoundException {
 		if ( classCache.containsKey( name ) ) {
 			return classCache.get( name );
 		}
 		
-		for ( CachedBundle bundle : bundles.values() ) {
+		for ( Bundle bundle : bundles ) {
 			try {
-				Class clazz = bundle.loadClass( name );
+				final Class clazz = bundle.loadClass( name );
+				if ( clazz != null ) {
+					classCache.put( name, clazz );
+					return clazz;
+				}
+			}
+			catch ( Exception ignore ) {
+			}
+		}
+		
+		for ( ClassLoader classLoader : classLoaders ) {
+			try {
+				final Class clazz = classLoader.loadClass( name );
 				if ( clazz != null ) {
 					classCache.put( name, clazz );
 					return clazz;
@@ -76,6 +101,7 @@ public class OsgiClassLoader extends ClassLoader {
 
 	/**
 	 * Load the class and break on first found match.
+	 * 
 	 * TODO: Should this throw a different exception or warn if multiple
 	 * classes were found? Naming collisions can and do happen in OSGi...
 	 */
@@ -85,9 +111,9 @@ public class OsgiClassLoader extends ClassLoader {
 			return resourceCache.get( name );
 		}
 		
-		for ( CachedBundle bundle : bundles.values() ) {
+		for ( Bundle bundle : bundles ) {
 			try {
-				URL resource = bundle.getResource( name );
+				final URL resource = bundle.getResource( name );
 				if ( resource != null ) {
 					resourceCache.put( name, resource );
 					return resource;
@@ -96,83 +122,107 @@ public class OsgiClassLoader extends ClassLoader {
 			catch ( Exception ignore ) {
 			}
 		}
+		
+		for ( ClassLoader classLoader : classLoaders ) {
+			try {
+				final URL resource = classLoader.getResource( name );
+				if ( resource != null ) {
+					resourceCache.put( name, resource );
+					return resource;
+				}
+			}
+			catch ( Exception ignore ) {
+			}
+		}
+		
 		// TODO: Error?
 		return null;
 	}
 
 	/**
 	 * Load the class and break on first found match.
+	 * 
+	 * Note: Since they're Enumerations, do not cache these results!  
+	 * 
 	 * TODO: Should this throw a different exception or warn if multiple
 	 * classes were found? Naming collisions can and do happen in OSGi...
 	 */
-	@SuppressWarnings("unchecked")
 	@Override
+	@SuppressWarnings("unchecked")
 	protected Enumeration<URL> findResources(String name) {
-		if ( resourceListCache.containsKey( name ) ) {
-			return resourceListCache.get( name );
-		}
+		final List<Enumeration<URL>> enumerations = new ArrayList<Enumeration<URL>>();
 		
-		for ( CachedBundle bundle : bundles.values() ) {
+		for ( Bundle bundle : bundles ) {
 			try {
-				Enumeration<URL> resources = bundle.getResources( name );
+				final Enumeration<URL> resources = bundle.getResources( name );
 				if ( resources != null ) {
-					resourceListCache.put( name, resources );
-					return resources;
+					enumerations.add( resources );
 				}
 			}
 			catch ( Exception ignore ) {
 			}
 		}
-		// TODO: Error?
-		return null;
+		
+		for ( ClassLoader classLoader : classLoaders ) {
+			try {
+				final Enumeration<URL> resources = classLoader.getResources( name );
+				if ( resources != null ) {
+					enumerations.add( resources );
+				}
+			}
+			catch ( Exception ignore ) {
+			}
+		}
+		
+		final Enumeration<URL> aggEnumeration = new Enumeration<URL>() {
+			@Override
+			public boolean hasMoreElements() {
+				for ( Enumeration<URL> enumeration : enumerations ) {
+					if ( enumeration != null && enumeration.hasMoreElements() ) {
+						return true;
+					}
+				}
+				return false;
+			}
+
+			@Override
+			public URL nextElement() {
+				for ( Enumeration<URL> enumeration : enumerations ) {
+					if ( enumeration != null && enumeration.hasMoreElements() ) {
+						return enumeration.nextElement();
+					}
+				}
+				throw new NoSuchElementException();
+			}
+		};
+		
+		return aggEnumeration;
 	}
 
 	/**
-	 * Register the bundle with this class loader
+	 * Adds a ClassLoader to the wrapped set of ClassLoaders
+	 *
+	 * @param classLoader The ClassLoader to add
 	 */
-	public void registerBundle(Bundle bundle) {
-		if ( bundle != null ) {
-			synchronized ( bundles ) {
-				String key = getBundleKey( bundle );
-				if ( !bundles.containsKey( key ) ) {
-					bundles.put( key, new CachedBundle( bundle, key ) );
-				}
-			}
-		}
+	public void addClassLoader( ClassLoader classLoader ) {
+		classLoaders.add( classLoader );
 	}
 
 	/**
-	 * Unregister the bundle from this class loader
+	 * Adds a Bundle to the wrapped set of Bundles
+	 *
+	 * @param bundle The Bundle to add
 	 */
-	public void unregisterBundle(Bundle bundle) {
-		if ( bundle != null ) {
-			synchronized ( bundles ) {
-				String key = getBundleKey( bundle );
-				if ( bundles.containsKey( key ) ) {
-					CachedBundle cachedBundle = bundles.remove( key );
-					clearCache( classCache, cachedBundle.getClassNames() );
-					clearCache( resourceCache, cachedBundle.getResourceNames() );
-					clearCache( resourceListCache, cachedBundle.getResourceListNames() );
-				}
-			}
-		}
+	public void addBundle( Bundle bundle ) {
+		bundles.add( bundle );
 	}
-	
-	private void clearCache( Map cache, List<String> names ) {
-		for ( String name : names ) {
-			cache.remove( name );
-		}
-	}
-	
-	public void clear() {
+
+	@Override
+	public void stop() {
+		classLoaders.clear();
 		bundles.clear();
 		classCache.clear();
 		resourceCache.clear();
-		resourceListCache.clear();
-	}
-
-	protected static String getBundleKey(Bundle bundle) {
-		return bundle.getSymbolicName() + " " + bundle.getVersion().toString();
 	}
 
 }

@@ -31,14 +31,16 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.HibernateException;
-import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.engine.jdbc.cursor.spi.RefCursorSupport;
+import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.service.spi.InjectService;
 
+import org.jboss.logging.Logger;
+
 /**
+ * Standard implementation of RefCursorSupport
+ *
  * @author Steve Ebersole
  */
 public class StandardRefCursorSupport implements RefCursorSupport {
@@ -46,6 +48,11 @@ public class StandardRefCursorSupport implements RefCursorSupport {
 
 	private JdbcServices jdbcServices;
 
+	/**
+	 * Hook for service registry to be able to inject JdbcServices
+	 *
+	 * @param jdbcServices The JdbcServices service
+	 */
 	@InjectService
 	@SuppressWarnings("UnusedDeclaration")
 	public void injectJdbcServices(JdbcServices jdbcServices) {
@@ -160,12 +167,18 @@ public class StandardRefCursorSupport implements RefCursorSupport {
 		}
 	}
 
-	@SuppressWarnings("UnnecessaryUnboxing")
+	/**
+	 * Does this JDBC metadata indicate that the driver defines REF_CURSOR support?
+	 *
+	 * @param meta The JDBC metadata
+	 *
+	 * @return {@code true} if the metadata indicates that the driver defines REF_CURSOR support
+	 */
 	public static boolean supportsRefCursors(DatabaseMetaData meta) {
 		// Standard JDBC REF_CURSOR support was not added until Java 8, so we need to use reflection to attempt to
 		// access these fields/methods...
 		try {
-			return ( (Boolean) meta.getClass().getMethod( "supportsRefCursors" ).invoke( null ) ).booleanValue();
+			return (Boolean) meta.getClass().getMethod( "supportsRefCursors" ).invoke( null );
 		}
 		catch (NoSuchMethodException e) {
 			log.trace( "JDBC DatabaseMetaData class does not define supportsRefCursors method..." );
@@ -179,7 +192,6 @@ public class StandardRefCursorSupport implements RefCursorSupport {
 
 	private static Integer refCursorTypeCode;
 
-	@SuppressWarnings("UnnecessaryUnboxing")
 	private int refCursorTypeCode() {
 		if ( refCursorTypeCode == null ) {
 			try {

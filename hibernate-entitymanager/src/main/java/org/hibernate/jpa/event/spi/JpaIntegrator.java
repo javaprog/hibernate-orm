@@ -25,12 +25,14 @@ package org.hibernate.jpa.event.spi;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Iterator;
 import java.util.Map;
 
 import org.hibernate.HibernateException;
-import org.hibernate.cfg.Configuration;
-import org.hibernate.cfg.Environment;
+import org.hibernate.annotations.common.reflection.ReflectionManager;
+import org.hibernate.boot.Metadata;
+import org.hibernate.boot.internal.MetadataImpl;
+import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
+import org.hibernate.engine.config.spi.ConfigurationService;
 import org.hibernate.engine.spi.CascadeStyles;
 import org.hibernate.engine.spi.CascadingAction;
 import org.hibernate.engine.spi.CascadingActions;
@@ -56,21 +58,12 @@ import org.hibernate.jpa.event.internal.core.JpaPostUpdateEventListener;
 import org.hibernate.jpa.event.internal.core.JpaSaveEventListener;
 import org.hibernate.jpa.event.internal.core.JpaSaveOrUpdateEventListener;
 import org.hibernate.jpa.event.internal.jpa.CallbackProcessor;
-import org.hibernate.jpa.event.internal.jpa.CallbackProcessorImpl;
 import org.hibernate.jpa.event.internal.jpa.CallbackRegistryConsumer;
 import org.hibernate.jpa.event.internal.jpa.CallbackRegistryImpl;
 import org.hibernate.jpa.event.internal.jpa.LegacyCallbackProcessor;
-import org.hibernate.jpa.event.spi.jpa.ListenerFactory;
 import org.hibernate.jpa.event.internal.jpa.StandardListenerFactory;
+import org.hibernate.jpa.event.spi.jpa.ListenerFactory;
 import org.hibernate.mapping.PersistentClass;
-import org.hibernate.metamodel.binding.EntityBinding;
-import org.hibernate.metamodel.source.MetadataImplementor;
-import org.hibernate.secure.internal.JACCPreDeleteEventListener;
-import org.hibernate.secure.internal.JACCPreInsertEventListener;
-import org.hibernate.secure.internal.JACCPreLoadEventListener;
-import org.hibernate.secure.internal.JACCPreUpdateEventListener;
-import org.hibernate.secure.internal.JACCSecurityListener;
-import org.hibernate.boot.registry.classloading.spi.ClassLoaderService;
 import org.hibernate.service.spi.ServiceRegistryImplementor;
 import org.hibernate.service.spi.SessionFactoryServiceRegistry;
 
@@ -84,63 +77,31 @@ public class JpaIntegrator implements Integrator {
 	private CallbackProcessor callbackProcessor;
 	private CallbackRegistryImpl callbackRegistry;
 
-	private static final DuplicationStrategy JPA_DUPLICATION_STRATEGY = new DuplicationStrategy() {
-		@Override
-		public boolean areMatch(Object listener, Object original) {
-			return listener.getClass().equals( original.getClass() ) &&
-					HibernateEntityManagerEventListener.class.isInstance( original );
-		}
+	private static final DuplicationStrategy JPA_DUPLICATION_STRATEGY = new JPADuplicationStrategy();
 
-		@Override
-		public Action getAction() {
-			return Action.KEEP_ORIGINAL;
-		}
-	};
-
-	private static final DuplicationStrategy JACC_DUPLICATION_STRATEGY = new DuplicationStrategy() {
-		@Override
-		public boolean areMatch(Object listener, Object original) {
-			return listener.getClass().equals( original.getClass() ) &&
-					JACCSecurityListener.class.isInstance( original );
-		}
-
-		@Override
-		public Action getAction() {
-			return Action.KEEP_ORIGINAL;
-		}
-	};
-
-	@Override
-	@SuppressWarnings( {"unchecked"})
+	/**
+	 * Perform integration.
+	 *
+	 * @param metadata The "compiled" representation of the mapping information
+	 * @param sessionFactory The session factory being created
+	 * @param serviceRegistry The session factory's service registry
+	 */
 	public void integrate(
-			Configuration configuration,
+			Metadata metadata,
 			SessionFactoryImplementor sessionFactory,
 			SessionFactoryServiceRegistry serviceRegistry) {
+
 		// first, register the JPA-specific persist cascade style
 		CascadeStyles.registerCascadeStyle(
 				"persist",
-				new CascadeStyles.BaseCascadeStyle() {
-					@Override
-					public boolean doCascade(CascadingAction action) {
-						return action == JpaPersistEventListener.PERSIST_SKIPLAZY
-								|| action == CascadingActions.PERSIST_ON_FLUSH;
-					}
-
-					@Override
-					public String toString() {
-						return "STYLE_PERSIST_SKIPLAZY";
-					}
-				}
+                new PersistCascadeStyle()
 		);
 
 
 		// then prepare listeners
 		final EventListenerRegistry eventListenerRegistry = serviceRegistry.getService( EventListenerRegistry.class );
 
-		boolean isSecurityEnabled = configuration.getProperties().containsKey( AvailableSettings.JACC_ENABLED );
-
 		eventListenerRegistry.addDuplicationStrategy( JPA_DUPLICATION_STRATEGY );
-		eventListenerRegistry.addDuplicationStrategy( JACC_DUPLICATION_STRATEGY );
 
 		// op listeners
 		eventListenerRegistry.setListeners( EventType.AUTO_FLUSH, JpaAutoFlushEventListener.INSTANCE );
@@ -153,22 +114,15 @@ public class JpaIntegrator implements Integrator {
 		eventListenerRegistry.setListeners( EventType.SAVE, new JpaSaveEventListener() );
 		eventListenerRegistry.setListeners( EventType.SAVE_UPDATE, new JpaSaveOrUpdateEventListener() );
 
-		// pre op listeners
-		if ( isSecurityEnabled ) {
-			final String jaccContextId = configuration.getProperty( Environment.JACC_CONTEXTID );
-			eventListenerRegistry.prependListeners( EventType.PRE_DELETE, new JACCPreDeleteEventListener(jaccContextId) );
-			eventListenerRegistry.prependListeners( EventType.PRE_INSERT, new JACCPreInsertEventListener(jaccContextId) );
-			eventListenerRegistry.prependListeners( EventType.PRE_UPDATE, new JACCPreUpdateEventListener(jaccContextId) );
-			eventListenerRegistry.prependListeners( EventType.PRE_LOAD, new JACCPreLoadEventListener(jaccContextId) );
-		}
-
 		// post op listeners
 		eventListenerRegistry.prependListeners( EventType.POST_DELETE, new JpaPostDeleteEventListener() );
 		eventListenerRegistry.prependListeners( EventType.POST_INSERT, new JpaPostInsertEventListener() );
 		eventListenerRegistry.prependListeners( EventType.POST_LOAD, new JpaPostLoadEventListener() );
 		eventListenerRegistry.prependListeners( EventType.POST_UPDATE, new JpaPostUpdateEventListener() );
 
-		for ( Map.Entry<?,?> entry : configuration.getProperties().entrySet() ) {
+		final ConfigurationService cfgService = serviceRegistry.getService( ConfigurationService.class );
+
+		for ( Map.Entry entry : ( (Map<?,?>) cfgService.getSettings() ).entrySet() ) {
 			if ( ! String.class.isInstance( entry.getKey() ) ) {
 				continue;
 			}
@@ -185,22 +139,21 @@ public class JpaIntegrator implements Integrator {
 		}
 
 		// handle JPA "entity listener classes"...
+		final ReflectionManager reflectionManager = ( (MetadataImpl) metadata ).getMetadataBuildingOptions().getReflectionManager();
 
 		this.callbackRegistry = new CallbackRegistryImpl();
-		final Object beanManagerRef = configuration.getProperties().get( AvailableSettings.CDI_BEAN_MANAGER );
+		final Object beanManagerRef = sessionFactory.getSessionFactoryOptions().getBeanManagerReference();
 		this.jpaListenerFactory = beanManagerRef == null
 				? new StandardListenerFactory()
 				: buildBeanManagerListenerFactory( beanManagerRef );
-		this.callbackProcessor = new LegacyCallbackProcessor( jpaListenerFactory, configuration.getReflectionManager() );
+		this.callbackProcessor = new LegacyCallbackProcessor( jpaListenerFactory, reflectionManager );
 
-		Iterator classes = configuration.getClassMappings();
-		while ( classes.hasNext() ) {
-			final PersistentClass clazz = (PersistentClass) classes.next();
-			if ( clazz.getClassName() == null ) {
+		for ( PersistentClass persistentClass : metadata.getEntityBindings() ) {
+			if ( persistentClass.getClassName() == null ) {
 				// we can have non java class persisted by hibernate
 				continue;
 			}
-			callbackProcessor.processCallbacksForEntity( clazz.getClassName(), callbackRegistry );
+			callbackProcessor.processCallbacksForEntity( persistentClass.getClassName(), callbackRegistry );
 		}
 
 		for ( EventType eventType : EventType.values() ) {
@@ -244,101 +197,6 @@ public class JpaIntegrator implements Integrator {
 	}
 
 	@Override
-	public void integrate(
-			MetadataImplementor metadata,
-			SessionFactoryImplementor sessionFactory,
-			SessionFactoryServiceRegistry serviceRegistry ) {
-		// first, register the JPA-specific persist cascade style
-		CascadeStyles.registerCascadeStyle(
-				"persist",
-				new CascadeStyles.BaseCascadeStyle() {
-					@Override
-					public boolean doCascade(CascadingAction action) {
-						return action == JpaPersistEventListener.PERSIST_SKIPLAZY
-								|| action == CascadingActions.PERSIST_ON_FLUSH;
-					}
-
-					@Override
-					public String toString() {
-						return "STYLE_PERSIST_SKIPLAZY";
-					}
-				}
-		);
-
-		// then prepare listeners
-        final EventListenerRegistry eventListenerRegistry = serviceRegistry.getService( EventListenerRegistry.class );
-
-        boolean isSecurityEnabled = sessionFactory.getProperties().containsKey( AvailableSettings.JACC_ENABLED );
-
-        eventListenerRegistry.addDuplicationStrategy( JPA_DUPLICATION_STRATEGY );
-        eventListenerRegistry.addDuplicationStrategy( JACC_DUPLICATION_STRATEGY );
-
-        // op listeners
-        eventListenerRegistry.setListeners( EventType.AUTO_FLUSH, JpaAutoFlushEventListener.INSTANCE );
-        eventListenerRegistry.setListeners( EventType.DELETE, new JpaDeleteEventListener() );
-        eventListenerRegistry.setListeners( EventType.FLUSH_ENTITY, new JpaFlushEntityEventListener() );
-        eventListenerRegistry.setListeners( EventType.FLUSH, JpaFlushEventListener.INSTANCE );
-        eventListenerRegistry.setListeners( EventType.MERGE, new JpaMergeEventListener() );
-        eventListenerRegistry.setListeners( EventType.PERSIST, new JpaPersistEventListener() );
-        eventListenerRegistry.setListeners( EventType.PERSIST_ONFLUSH, new JpaPersistOnFlushEventListener() );
-        eventListenerRegistry.setListeners( EventType.SAVE, new JpaSaveEventListener() );
-        eventListenerRegistry.setListeners( EventType.SAVE_UPDATE, new JpaSaveOrUpdateEventListener() );
-
-        // pre op listeners
-        if ( isSecurityEnabled ) {
-            final String jaccContextId = sessionFactory.getProperties().getProperty( Environment.JACC_CONTEXTID );
-            eventListenerRegistry.prependListeners( EventType.PRE_DELETE, new JACCPreDeleteEventListener(jaccContextId) );
-            eventListenerRegistry.prependListeners( EventType.PRE_INSERT, new JACCPreInsertEventListener(jaccContextId) );
-            eventListenerRegistry.prependListeners( EventType.PRE_UPDATE, new JACCPreUpdateEventListener(jaccContextId) );
-            eventListenerRegistry.prependListeners( EventType.PRE_LOAD, new JACCPreLoadEventListener(jaccContextId) );
-        }
-
-        // post op listeners
-        eventListenerRegistry.prependListeners( EventType.POST_DELETE, new JpaPostDeleteEventListener() );
-        eventListenerRegistry.prependListeners( EventType.POST_INSERT, new JpaPostInsertEventListener() );
-        eventListenerRegistry.prependListeners( EventType.POST_LOAD, new JpaPostLoadEventListener() );
-        eventListenerRegistry.prependListeners( EventType.POST_UPDATE, new JpaPostUpdateEventListener() );
-
-        for ( Map.Entry<?,?> entry : sessionFactory.getProperties().entrySet() ) {
-            if ( ! String.class.isInstance( entry.getKey() ) ) {
-                continue;
-            }
-            final String propertyName = (String) entry.getKey();
-            if ( ! propertyName.startsWith( AvailableSettings.EVENT_LISTENER_PREFIX ) ) {
-                continue;
-            }
-            final String eventTypeName = propertyName.substring( AvailableSettings.EVENT_LISTENER_PREFIX.length() + 1 );
-            final EventType eventType = EventType.resolveEventTypeByName( eventTypeName );
-            final EventListenerGroup eventListenerGroup = eventListenerRegistry.getEventListenerGroup( eventType );
-            for ( String listenerImpl : ( (String) entry.getValue() ).split( " ," ) ) {
-                eventListenerGroup.appendListener( instantiate( listenerImpl, serviceRegistry ) );
-            }
-        }
-
-		// handle JPA "entity listener classes"...
-
-		this.callbackRegistry = new CallbackRegistryImpl();
-		final Object beanManagerRef = sessionFactory.getProperties().get( AvailableSettings.CDI_BEAN_MANAGER );
-		this.jpaListenerFactory = beanManagerRef == null
-				? new StandardListenerFactory()
-				: buildBeanManagerListenerFactory( beanManagerRef );
-		this.callbackProcessor = new CallbackProcessorImpl( jpaListenerFactory, metadata, serviceRegistry );
-
-        for ( EntityBinding binding : metadata.getEntityBindings() ) {
-			callbackProcessor.processCallbacksForEntity( binding, callbackRegistry );
-        }
-
-        for ( EventType eventType : EventType.values() ) {
-            final EventListenerGroup eventListenerGroup = eventListenerRegistry.getEventListenerGroup( eventType );
-            for ( Object listener : eventListenerGroup.listeners() ) {
-                if ( CallbackRegistryConsumer.class.isInstance( listener ) ) {
-                    ( (CallbackRegistryConsumer) listener ).injectCallbackRegistry( callbackRegistry );
-                }
-            }
-        }
-	}
-
-	@Override
 	public void disintegrate(SessionFactoryImplementor sessionFactory, SessionFactoryServiceRegistry serviceRegistry) {
 		if ( callbackRegistry != null ) {
 			callbackRegistry.release();
@@ -357,6 +215,32 @@ public class JpaIntegrator implements Integrator {
 		}
 		catch (Exception e) {
 			throw new HibernateException( "Could not instantiate requested listener [" + listenerImpl + "]", e );
+        }
+    }
+
+    private static class PersistCascadeStyle extends CascadeStyles.BaseCascadeStyle {
+        @Override
+        public boolean doCascade(CascadingAction action) {
+            return action == JpaPersistEventListener.PERSIST_SKIPLAZY
+                    || action == CascadingActions.PERSIST_ON_FLUSH;
+        }
+
+        @Override
+        public String toString() {
+            return "STYLE_PERSIST_SKIPLAZY";
+        }
+    }
+
+    private static class JPADuplicationStrategy implements DuplicationStrategy {
+        @Override
+        public boolean areMatch(Object listener, Object original) {
+            return listener.getClass().equals( original.getClass() ) &&
+                    HibernateEntityManagerEventListener.class.isInstance( original );
+        }
+
+        @Override
+        public Action getAction() {
+            return Action.KEEP_ORIGINAL;
         }
     }
 }

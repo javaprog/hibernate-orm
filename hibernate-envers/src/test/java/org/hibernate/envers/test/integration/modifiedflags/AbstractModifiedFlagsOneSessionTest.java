@@ -24,23 +24,22 @@
 package org.hibernate.envers.test.integration.modifiedflags;
 
 import org.hibernate.cfg.Configuration;
-import org.hibernate.envers.configuration.GlobalConfiguration;
+import org.hibernate.envers.configuration.EnversSettings;
 import org.hibernate.envers.test.AbstractOneSessionTest;
 
 /**
  * Base test for modified flags feature
- * 
+ *
  * @author Michal Skowronek (mskowr at o2 dot pl)
  */
 public abstract class AbstractModifiedFlagsOneSessionTest extends
-		AbstractOneSessionTest {
+														  AbstractOneSessionTest {
 
 	@Override
 	protected void addProperties(Configuration configuration) {
-		super.addProperties(configuration);
-		if (forceModifiedFlags()) {
-			configuration.setProperty(
-					GlobalConfiguration.GLOBAL_WITH_MODIFIED_FLAG_PROPERTY, "true");
+		super.addProperties( configuration );
+		if ( forceModifiedFlags() ) {
+			configuration.setProperty( EnversSettings.GLOBAL_WITH_MODIFIED_FLAG, "true" );
 		}
 	}
 

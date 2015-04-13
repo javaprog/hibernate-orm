@@ -23,19 +23,21 @@
  *
  */
 package org.hibernate.persister.entity;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
 import org.hibernate.cache.spi.access.EntityRegionAccessStrategy;
 import org.hibernate.cache.spi.access.NaturalIdRegionAccessStrategy;
 import org.hibernate.engine.spi.ExecuteUpdateResultCheckStyle;
-import org.hibernate.engine.spi.Mapping;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.internal.DynamicFilterAliasGenerator;
 import org.hibernate.internal.FilterAliasGenerator;
@@ -50,14 +52,7 @@ import org.hibernate.mapping.Selectable;
 import org.hibernate.mapping.Subclass;
 import org.hibernate.mapping.Table;
 import org.hibernate.mapping.Value;
-import org.hibernate.metamodel.binding.AttributeBinding;
-import org.hibernate.metamodel.binding.CustomSQL;
-import org.hibernate.metamodel.binding.EntityBinding;
-import org.hibernate.metamodel.binding.SimpleValueBinding;
-import org.hibernate.metamodel.binding.SingularAttributeBinding;
-import org.hibernate.metamodel.relational.DerivedValue;
-import org.hibernate.metamodel.relational.SimpleValue;
-import org.hibernate.metamodel.relational.TableSpecification;
+import org.hibernate.persister.spi.PersisterCreationContext;
 import org.hibernate.sql.InFragment;
 import org.hibernate.sql.Insert;
 import org.hibernate.sql.SelectFragment;
@@ -140,10 +135,11 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 			final PersistentClass persistentClass, 
 			final EntityRegionAccessStrategy cacheAccessStrategy,
 			final NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
-			final SessionFactoryImplementor factory,
-			final Mapping mapping) throws HibernateException {
+			final PersisterCreationContext creationContext) throws HibernateException {
 
-		super( persistentClass, cacheAccessStrategy, naturalIdRegionAccessStrategy, factory );
+		super( persistentClass, cacheAccessStrategy, naturalIdRegionAccessStrategy, creationContext );
+
+		final SessionFactoryImplementor factory = creationContext.getSessionFactory();
 
 		// CLASS + TABLE
 
@@ -410,7 +406,7 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		subclassClosure = new String[subclassSpan];
 		subclassClosure[0] = getEntityName();
 		if ( persistentClass.isPolymorphic() ) {
-			subclassesByDiscriminatorValue.put( discriminatorValue, getEntityName() );
+			addSubclassByDiscriminatorValue( discriminatorValue, getEntityName() );
 		}
 
 		// SUBCLASSES
@@ -421,15 +417,15 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 				Subclass sc = (Subclass) iter.next();
 				subclassClosure[k++] = sc.getEntityName();
 				if ( sc.isDiscriminatorValueNull() ) {
-					subclassesByDiscriminatorValue.put( NULL_DISCRIMINATOR, sc.getEntityName() );
+					addSubclassByDiscriminatorValue( NULL_DISCRIMINATOR, sc.getEntityName() );
 				}
 				else if ( sc.isDiscriminatorValueNotNull() ) {
-					subclassesByDiscriminatorValue.put( NOT_NULL_DISCRIMINATOR, sc.getEntityName() );
+					addSubclassByDiscriminatorValue( NOT_NULL_DISCRIMINATOR, sc.getEntityName() );
 				}
 				else {
 					try {
 						DiscriminatorType dtype = (DiscriminatorType) discriminatorType;
-						subclassesByDiscriminatorValue.put(
+						addSubclassByDiscriminatorValue(
 							dtype.stringToObject( sc.getDiscriminatorValue() ),
 							sc.getEntityName()
 						);
@@ -446,284 +442,20 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 
 		initLockers();
 
-		initSubclassPropertyAliasesMap(persistentClass);
+		initSubclassPropertyAliasesMap( persistentClass );
 		
-		postConstruct(mapping);
+		postConstruct( creationContext.getMetadata() );
 
 	}
 
-	public SingleTableEntityPersister(
-			final EntityBinding entityBinding,
-			final EntityRegionAccessStrategy cacheAccessStrategy,
-			final NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
-			final SessionFactoryImplementor factory,
-			final Mapping mapping) throws HibernateException {
-
-		super( entityBinding, cacheAccessStrategy, naturalIdRegionAccessStrategy, factory );
-
-		// CLASS + TABLE
-
-		// TODO: fix when joins are working (HHH-6391)
-		//joinSpan = entityBinding.getJoinClosureSpan() + 1;
-		joinSpan = 1;
-		qualifiedTableNames = new String[joinSpan];
-		isInverseTable = new boolean[joinSpan];
-		isNullableTable = new boolean[joinSpan];
-		keyColumnNames = new String[joinSpan][];
-
-		final TableSpecification table = entityBinding.getPrimaryTable();
-		qualifiedTableNames[0] = table.getQualifiedName( factory.getDialect() );
-		isInverseTable[0] = false;
-		isNullableTable[0] = false;
-		keyColumnNames[0] = getIdentifierColumnNames();
-		cascadeDeleteEnabled = new boolean[joinSpan];
-
-		// Custom sql
-		customSQLInsert = new String[joinSpan];
-		customSQLUpdate = new String[joinSpan];
-		customSQLDelete = new String[joinSpan];
-		insertCallable = new boolean[joinSpan];
-		updateCallable = new boolean[joinSpan];
-		deleteCallable = new boolean[joinSpan];
-		insertResultCheckStyles = new ExecuteUpdateResultCheckStyle[joinSpan];
-		updateResultCheckStyles = new ExecuteUpdateResultCheckStyle[joinSpan];
-		deleteResultCheckStyles = new ExecuteUpdateResultCheckStyle[joinSpan];
-
-		initializeCustomSql( entityBinding.getCustomInsert(), 0, customSQLInsert, insertCallable, insertResultCheckStyles );
-		initializeCustomSql( entityBinding.getCustomUpdate(), 0, customSQLUpdate, updateCallable, updateResultCheckStyles );
-		initializeCustomSql( entityBinding.getCustomDelete(), 0, customSQLDelete, deleteCallable, deleteResultCheckStyles );
-
-		// JOINS
-
-		// TODO: add join stuff when HHH-6391 is working
-
-		constraintOrderedTableNames = new String[qualifiedTableNames.length];
-		constraintOrderedKeyColumnNames = new String[qualifiedTableNames.length][];
-		for ( int i = qualifiedTableNames.length - 1, position = 0; i >= 0; i--, position++ ) {
-			constraintOrderedTableNames[position] = qualifiedTableNames[i];
-			constraintOrderedKeyColumnNames[position] = keyColumnNames[i];
-		}
-
-		spaces = ArrayHelper.join(
-				qualifiedTableNames,
-				ArrayHelper.toStringArray( entityBinding.getSynchronizedTableNames() )
-		);
-
-		final boolean lazyAvailable = isInstrumented();
-
-		boolean hasDeferred = false;
-		ArrayList subclassTables = new ArrayList();
-		ArrayList joinKeyColumns = new ArrayList();
-		ArrayList<Boolean> isConcretes = new ArrayList<Boolean>();
-		ArrayList<Boolean> isDeferreds = new ArrayList<Boolean>();
-		ArrayList<Boolean> isInverses = new ArrayList<Boolean>();
-		ArrayList<Boolean> isNullables = new ArrayList<Boolean>();
-		ArrayList<Boolean> isLazies = new ArrayList<Boolean>();
-		subclassTables.add( qualifiedTableNames[0] );
-		joinKeyColumns.add( getIdentifierColumnNames() );
-		isConcretes.add(Boolean.TRUE);
-		isDeferreds.add(Boolean.FALSE);
-		isInverses.add(Boolean.FALSE);
-		isNullables.add(Boolean.FALSE);
-		isLazies.add(Boolean.FALSE);
-
-		// TODO: add join stuff when HHH-6391 is working
-
-
-		subclassTableSequentialSelect = ArrayHelper.toBooleanArray(isDeferreds);
-		subclassTableNameClosure = ArrayHelper.toStringArray(subclassTables);
-		subclassTableIsLazyClosure = ArrayHelper.toBooleanArray(isLazies);
-		subclassTableKeyColumnClosure = ArrayHelper.to2DStringArray( joinKeyColumns );
-		isClassOrSuperclassTable = ArrayHelper.toBooleanArray(isConcretes);
-		isInverseSubclassTable = ArrayHelper.toBooleanArray(isInverses);
-		isNullableSubclassTable = ArrayHelper.toBooleanArray(isNullables);
-		hasSequentialSelects = hasDeferred;
-
-		// DISCRIMINATOR
-
-		if ( entityBinding.isPolymorphic() ) {
-			SimpleValue discriminatorRelationalValue = entityBinding.getHierarchyDetails().getEntityDiscriminator().getBoundValue();
-			if ( discriminatorRelationalValue == null ) {
-				throw new MappingException("discriminator mapping required for single table polymorphic persistence");
-			}
-			forceDiscriminator = entityBinding.getHierarchyDetails().getEntityDiscriminator().isForced();
-			if ( DerivedValue.class.isInstance( discriminatorRelationalValue ) ) {
-				DerivedValue formula = ( DerivedValue ) discriminatorRelationalValue;
-				discriminatorFormula = formula.getExpression();
-				discriminatorFormulaTemplate = getTemplateFromString( formula.getExpression(), factory );
-				discriminatorColumnName = null;
-				discriminatorColumnReaders = null;
-				discriminatorColumnReaderTemplate = null;
-				discriminatorAlias = "clazz_";
-			}
-			else {
-				org.hibernate.metamodel.relational.Column column = ( org.hibernate.metamodel.relational.Column ) discriminatorRelationalValue;
-				discriminatorColumnName = column.getColumnName().encloseInQuotesIfQuoted( factory.getDialect() );
-				discriminatorColumnReaders =
-						column.getReadFragment() == null ?
-								column.getColumnName().encloseInQuotesIfQuoted( factory.getDialect() ) :
-								column.getReadFragment();
-				discriminatorColumnReaderTemplate = getTemplateFromColumn( column, factory );
-				discriminatorAlias = column.getAlias( factory.getDialect() );
-				discriminatorFormula = null;
-				discriminatorFormulaTemplate = null;
-			}
-
-			discriminatorType = entityBinding.getHierarchyDetails()
-					.getEntityDiscriminator()
-					.getExplicitHibernateTypeDescriptor()
-					.getResolvedTypeMapping();
-			if ( entityBinding.getDiscriminatorMatchValue() == null ) {
-				discriminatorValue = NULL_DISCRIMINATOR;
-				discriminatorSQLValue = InFragment.NULL;
-				discriminatorInsertable = false;
-			}
-			else if ( entityBinding.getDiscriminatorMatchValue().equals( NULL_STRING ) ) {
-				discriminatorValue = NOT_NULL_DISCRIMINATOR;
-				discriminatorSQLValue = InFragment.NOT_NULL;
-				discriminatorInsertable = false;
-			}
-			else if ( entityBinding.getDiscriminatorMatchValue().equals( NOT_NULL_STRING ) ) {
-				discriminatorValue = NOT_NULL_DISCRIMINATOR;
-				discriminatorSQLValue = InFragment.NOT_NULL;
-				discriminatorInsertable = false;
-			}
-			else {
-				discriminatorInsertable = entityBinding.getHierarchyDetails().getEntityDiscriminator().isInserted()
-						&& ! DerivedValue.class.isInstance( discriminatorRelationalValue );
-				try {
-					DiscriminatorType dtype = ( DiscriminatorType ) discriminatorType;
-					discriminatorValue = dtype.stringToObject( entityBinding.getDiscriminatorMatchValue() );
-					discriminatorSQLValue = dtype.objectToSQLString( discriminatorValue, factory.getDialect() );
-				}
-				catch (ClassCastException cce) {
-					throw new MappingException("Illegal discriminator type: " + discriminatorType.getName() );
-				}
-				catch (Exception e) {
-					throw new MappingException("Could not format discriminator value to SQL string", e);
-				}
-			}
-		}
-		else {
-			forceDiscriminator = false;
-			discriminatorInsertable = false;
-			discriminatorColumnName = null;
-			discriminatorColumnReaders = null;
-			discriminatorColumnReaderTemplate = null;
-			discriminatorAlias = null;
-			discriminatorType = null;
-			discriminatorValue = null;
-			discriminatorSQLValue = null;
-			discriminatorFormula = null;
-			discriminatorFormulaTemplate = null;
-		}
-
-		// PROPERTIES
-
-		propertyTableNumbers = new int[ getPropertySpan() ];
-		int i=0;
-		for( AttributeBinding attributeBinding : entityBinding.getAttributeBindingClosure() ) {
-			// TODO: fix when joins are working (HHH-6391)
-			//propertyTableNumbers[i++] = entityBinding.getJoinNumber( attributeBinding);
-			if ( attributeBinding == entityBinding.getHierarchyDetails().getEntityIdentifier().getValueBinding() ) {
-				continue; // skip identifier binding
-			}
-			if ( ! attributeBinding.getAttribute().isSingular() ) {
-				continue;
-			}
-			propertyTableNumbers[ i++ ] = 0;
-		}
-
-		//TODO: code duplication with JoinedSubclassEntityPersister
-
-		ArrayList columnJoinNumbers = new ArrayList();
-		ArrayList formulaJoinedNumbers = new ArrayList();
-		ArrayList propertyJoinNumbers = new ArrayList();
-
-		for ( AttributeBinding attributeBinding : entityBinding.getSubEntityAttributeBindingClosure() ) {
-			if ( ! attributeBinding.getAttribute().isSingular() ) {
-				continue;
-			}
-			SingularAttributeBinding singularAttributeBinding = (SingularAttributeBinding) attributeBinding;
-
-			// TODO: fix when joins are working (HHH-6391)
-			//int join = entityBinding.getJoinNumber(singularAttributeBinding);
-			int join = 0;
-			propertyJoinNumbers.add(join);
-
-			//propertyTableNumbersByName.put( singularAttributeBinding.getName(), join );
-			propertyTableNumbersByNameAndSubclass.put(
-					singularAttributeBinding.getContainer().getPathBase() + '.' + singularAttributeBinding.getAttribute().getName(),
-					join
+	private void addSubclassByDiscriminatorValue(Object discriminatorValue, String entityName) {
+		String mappedEntityName = (String) subclassesByDiscriminatorValue.put( discriminatorValue, entityName );
+		if ( mappedEntityName != null ) {
+			throw new MappingException(
+					"Entities [" + entityName + "] and [" + mappedEntityName
+							+ "] are mapped with the same discriminator value '" + discriminatorValue + "'."
 			);
-
-			for ( SimpleValueBinding simpleValueBinding : singularAttributeBinding.getSimpleValueBindings() ) {
-				if ( DerivedValue.class.isInstance( simpleValueBinding.getSimpleValue() ) ) {
-					formulaJoinedNumbers.add( join );
-				}
-				else {
-					columnJoinNumbers.add( join );
-				}
-			}
 		}
-		subclassColumnTableNumberClosure = ArrayHelper.toIntArray(columnJoinNumbers);
-		subclassFormulaTableNumberClosure = ArrayHelper.toIntArray(formulaJoinedNumbers);
-		subclassPropertyTableNumberClosure = ArrayHelper.toIntArray(propertyJoinNumbers);
-
-		int subclassSpan = entityBinding.getSubEntityBindingClosureSpan() + 1;
-		subclassClosure = new String[subclassSpan];
-		subclassClosure[0] = getEntityName();
-		if ( entityBinding.isPolymorphic() ) {
-			subclassesByDiscriminatorValue.put( discriminatorValue, getEntityName() );
-		}
-
-		// SUBCLASSES
-		if ( entityBinding.isPolymorphic() ) {
-			int k=1;
-			for ( EntityBinding subEntityBinding : entityBinding.getPostOrderSubEntityBindingClosure() ) {
-				subclassClosure[k++] = subEntityBinding.getEntity().getName();
-				if ( subEntityBinding.isDiscriminatorMatchValueNull() ) {
-					subclassesByDiscriminatorValue.put( NULL_DISCRIMINATOR, subEntityBinding.getEntity().getName() );
-				}
-				else if ( subEntityBinding.isDiscriminatorMatchValueNotNull() ) {
-					subclassesByDiscriminatorValue.put( NOT_NULL_DISCRIMINATOR, subEntityBinding.getEntity().getName() );
-				}
-				else {
-					try {
-						DiscriminatorType dtype = (DiscriminatorType) discriminatorType;
-						subclassesByDiscriminatorValue.put(
-							dtype.stringToObject( subEntityBinding.getDiscriminatorMatchValue() ),
-							subEntityBinding.getEntity().getName()
-						);
-					}
-					catch (ClassCastException cce) {
-						throw new MappingException("Illegal discriminator type: " + discriminatorType.getName() );
-					}
-					catch (Exception e) {
-						throw new MappingException("Error parsing discriminator value", e);
-					}
-				}
-			}
-		}
-
-		initLockers();
-
-		initSubclassPropertyAliasesMap( entityBinding );
-
-		postConstruct( mapping );
-	}
-
-	private static void initializeCustomSql(
-			CustomSQL customSql,
-			int i,
-			String[] sqlStrings,
-			boolean[] callable,
-			ExecuteUpdateResultCheckStyle[] checkStyles) {
-		sqlStrings[i] = customSql != null ?  customSql.getSql(): null;
-		callable[i] = sqlStrings[i] != null && customSql.isCallable();
-		checkStyles[i] = customSql != null && customSql.getCheckStyle() != null ?
-				customSql.getCheckStyle() :
-				ExecuteUpdateResultCheckStyle.determineDefault( sqlStrings[i], callable[i] );
 	}
 
 	protected boolean isInverseTable(int j) {
@@ -825,48 +557,95 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		return getTableName() + ' ' + name;
 	}
 
+	@Override
 	public String filterFragment(String alias) throws MappingException {
 		String result = discriminatorFilterFragment(alias);
 		if ( hasWhere() ) result += " and " + getSQLWhereString(alias);
 		return result;
 	}
-	
-	public String oneToManyFilterFragment(String alias) throws MappingException {
-		return forceDiscriminator ?
-			discriminatorFilterFragment(alias) :
-			"";
-	}
 
 	private String discriminatorFilterFragment(String alias) throws MappingException {
-		if ( needsDiscriminator() ) {
-			InFragment frag = new InFragment();
+		return discriminatorFilterFragment( alias, null );
+	}
+	
+	public String oneToManyFilterFragment(String alias) throws MappingException {
+		return forceDiscriminator
+				? discriminatorFilterFragment( alias, null )
+				: "";
+	}
 
-			if ( isDiscriminatorFormula() ) {
-				frag.setFormula( alias, getDiscriminatorFormulaTemplate() );
-			}
-			else {
-				frag.setColumn( alias, getDiscriminatorColumnName() );
-			}
+	@Override
+	public String oneToManyFilterFragment(String alias, Set<String> treatAsDeclarations) {
+		return needsDiscriminator()
+				? discriminatorFilterFragment( alias, treatAsDeclarations )
+				: "";
+	}
 
-			String[] subclasses = getSubclassClosure();
-			for ( int i=0; i<subclasses.length; i++ ) {
-				final Queryable queryable = (Queryable) getFactory().getEntityPersister( subclasses[i] );
-				if ( !queryable.isAbstract() ) frag.addValue( queryable.getDiscriminatorSQLValue() );
-			}
-
-			StringBuilder buf = new StringBuilder(50)
-				.append(" and ")
-				.append( frag.toFragmentString() );
-
-			return buf.toString();
+	@Override
+	public String filterFragment(String alias, Set<String> treatAsDeclarations) {
+		String result = discriminatorFilterFragment( alias, treatAsDeclarations );
+		if ( hasWhere() ) {
+			result += " and " + getSQLWhereString( alias );
 		}
-		else {
+		return result;
+	}
+
+	private String discriminatorFilterFragment(String alias, Set<String> treatAsDeclarations)  {
+		final boolean hasTreatAs = treatAsDeclarations != null && !treatAsDeclarations.isEmpty();
+
+		if ( !needsDiscriminator() && !hasTreatAs) {
 			return "";
 		}
+
+		final InFragment frag = new InFragment();
+		if ( isDiscriminatorFormula() ) {
+			frag.setFormula( alias, getDiscriminatorFormulaTemplate() );
+		}
+		else {
+			frag.setColumn( alias, getDiscriminatorColumnName() );
+		}
+
+		if ( hasTreatAs ) {
+			frag.addValues( decodeTreatAsRequests( treatAsDeclarations ) );
+		}
+		else {
+			frag.addValues( fullDiscriminatorValues() );
+		}
+
+		return " and " + frag.toFragmentString();
 	}
 
 	private boolean needsDiscriminator() {
 		return forceDiscriminator || isInherited();
+	}
+
+	private String[] decodeTreatAsRequests(Set<String> treatAsDeclarations) {
+		final List<String> values = new ArrayList<String>();
+		for ( String subclass : treatAsDeclarations ) {
+			final Queryable queryable = (Queryable) getFactory().getEntityPersister( subclass );
+			if ( !queryable.isAbstract() ) {
+				values.add( queryable.getDiscriminatorSQLValue() );
+			}
+		}
+		return values.toArray( new String[ values.size() ] );
+	}
+
+	private String[] fullDiscriminatorValues;
+
+	private String[] fullDiscriminatorValues() {
+		if ( fullDiscriminatorValues == null ) {
+			// first access; build it
+			final List<String> values = new ArrayList<String>();
+			for ( String subclass : getSubclassClosure() ) {
+				final Queryable queryable = (Queryable) getFactory().getEntityPersister( subclass );
+				if ( !queryable.isAbstract() ) {
+					values.add( queryable.getDiscriminatorSQLValue() );
+				}
+			}
+			fullDiscriminatorValues = values.toArray( new String[values.size() ] );
+		}
+
+		return fullDiscriminatorValues;
 	}
 
 	public String getSubclassPropertyTableName(int i) {
@@ -1014,8 +793,7 @@ public class SingleTableEntityPersister extends AbstractEntityPersister {
 		return qualifiedTableNames[ propertyTableNumbers[index] ];
 	}
 	
-	public void postInstantiate() {
-		super.postInstantiate();
+	protected void doPostInstantiate() {
 		if (hasSequentialSelects) {
 			String[] entityNames = getSubclassClosure();
 			for ( int i=1; i<entityNames.length; i++ ) {

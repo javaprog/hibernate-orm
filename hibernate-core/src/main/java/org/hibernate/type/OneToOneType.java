@@ -30,11 +30,11 @@ import java.sql.SQLException;
 
 import org.hibernate.HibernateException;
 import org.hibernate.MappingException;
+import org.hibernate.engine.jdbc.Size;
 import org.hibernate.engine.spi.EntityKey;
 import org.hibernate.engine.spi.Mapping;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.util.collections.ArrayHelper;
-import org.hibernate.metamodel.relational.Size;
 import org.hibernate.persister.entity.EntityPersister;
 
 /**
@@ -48,7 +48,7 @@ public class OneToOneType extends EntityType {
 	private final String entityName;
 
 	/**
-	 * @deprecated Use {@link #OneToOneType(TypeFactory.TypeScope, String, ForeignKeyDirection, String, boolean, boolean, String, String)}
+	 * @deprecated Use {@link #OneToOneType(TypeFactory.TypeScope, String, ForeignKeyDirection, boolean, String, boolean, boolean, String, String)}
 	 *  instead.
 	 * See Jira issue: <a href="https://hibernate.onjira.com/browse/HHH-7771">HHH-7771</a>
 	 */
@@ -63,12 +63,14 @@ public class OneToOneType extends EntityType {
 			boolean isEmbeddedInXML,
 			String entityName,
 			String propertyName) {
-		super( scope, referencedEntityName, uniqueKeyPropertyName, !lazy, isEmbeddedInXML, unwrapProxy );
-		this.foreignKeyType = foreignKeyType;
-		this.propertyName = propertyName;
-		this.entityName = entityName;
+		this( scope, referencedEntityName, foreignKeyType, uniqueKeyPropertyName == null, uniqueKeyPropertyName, lazy, unwrapProxy, entityName, propertyName );
 	}
 
+	/**
+	 * @deprecated Use {@link #OneToOneType(TypeFactory.TypeScope, String, ForeignKeyDirection, boolean, String, boolean, boolean, String, String)}
+	 *  instead.
+	 */
+	@Deprecated
 	public OneToOneType(
 			TypeFactory.TypeScope scope,
 			String referencedEntityName,
@@ -78,7 +80,20 @@ public class OneToOneType extends EntityType {
 			boolean unwrapProxy,
 			String entityName,
 			String propertyName) {
-		super( scope, referencedEntityName, uniqueKeyPropertyName, !lazy, unwrapProxy );
+		this( scope, referencedEntityName, foreignKeyType, uniqueKeyPropertyName == null, uniqueKeyPropertyName, lazy, unwrapProxy, entityName, propertyName );
+	}
+
+	public OneToOneType(
+			TypeFactory.TypeScope scope,
+			String referencedEntityName,
+			ForeignKeyDirection foreignKeyType,
+			boolean referenceToPrimaryKey,
+			String uniqueKeyPropertyName,
+			boolean lazy,
+			boolean unwrapProxy,
+			String entityName,
+			String propertyName) {
+		super( scope, referencedEntityName, referenceToPrimaryKey, uniqueKeyPropertyName, !lazy, unwrapProxy );
 		this.foreignKeyType = foreignKeyType;
 		this.propertyName = propertyName;
 		this.entityName = entityName;
@@ -163,7 +178,7 @@ public class OneToOneType extends EntityType {
 	}
 
 	protected boolean isNullable() {
-		return foreignKeyType==ForeignKeyDirection.FOREIGN_KEY_TO_PARENT;
+		return foreignKeyType==ForeignKeyDirection.TO_PARENT;
 	}
 
 	public boolean useLHSPrimaryKey() {

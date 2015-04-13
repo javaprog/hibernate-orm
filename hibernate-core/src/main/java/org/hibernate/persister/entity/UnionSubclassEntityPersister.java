@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.hibernate.AssertionFailure;
 import org.hibernate.HibernateException;
@@ -52,7 +53,7 @@ import org.hibernate.mapping.Column;
 import org.hibernate.mapping.PersistentClass;
 import org.hibernate.mapping.Subclass;
 import org.hibernate.mapping.Table;
-import org.hibernate.metamodel.binding.EntityBinding;
+import org.hibernate.persister.spi.PersisterCreationContext;
 import org.hibernate.sql.SelectFragment;
 import org.hibernate.sql.SimpleSelect;
 import org.hibernate.type.StandardBasicTypes;
@@ -86,11 +87,12 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 			final PersistentClass persistentClass, 
 			final EntityRegionAccessStrategy cacheAccessStrategy,
 			final NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
-			final SessionFactoryImplementor factory,
-			final Mapping mapping) throws HibernateException {
+			final PersisterCreationContext creationContext) throws HibernateException {
 
-		super( persistentClass, cacheAccessStrategy, naturalIdRegionAccessStrategy, factory );
-		
+		super( persistentClass, cacheAccessStrategy, naturalIdRegionAccessStrategy, creationContext );
+
+		final SessionFactoryImplementor factory = creationContext.getSessionFactory();
+
 		if ( getIdentifierGenerator() instanceof IdentityGenerator ) {
 			throw new MappingException(
 					"Cannot use identity column key generation with <union-subclass> mapping for: " + 
@@ -197,7 +199,7 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 		}
 		subclassSpaces = ArrayHelper.toStringArray(subclassTables);
 
-		subquery = generateSubquery(persistentClass, mapping);
+		subquery = generateSubquery( persistentClass, creationContext.getMetadata() );
 
 		if ( isMultiTable() ) {
 			int idColumnSpan = getIdentifierColumnSpan();
@@ -236,29 +238,10 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 
 		initLockers();
 
-		initSubclassPropertyAliasesMap(persistentClass);
+		initSubclassPropertyAliasesMap( persistentClass );
 		
-		postConstruct(mapping);
+		postConstruct( creationContext.getMetadata() );
 
-	}
-
-	public UnionSubclassEntityPersister(
-			final EntityBinding entityBinding,
-			final EntityRegionAccessStrategy cacheAccessStrategy,
-			final NaturalIdRegionAccessStrategy naturalIdRegionAccessStrategy,
-			final SessionFactoryImplementor factory,
-			final Mapping mapping) throws HibernateException {
-		super(entityBinding, cacheAccessStrategy, naturalIdRegionAccessStrategy, factory );
-		// TODO: implement!!! initializing final fields to null to make compiler happy.
-		subquery = null;
-		tableName = null;
-		subclassClosure = null;
-		spaces = null;
-		subclassSpaces = null;
-		discriminatorValue = null;
-		discriminatorSQLValue = null;
-		constraintOrderedTableNames = null;
-		constraintOrderedKeyColumnNames = null;
 	}
 
 	public Serializable[] getQuerySpaces() {
@@ -356,10 +339,16 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 		return getTableName() + ' '  + name;
 	}
 
+	@Override
 	public String filterFragment(String name) {
-		return hasWhere() ?
-			" and " + getSQLWhereString(name) :
-			"";
+		return hasWhere()
+				? " and " + getSQLWhereString( name )
+				: "";
+	}
+
+	@Override
+	protected String filterFragment(String alias, Set<String> treatAsDeclarations) {
+		return filterFragment( alias );
 	}
 
 	public String getSubclassPropertyTableName(int i) {
@@ -452,7 +441,7 @@ public class UnionSubclassEntityPersister extends AbstractEntityPersister {
 						buf.append( dialect.getSelectClauseNullString(sqlType) )
 							.append(" as ");
 					}
-					buf.append( col.getName() );
+					buf.append( col.getQuotedName(dialect) );
 					buf.append(", ");
 				}
 				buf.append( clazz.getSubclassId() )

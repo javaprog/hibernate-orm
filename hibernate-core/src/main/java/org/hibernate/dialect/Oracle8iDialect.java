@@ -27,23 +27,30 @@ import java.sql.CallableStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.List;
 
-import org.hibernate.HibernateException;
 import org.hibernate.JDBCException;
 import org.hibernate.QueryTimeoutException;
+import org.hibernate.annotations.common.util.StringHelper;
 import org.hibernate.cfg.Environment;
 import org.hibernate.dialect.function.NoArgSQLFunction;
 import org.hibernate.dialect.function.NvlFunction;
 import org.hibernate.dialect.function.SQLFunctionTemplate;
 import org.hibernate.dialect.function.StandardSQLFunction;
 import org.hibernate.dialect.function.VarArgsSQLFunction;
+import org.hibernate.dialect.pagination.AbstractLimitHandler;
+import org.hibernate.dialect.pagination.LimitHandler;
+import org.hibernate.dialect.pagination.LimitHelper;
+import org.hibernate.engine.spi.RowSelection;
+import org.hibernate.exception.ConstraintViolationException;
 import org.hibernate.exception.LockAcquisitionException;
 import org.hibernate.exception.LockTimeoutException;
 import org.hibernate.exception.spi.SQLExceptionConversionDelegate;
 import org.hibernate.exception.spi.TemplatedViolatedConstraintNameExtracter;
 import org.hibernate.exception.spi.ViolatedConstraintNameExtracter;
 import org.hibernate.internal.util.JdbcExceptionHelper;
-import org.hibernate.internal.util.ReflectHelper;
+import org.hibernate.procedure.internal.StandardCallableStatementSupport;
+import org.hibernate.procedure.spi.CallableStatementSupport;
 import org.hibernate.sql.CaseFragment;
 import org.hibernate.sql.DecodeCaseFragment;
 import org.hibernate.sql.JoinFragment;
@@ -57,10 +64,63 @@ import org.hibernate.type.descriptor.sql.SqlTypeDescriptor;
  *
  * @author Steve Ebersole
  */
+@SuppressWarnings("deprecation")
 public class Oracle8iDialect extends Dialect {
-	
+
+	private static final AbstractLimitHandler LIMIT_HANDLER = new AbstractLimitHandler() {
+		@Override
+		public String processSql(String sql, RowSelection selection) {
+			final boolean hasOffset = LimitHelper.hasFirstRow( selection );
+			sql = sql.trim();
+			boolean isForUpdate = false;
+			if (sql.toLowerCase().endsWith( " for update" )) {
+				sql = sql.substring( 0, sql.length() - 11 );
+				isForUpdate = true;
+			}
+
+			final StringBuilder pagingSelect = new StringBuilder( sql.length() + 100 );
+			if (hasOffset) {
+				pagingSelect.append( "select * from ( select row_.*, rownum rownum_ from ( " );
+			}
+			else {
+				pagingSelect.append( "select * from ( " );
+			}
+			pagingSelect.append( sql );
+			if (hasOffset) {
+				pagingSelect.append( " ) row_ ) where rownum_ <= ? and rownum_ > ?" );
+			}
+			else {
+				pagingSelect.append( " ) where rownum <= ?" );
+			}
+
+			if (isForUpdate) {
+				pagingSelect.append( " for update" );
+			}
+
+			return pagingSelect.toString();
+		}
+
+		@Override
+		public boolean supportsLimit() {
+			return true;
+		}
+
+		@Override
+		public boolean bindLimitParametersInReverseOrder() {
+			return true;
+		}
+
+		@Override
+		public boolean useMaxForLimit() {
+			return true;
+		}
+	};
+
 	private static final int PARAM_LIST_SIZE_LIMIT = 1000;
 
+	/**
+	 * Constructs a Oracle8iDialect
+	 */
 	public Oracle8iDialect() {
 		super();
 		registerCharacterTypeMappings();
@@ -90,7 +150,7 @@ public class Oracle8iDialect extends Dialect {
 		registerColumnType( Types.NUMERIC, "number($p,$s)" );
 		registerColumnType( Types.DECIMAL, "number($p,$s)" );
 
-        registerColumnType( Types.BOOLEAN, "number(1,0)" );
+		registerColumnType( Types.BOOLEAN, "number(1,0)" );
 	}
 
 	protected void registerDateTimeTypeMappings() {
@@ -216,19 +276,11 @@ public class Oracle8iDialect extends Dialect {
 
 	// features which change between 8i, 9i, and 10g ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-	/**
-	 * Support for the oracle proprietary join syntax...
-	 *
-	 * @return The orqacle join fragment
-	 */
 	@Override
 	public JoinFragment createOuterJoinFragment() {
 		return new OracleJoinFragment();
 	}
 
-	/**
-	 * {@inheritDoc}
-	 */
 	@Override
 	public String getCrossJoinSeparator() {
 		return ", ";
@@ -237,35 +289,41 @@ public class Oracle8iDialect extends Dialect {
 	/**
 	 * Map case support to the Oracle DECODE function.  Oracle did not
 	 * add support for CASE until 9i.
-	 *
-	 * @return The oracle CASE -> DECODE fragment
+	 * <p/>
+	 * {@inheritDoc}
 	 */
 	@Override
 	public CaseFragment createCaseFragment() {
 		return new DecodeCaseFragment();
 	}
+
+	@Override
+	public LimitHandler getLimitHandler() {
+		return LIMIT_HANDLER;
+	}
+
 	@Override
 	public String getLimitString(String sql, boolean hasOffset) {
 		sql = sql.trim();
 		boolean isForUpdate = false;
-		if ( sql.toLowerCase().endsWith(" for update") ) {
+		if ( sql.toLowerCase().endsWith( " for update" ) ) {
 			sql = sql.substring( 0, sql.length()-11 );
 			isForUpdate = true;
 		}
 
-		StringBuilder pagingSelect = new StringBuilder( sql.length()+100 );
+		final StringBuilder pagingSelect = new StringBuilder( sql.length()+100 );
 		if (hasOffset) {
-			pagingSelect.append("select * from ( select row_.*, rownum rownum_ from ( ");
+			pagingSelect.append( "select * from ( select row_.*, rownum rownum_ from ( " );
 		}
 		else {
-			pagingSelect.append("select * from ( ");
+			pagingSelect.append( "select * from ( " );
 		}
-		pagingSelect.append(sql);
+		pagingSelect.append( sql );
 		if (hasOffset) {
-			pagingSelect.append(" ) row_ ) where rownum_ <= ? and rownum_ > ?");
+			pagingSelect.append( " ) row_ ) where rownum_ <= ? and rownum_ > ?" );
 		}
 		else {
-			pagingSelect.append(" ) where rownum <= ?");
+			pagingSelect.append( " ) where rownum <= ?" );
 		}
 
 		if ( isForUpdate ) {
@@ -285,6 +343,7 @@ public class Oracle8iDialect extends Dialect {
 	public String getBasicSelectClauseNullString(int sqlType) {
 		return super.getSelectClauseNullString( sqlType );
 	}
+
 	@Override
 	public String getSelectClauseNullString(int sqlType) {
 		switch(sqlType) {
@@ -299,10 +358,12 @@ public class Oracle8iDialect extends Dialect {
 				return "to_number(null)";
 		}
 	}
+
 	@Override
 	public String getCurrentTimestampSelectString() {
 		return "select sysdate from dual";
 	}
+
 	@Override
 	public String getCurrentTimestampSQLFunctionName() {
 		return "sysdate";
@@ -310,70 +371,88 @@ public class Oracle8iDialect extends Dialect {
 
 
 	// features which remain constant across 8i, 9i, and 10g ~~~~~~~~~~~~~~~~~~
+
 	@Override
 	public String getAddColumnString() {
 		return "add";
 	}
+
 	@Override
 	public String getSequenceNextValString(String sequenceName) {
 		return "select " + getSelectSequenceNextValString( sequenceName ) + " from dual";
 	}
+
 	@Override
 	public String getSelectSequenceNextValString(String sequenceName) {
 		return sequenceName + ".nextval";
 	}
+
 	@Override
 	public String getCreateSequenceString(String sequenceName) {
-		return "create sequence " + sequenceName; //starts with 1, implicitly
+		//starts with 1, implicitly
+		return "create sequence " + sequenceName;
 	}
+
 	@Override
 	public String getDropSequenceString(String sequenceName) {
 		return "drop sequence " + sequenceName;
 	}
+
 	@Override
 	public String getCascadeConstraintsString() {
 		return " cascade constraints";
 	}
+
 	@Override
 	public boolean dropConstraints() {
 		return false;
 	}
+
 	@Override
 	public String getForUpdateNowaitString() {
 		return " for update nowait";
 	}
+
 	@Override
 	public boolean supportsSequences() {
 		return true;
 	}
+
 	@Override
 	public boolean supportsPooledSequences() {
 		return true;
 	}
+
 	@Override
 	public boolean supportsLimit() {
 		return true;
 	}
+
 	@Override
 	public String getForUpdateString(String aliases) {
 		return getForUpdateString() + " of " + aliases;
 	}
+
 	@Override
 	public String getForUpdateNowaitString(String aliases) {
 		return getForUpdateString() + " of " + aliases + " nowait";
 	}
+
 	@Override
 	public boolean bindLimitParametersInReverseOrder() {
 		return true;
 	}
+
 	@Override
 	public boolean useMaxForLimit() {
 		return true;
 	}
+
 	@Override
 	public boolean forUpdateOfColumns() {
 		return true;
 	}
+
 	@Override
 	public String getQuerySequencesString() {
 		return    " select sequence_name from all_sequences"
@@ -383,16 +462,18 @@ public class Oracle8iDialect extends Dialect {
 				+ "  where asq.sequence_name = us.table_name"
 				+ "    and asq.sequence_owner = us.table_owner";
 	}
+
 	@Override
 	public String getSelectGUIDString() {
 		return "select rawtohex(sys_guid()) from dual";
 	}
+
 	@Override
 	public ViolatedConstraintNameExtracter getViolatedConstraintNameExtracter() {
-        return EXTRACTER;
+		return EXTRACTER;
 	}
 
-	private static ViolatedConstraintNameExtracter EXTRACTER = new TemplatedViolatedConstraintNameExtracter() {
+	private static final ViolatedConstraintNameExtracter EXTRACTER = new TemplatedViolatedConstraintNameExtracter() {
 
 		/**
 		 * Extract the name of the violated constraint from the given SQLException.
@@ -401,7 +482,7 @@ public class Oracle8iDialect extends Dialect {
 		 * @return The extracted constraint name.
 		 */
 		public String extractConstraintName(SQLException sqle) {
-			int errorCode = JdbcExceptionHelper.extractErrorCode( sqle );
+			final int errorCode = JdbcExceptionHelper.extractErrorCode( sqle );
 			if ( errorCode == 1 || errorCode == 2291 || errorCode == 2292 ) {
 				return extractUsingTemplate( "(", ")", sqle.getMessage() );
 			}
@@ -462,93 +543,74 @@ public class Oracle8iDialect extends Dialect {
 				}
 
 
+				// data integrity violation ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+				if ( 1407 == errorCode ) {
+					// ORA-01407: cannot update column to NULL
+					final String constraintName = getViolatedConstraintNameExtracter().extractConstraintName( sqlException );
+					return new ConstraintViolationException( message, sqlException, sql, constraintName );
+				}
+
 				return null;
 			}
 		};
 	}
 
-	public static final String ORACLE_TYPES_CLASS_NAME = "oracle.jdbc.OracleTypes";
-	public static final String DEPRECATED_ORACLE_TYPES_CLASS_NAME = "oracle.jdbc.driver.OracleTypes";
-
-	public static final int INIT_ORACLETYPES_CURSOR_VALUE = -99;
-
-	// not final-static to avoid possible classcast exceptions if using different oracle drivers.
-	private int oracleCursorTypeSqlType = INIT_ORACLETYPES_CURSOR_VALUE;
-
-	public int getOracleCursorTypeSqlType() {
-		if ( oracleCursorTypeSqlType == INIT_ORACLETYPES_CURSOR_VALUE ) {
-			// todo : is there really any reason to kkeep trying if this fails once?
-			oracleCursorTypeSqlType = extractOracleCursorTypeValue();
-		}
-		return oracleCursorTypeSqlType;
-	}
-
-	protected int extractOracleCursorTypeValue() {
-		Class oracleTypesClass;
-		try {
-			oracleTypesClass = ReflectHelper.classForName( ORACLE_TYPES_CLASS_NAME );
-		}
-		catch ( ClassNotFoundException cnfe ) {
-			try {
-				oracleTypesClass = ReflectHelper.classForName( DEPRECATED_ORACLE_TYPES_CLASS_NAME );
-			}
-			catch ( ClassNotFoundException e ) {
-				throw new HibernateException( "Unable to locate OracleTypes class", e );
-			}
-		}
-
-		try {
-			return oracleTypesClass.getField( "CURSOR" ).getInt( null );
-		}
-		catch ( Exception se ) {
-			throw new HibernateException( "Unable to access OracleTypes.CURSOR value", se );
-		}
-	}
 	@Override
 	public int registerResultSetOutParameter(CallableStatement statement, int col) throws SQLException {
 		//	register the type of the out param - an Oracle specific type
-		statement.registerOutParameter( col, getOracleCursorTypeSqlType() );
+		statement.registerOutParameter( col, OracleTypesHelper.INSTANCE.getOracleCursorTypeSqlType() );
 		col++;
 		return col;
 	}
+
 	@Override
 	public ResultSet getResultSet(CallableStatement ps) throws SQLException {
 		ps.execute();
-		return ( ResultSet ) ps.getObject( 1 );
+		return (ResultSet) ps.getObject( 1 );
 	}
+
 	@Override
 	public boolean supportsUnionAll() {
 		return true;
 	}
+
 	@Override
 	public boolean supportsCommentOn() {
 		return true;
 	}
+
 	@Override
 	public boolean supportsTemporaryTables() {
 		return true;
 	}
+
 	@Override
 	public String generateTemporaryTableName(String baseTableName) {
-		String name = super.generateTemporaryTableName(baseTableName);
-		return name.length() > 30 ? name.substring( 1, 30 ) : name;
+		final String name = super.generateTemporaryTableName( baseTableName );
+		return name.length() > 30 ? name.substring( 0, 30 ) : name;
 	}
+
 	@Override
 	public String getCreateTemporaryTableString() {
 		return "create global temporary table";
 	}
+
 	@Override
 	public String getCreateTemporaryTablePostfix() {
 		return "on commit delete rows";
 	}
+
 	@Override
 	public boolean dropTemporaryTableAfterUse() {
 		return false;
 	}
+
 	@Override
 	public boolean supportsCurrentTimestampSelection() {
 		return true;
 	}
+
 	@Override
 	public boolean isCurrentTimestampSelectStringCallable() {
 		return false;
@@ -564,9 +626,6 @@ public class Oracle8iDialect extends Dialect {
 		return false;
 	}
 
-	/* (non-Javadoc)
-		 * @see org.hibernate.dialect.Dialect#getInExpressionCountLimit()
-		 */
 	@Override
 	public int getInExpressionCountLimit() {
 		return PARAM_LIST_SIZE_LIMIT;
@@ -585,5 +644,39 @@ public class Oracle8iDialect extends Dialect {
 	@Override
 	public String getNotExpression( String expression ) {
 		return "not (" + expression + ")";
+	}
+	
+	@Override
+	public String getQueryHintString(String sql, List<String> hints) {
+		final String hint = StringHelper.join( ", ", hints.iterator() );
+		
+		if ( StringHelper.isEmpty( hint ) ) {
+			return sql;
+		}
+
+		final int pos = sql.indexOf( "select" );
+		if ( pos > -1 ) {
+			final StringBuilder buffer = new StringBuilder( sql.length() + hint.length() + 8 );
+			if ( pos > 0 ) {
+				buffer.append( sql.substring( 0, pos ) );
+			}
+			buffer.append( "select /*+ " ).append( hint ).append( " */" )
+					.append( sql.substring( pos + "select".length() ) );
+			sql = buffer.toString();
+		}
+
+		return sql;
+	}
+	
+	@Override
+	public int getMaxAliasLength() {
+		// Oracle's max identifier length is 30, but Hibernate needs to add "uniqueing info" so we account for that,
+		return 20;
+	}
+
+	@Override
+	public CallableStatementSupport getCallableStatementSupport() {
+		// Oracle supports returning cursors
+		return StandardCallableStatementSupport.REF_CURSOR_INSTANCE;
 	}
 }

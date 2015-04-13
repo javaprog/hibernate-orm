@@ -23,12 +23,6 @@
  */
 package org.hibernate.jpa.test.packaging;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -38,29 +32,36 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
-import java.util.Set;
+import java.util.Collections;
+import java.util.List;
 
-import javax.persistence.Embeddable;
-import javax.persistence.Entity;
-import javax.persistence.MappedSuperclass;
-
+import org.hibernate.boot.archive.internal.ArchiveHelper;
+import org.hibernate.boot.archive.internal.ExplodedArchiveDescriptor;
+import org.hibernate.boot.archive.internal.JarFileBasedArchiveDescriptor;
+import org.hibernate.boot.archive.internal.JarProtocolArchiveDescriptor;
+import org.hibernate.boot.archive.internal.StandardArchiveDescriptorFactory;
+import org.hibernate.boot.archive.scan.internal.ClassDescriptorImpl;
+import org.hibernate.boot.archive.scan.internal.ScanResultCollector;
+import org.hibernate.boot.archive.scan.internal.StandardScanOptions;
+import org.hibernate.boot.archive.scan.internal.StandardScanner;
+import org.hibernate.boot.archive.scan.spi.AbstractScannerImpl;
+import org.hibernate.boot.archive.scan.spi.JandexInitializer;
+import org.hibernate.boot.archive.scan.spi.MappingFileDescriptor;
+import org.hibernate.boot.archive.scan.spi.ScanEnvironment;
+import org.hibernate.boot.archive.scan.spi.ScanParameters;
+import org.hibernate.boot.archive.scan.spi.ScanResult;
+import org.hibernate.boot.archive.spi.ArchiveDescriptor;
 import org.hibernate.dialect.H2Dialect;
-import org.hibernate.jpa.packaging.internal.ClassFilter;
-import org.hibernate.jpa.packaging.internal.Entry;
-import org.hibernate.jpa.packaging.internal.ExplodedJarVisitor;
-import org.hibernate.jpa.packaging.internal.FileFilter;
-import org.hibernate.jpa.packaging.internal.FileZippedJarVisitor;
-import org.hibernate.jpa.packaging.internal.Filter;
-import org.hibernate.jpa.packaging.internal.InputStreamZippedJarVisitor;
-import org.hibernate.jpa.packaging.internal.JarProtocolVisitor;
-import org.hibernate.jpa.packaging.internal.JarVisitor;
-import org.hibernate.jpa.packaging.internal.JarVisitorFactory;
-import org.hibernate.jpa.packaging.internal.PackageFilter;
 import org.hibernate.jpa.test.pack.defaultpar.Version;
 import org.hibernate.jpa.test.pack.explodedpar.Carpet;
+
 import org.hibernate.testing.RequiresDialect;
 import org.hibernate.testing.TestForIssue;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * @author Emmanuel Bernard
@@ -72,7 +73,7 @@ import org.junit.Test;
 public class JarVisitorTest extends PackagingTestCase {
 	@Test
 	public void testHttp() throws Exception {
-		URL url = JarVisitorFactory.getJarURLFromURLEntry(
+		final URL url = ArchiveHelper.getJarURLFromURLEntry(
 				new URL(
 						"jar:http://www.ibiblio.org/maven/hibernate/jars/hibernate-annotations-3.0beta1.jar!/META-INF/persistence.xml"
 				),
@@ -86,10 +87,55 @@ public class JarVisitorTest extends PackagingTestCase {
 			//fail silently
 			return;
 		}
-		JarVisitor visitor = JarVisitorFactory.getVisitor( url, getFilters() );
-		assertEquals( 0, visitor.getMatchingEntries()[0].size() );
-		assertEquals( 0, visitor.getMatchingEntries()[1].size() );
-		assertEquals( 0, visitor.getMatchingEntries()[2].size() );
+
+		ScanResult result = standardScan( url );
+		assertEquals( 0, result.getLocatedClasses().size() );
+		assertEquals( 0, result.getLocatedPackages().size() );
+		assertEquals( 0, result.getLocatedMappingFiles().size() );
+	}
+
+	private ScanResult standardScan(URL url) {
+		ScanEnvironment env = new ScanEnvironmentImpl( url );
+		return new StandardScanner().scan(
+				env,
+				new StandardScanOptions(),
+				new ScanParameters() {
+//					private final JandexInitManager jandexInitManager = new JandexInitManager();
+					@Override
+					public JandexInitializer getJandexInitializer() {
+//						return jandexInitManager;
+						return null;
+					}
+				}
+		);
+	}
+
+	private static class ScanEnvironmentImpl implements ScanEnvironment {
+		private final URL rootUrl;
+
+		private ScanEnvironmentImpl(URL rootUrl) {
+			this.rootUrl = rootUrl;
+		}
+
+		@Override
+		public URL getRootUrl() {
+			return rootUrl;
+		}
+
+		@Override
+		public List<URL> getNonRootUrls() {
+			return Collections.emptyList();
+		}
+
+		@Override
+		public List<String> getExplicitlyListedClassNames() {
+			return Collections.emptyList();
+		}
+
+		@Override
+		public List<String> getExplicitlyListedMappingFiles() {
+			return Collections.emptyList();
+		}
 	}
 
 	@Test
@@ -97,20 +143,26 @@ public class JarVisitorTest extends PackagingTestCase {
 		File defaultPar = buildDefaultPar();
 		addPackageToClasspath( defaultPar );
 
-		Filter[] filters = getFilters();
-		JarVisitor jarVisitor = new InputStreamZippedJarVisitor( defaultPar.toURL(), filters, "" );
-		assertEquals( "defaultpar", jarVisitor.getUnqualifiedJarName() );
-		Set entries = jarVisitor.getMatchingEntries()[1];
-		assertEquals( 3, entries.size() );
-		Entry entry = new Entry( org.hibernate.jpa.test.pack.defaultpar.ApplicationServer.class.getName(), null );
-		assertTrue( entries.contains( entry ) );
-		entry = new Entry( Version.class.getName(), null );
-		assertTrue( entries.contains( entry ) );
-		assertNull( ( ( Entry ) entries.iterator().next() ).getInputStream() );
-		assertEquals( 2, jarVisitor.getMatchingEntries()[2].size() );
-		for ( Entry localEntry : ( Set<Entry> ) jarVisitor.getMatchingEntries()[2] ) {
-			assertNotNull( localEntry.getInputStream() );
-			localEntry.getInputStream().close();
+		ScanResult result = standardScan( defaultPar.toURL() );
+		validateResults( result, org.hibernate.jpa.test.pack.defaultpar.ApplicationServer.class, Version.class );
+	}
+
+	private void validateResults(ScanResult scanResult, Class... expectedClasses) throws IOException {
+		assertEquals( 3, scanResult.getLocatedClasses().size() );
+		for ( Class expectedClass : expectedClasses ) {
+			assertTrue(
+					scanResult.getLocatedClasses().contains(
+							new ClassDescriptorImpl( expectedClass.getName(), null )
+					)
+			);
+		}
+
+		assertEquals( 2, scanResult.getLocatedMappingFiles().size() );
+		for ( MappingFileDescriptor mappingFileDescriptor : scanResult.getLocatedMappingFiles() ) {
+			assertNotNull( mappingFileDescriptor.getStreamAccess() );
+			final InputStream stream = mappingFileDescriptor.getStreamAccess().accessInputStream();
+			assertNotNull( stream );
+			stream.close();
 		}
 	}
 
@@ -122,41 +174,68 @@ public class JarVisitorTest extends PackagingTestCase {
 		addPackageToClasspath( nestedEar );
 
 		String jarFileName = nestedEar.toURL().toExternalForm() + "!/defaultpar.par";
-		Filter[] filters = getFilters();
-		JarVisitor jarVisitor = new JarProtocolVisitor( new URL( jarFileName ), filters, "" );
-		//TODO should we fix the name here to reach defaultpar rather than nestedjar ??
-		//assertEquals( "defaultpar", jarVisitor.getUnqualifiedJarName() );
-		Set entries = jarVisitor.getMatchingEntries()[1];
-		assertEquals( 3, entries.size() );
-		Entry entry = new Entry( org.hibernate.jpa.test.pack.defaultpar.ApplicationServer.class.getName(), null );
-		assertTrue( entries.contains( entry ) );
-		entry = new Entry( Version.class.getName(), null );
-		assertTrue( entries.contains( entry ) );
-		assertNull( ( ( Entry ) entries.iterator().next() ).getInputStream() );
-		assertEquals( 2, jarVisitor.getMatchingEntries()[2].size() );
-		for ( Entry localEntry : ( Set<Entry> ) jarVisitor.getMatchingEntries()[2] ) {
-			assertNotNull( localEntry.getInputStream() );
-			localEntry.getInputStream().close();
-		}
+		URL rootUrl = new URL( jarFileName );
+
+		JarProtocolArchiveDescriptor archiveDescriptor = new JarProtocolArchiveDescriptor(
+				StandardArchiveDescriptorFactory.INSTANCE,
+				rootUrl,
+				""
+		);
+
+		ScanEnvironment environment = new ScanEnvironmentImpl( rootUrl );
+		ScanResultCollector collector = new ScanResultCollector(
+				environment,
+				new StandardScanOptions(),
+				new ScanParameters() {
+//					private final JandexInitManager jandexInitManager = new JandexInitManager();
+					@Override
+					public JandexInitializer getJandexInitializer() {
+//						return jandexInitManager;
+						return null;
+					}
+				}
+		);
+
+		archiveDescriptor.visitArchive(
+				new AbstractScannerImpl.ArchiveContextImpl( true, collector )
+		);
+
+		validateResults(
+				collector.toScanResult(),
+				org.hibernate.jpa.test.pack.defaultpar.ApplicationServer.class,
+				Version.class
+		);
 
 		jarFileName = nestedEarDir.toURL().toExternalForm() + "!/defaultpar.par";
-		//JarVisitor jarVisitor = new ZippedJarVisitor( jarFileName, true, true );
-		filters = getFilters();
-		jarVisitor = new JarProtocolVisitor( new URL( jarFileName ), filters, "" );
-		//TODO should we fix the name here to reach defaultpar rather than nestedjar ??
-		//assertEquals( "defaultpar", jarVisitor.getUnqualifiedJarName() );
-		entries = jarVisitor.getMatchingEntries()[1];
-		assertEquals( 3, entries.size() );
-		entry = new Entry( org.hibernate.jpa.test.pack.defaultpar.ApplicationServer.class.getName(), null );
-		assertTrue( entries.contains( entry ) );
-		entry = new Entry( Version.class.getName(), null );
-		assertTrue( entries.contains( entry ) );
-		assertNull( ( ( Entry ) entries.iterator().next() ).getInputStream() );
-		assertEquals( 2, jarVisitor.getMatchingEntries()[2].size() );
-		for ( Entry localEntry : ( Set<Entry> ) jarVisitor.getMatchingEntries()[2] ) {
-			assertNotNull( localEntry.getInputStream() );
-			localEntry.getInputStream().close();
-		}
+		rootUrl = new URL( jarFileName );
+		archiveDescriptor = new JarProtocolArchiveDescriptor(
+				StandardArchiveDescriptorFactory.INSTANCE,
+				rootUrl,
+				""
+		);
+
+		environment = new ScanEnvironmentImpl( rootUrl );
+		collector = new ScanResultCollector(
+				environment,
+				new StandardScanOptions(),
+				new ScanParameters() {
+//					private final JandexInitManager jandexInitManager = new JandexInitManager();
+					@Override
+					public JandexInitializer getJandexInitializer() {
+//						return jandexInitManager;
+						return null;
+					}
+				}
+		);
+
+		archiveDescriptor.visitArchive(
+				new AbstractScannerImpl.ArchiveContextImpl( true, collector )
+		);
+		validateResults(
+				collector.toScanResult(),
+				org.hibernate.jpa.test.pack.defaultpar.ApplicationServer.class,
+				Version.class
+		);
 	}
 
 	@Test
@@ -165,21 +244,37 @@ public class JarVisitorTest extends PackagingTestCase {
 		addPackageToClasspath( war );
 
 		String jarFileName = war.toURL().toExternalForm() + "!/WEB-INF/classes";
-		Filter[] filters = getFilters();
-		JarVisitor jarVisitor = new JarProtocolVisitor( new URL( jarFileName ), filters, "" );
-		assertEquals( "war", jarVisitor.getUnqualifiedJarName() );
-		Set entries = jarVisitor.getMatchingEntries()[1];
-		assertEquals( 3, entries.size() );
-		Entry entry = new Entry( org.hibernate.jpa.test.pack.war.ApplicationServer.class.getName(), null );
-		assertTrue( entries.contains( entry ) );
-		entry = new Entry( org.hibernate.jpa.test.pack.war.Version.class.getName(), null );
-		assertTrue( entries.contains( entry ) );
-		assertNull( ( ( Entry ) entries.iterator().next() ).getInputStream() );
-		assertEquals( 2, jarVisitor.getMatchingEntries()[2].size() );
-		for ( Entry localEntry : ( Set<Entry> ) jarVisitor.getMatchingEntries()[2] ) {
-			assertNotNull( localEntry.getInputStream() );
-			localEntry.getInputStream().close();
-		}
+		URL rootUrl = new URL( jarFileName );
+
+		JarProtocolArchiveDescriptor archiveDescriptor = new JarProtocolArchiveDescriptor(
+				StandardArchiveDescriptorFactory.INSTANCE,
+				rootUrl,
+				""
+		);
+
+		final ScanEnvironment environment = new ScanEnvironmentImpl( rootUrl );
+		final ScanResultCollector collector = new ScanResultCollector(
+				environment,
+				new StandardScanOptions(),
+				new ScanParameters() {
+//					private final JandexInitManager jandexInitManager = new JandexInitManager();
+					@Override
+					public JandexInitializer getJandexInitializer() {
+//						return jandexInitManager;
+						return null;
+					}
+				}
+		);
+
+		archiveDescriptor.visitArchive(
+				new AbstractScannerImpl.ArchiveContextImpl( true, collector )
+		);
+
+		validateResults(
+				collector.toScanResult(),
+				org.hibernate.jpa.test.pack.war.ApplicationServer.class,
+				org.hibernate.jpa.test.pack.war.Version.class
+		);
 	}
 
 	@Test
@@ -187,21 +282,12 @@ public class JarVisitorTest extends PackagingTestCase {
 		File defaultPar = buildDefaultPar();
 		addPackageToClasspath( defaultPar );
 
-		Filter[] filters = getFilters();
-		JarVisitor jarVisitor = new FileZippedJarVisitor( defaultPar.toURL(), filters, "" );
-		assertEquals( "defaultpar", jarVisitor.getUnqualifiedJarName() );
-		Set entries = jarVisitor.getMatchingEntries()[1];
-		assertEquals( 3, entries.size() );
-		Entry entry = new Entry( org.hibernate.jpa.test.pack.defaultpar.ApplicationServer.class.getName(), null );
-		assertTrue( entries.contains( entry ) );
-		entry = new Entry( Version.class.getName(), null );
-		assertTrue( entries.contains( entry ) );
-		assertNull( ( ( Entry ) entries.iterator().next() ).getInputStream() );
-		assertEquals( 2, jarVisitor.getMatchingEntries()[2].size() );
-		for ( Entry localEntry : ( Set<Entry> ) jarVisitor.getMatchingEntries()[2] ) {
-			assertNotNull( localEntry.getInputStream() );
-			localEntry.getInputStream().close();
-		}
+		ScanResult result = standardScan( defaultPar.toURL() );
+		validateResults(
+				result,
+				org.hibernate.jpa.test.pack.defaultpar.ApplicationServer.class,
+				Version.class
+		);
 	}
 
 	@Test
@@ -209,62 +295,67 @@ public class JarVisitorTest extends PackagingTestCase {
 		File explodedPar = buildExplodedPar();
 		addPackageToClasspath( explodedPar );
 
-		Filter[] filters = getFilters();
 		String dirPath = explodedPar.toURL().toExternalForm();
 		// TODO - shouldn't  ExplodedJarVisitor take care of a trailing slash?
 		if ( dirPath.endsWith( "/" ) ) {
 			dirPath = dirPath.substring( 0, dirPath.length() - 1 );
 		}
-		JarVisitor jarVisitor = new ExplodedJarVisitor( dirPath, filters );
-		assertEquals( "explodedpar", jarVisitor.getUnqualifiedJarName() );
-		Set[] entries = jarVisitor.getMatchingEntries();
-		assertEquals( 1, entries[1].size() );
-		assertEquals( 1, entries[0].size() );
-		assertEquals( 1, entries[2].size() );
 
-		Entry entry = new Entry( Carpet.class.getName(), null );
-		assertTrue( entries[1].contains( entry ) );
-		for ( Entry localEntry : ( Set<Entry> ) jarVisitor.getMatchingEntries()[2] ) {
-			assertNotNull( localEntry.getInputStream() );
-			localEntry.getInputStream().close();
+		ScanResult result = standardScan( ArchiveHelper.getURLFromPath( dirPath ) );
+		assertEquals( 1, result.getLocatedClasses().size() );
+		assertEquals( 1, result.getLocatedPackages().size() );
+		assertEquals( 1, result.getLocatedMappingFiles().size() );
+
+		assertTrue(
+				result.getLocatedClasses().contains(
+						new ClassDescriptorImpl( Carpet.class.getName(), null )
+				)
+		);
+
+		for ( MappingFileDescriptor mappingFileDescriptor : result.getLocatedMappingFiles() ) {
+			assertNotNull( mappingFileDescriptor.getStreamAccess() );
+			final InputStream stream = mappingFileDescriptor.getStreamAccess().accessInputStream();
+			assertNotNull( stream );
+			stream.close();
 		}
 	}
-	
+
 	@Test
 	@TestForIssue(jiraKey = "HHH-6806")
-	public void testJarVisitorFactory() throws Exception{
+	public void testJarVisitorFactory() throws Exception {
+		final File explodedPar = buildExplodedPar();
+		final File defaultPar = buildDefaultPar();
+		addPackageToClasspath( explodedPar, defaultPar );
 
-		addPackageToClasspath( buildExplodedPar(), buildDefaultPar() );
-		
-        //setting URL to accept vfs based protocol
+		//setting URL to accept vfs based protocol
 		URL.setURLStreamHandlerFactory(new URLStreamHandlerFactory() {
-			public URLStreamHandler createURLStreamHandler(String protocol) {
-				if("vfszip".equals(protocol) || "vfsfile".equals(protocol) )
-				return new URLStreamHandler() {
-					protected URLConnection openConnection(URL u)
-							throws IOException {
-						return null;
-					}
-				};
-				return null;
-			}
-		});
-        
-		URL jarUrl  = new URL ("file:./target/packages/defaultpar.par");
-		JarVisitor jarVisitor =  JarVisitorFactory.getVisitor(jarUrl, getFilters(), null);
-		assertEquals(FileZippedJarVisitor.class.getName(), jarVisitor.getClass().getName());
-		
-		jarUrl  = new URL ("file:./target/packages/explodedpar");
-		jarVisitor =  JarVisitorFactory.getVisitor(jarUrl, getFilters(), null);
-		assertEquals(ExplodedJarVisitor.class.getName(), jarVisitor.getClass().getName());
-		
-		jarUrl  = new URL ("vfszip:./target/packages/defaultpar.par");
-		jarVisitor =  JarVisitorFactory.getVisitor(jarUrl, getFilters(), null);
-		assertEquals(FileZippedJarVisitor.class.getName(), jarVisitor.getClass().getName());
-		
-		jarUrl  = new URL ("vfsfile:./target/packages/explodedpar");
-		jarVisitor =  JarVisitorFactory.getVisitor(jarUrl, getFilters(), null);
-		assertEquals(ExplodedJarVisitor.class.getName(), jarVisitor.getClass().getName());		
+										   public URLStreamHandler createURLStreamHandler(String protocol) {
+											   if("vfszip".equals(protocol) || "vfsfile".equals(protocol) )
+												   return new URLStreamHandler() {
+													   protected URLConnection openConnection(URL u)
+															   throws IOException {
+														   return null;
+													   }
+												   };
+											   return null;
+										   }
+									   });
+
+		URL jarUrl = defaultPar.toURL();
+		ArchiveDescriptor descriptor = StandardArchiveDescriptorFactory.INSTANCE.buildArchiveDescriptor( jarUrl );
+		assertEquals( JarFileBasedArchiveDescriptor.class.getName(), descriptor.getClass().getName() );
+
+		jarUrl  = explodedPar.toURL();
+		descriptor = StandardArchiveDescriptorFactory.INSTANCE.buildArchiveDescriptor( jarUrl );
+		assertEquals( ExplodedArchiveDescriptor.class.getName(), descriptor.getClass().getName() );
+
+		jarUrl  = new URL( defaultPar.toURL().toExternalForm().replace( "file:", "vfszip:" ) );
+		descriptor = StandardArchiveDescriptorFactory.INSTANCE.buildArchiveDescriptor( jarUrl );
+		assertEquals( JarFileBasedArchiveDescriptor.class.getName(), descriptor.getClass().getName());
+
+		jarUrl  = new URL( explodedPar.toURL().toExternalForm().replace( "file:", "vfsfile:" ) );
+		descriptor = StandardArchiveDescriptorFactory.INSTANCE.buildArchiveDescriptor( jarUrl );
+		assertEquals( ExplodedArchiveDescriptor.class.getName(), descriptor.getClass().getName() );
 	}
 
 	@Test
@@ -312,39 +403,32 @@ public class JarVisitorTest extends PackagingTestCase {
 //		Entry entry = new Entry( Carpet.class.getName(), null );
 //		assertTrue( entries[1].contains( entry ) );
 	}
-	
+
 	@Test
 	@TestForIssue(jiraKey = "HHH-7835")
-	public void testGetBytesFromInputStream() {
-		try {
-			File file = buildLargeJar();
+	public void testGetBytesFromInputStream() throws Exception {
+		File file = buildLargeJar();
 
-			long start = System.currentTimeMillis();
-			InputStream stream = new BufferedInputStream(
-					new FileInputStream( file ) );
-			int oldLength = getBytesFromInputStream( stream ).length;
-			stream.close();
-			long oldTime = System.currentTimeMillis() - start;
+		long start = System.currentTimeMillis();
+		InputStream stream = new BufferedInputStream(
+				new FileInputStream( file ) );
+		int oldLength = getBytesFromInputStream( stream ).length;
+		stream.close();
+		long oldTime = System.currentTimeMillis() - start;
 
-			start = System.currentTimeMillis();
-			stream = new BufferedInputStream( new FileInputStream( file ) );
-			int newLength = JarVisitorFactory.getBytesFromInputStream(
-					stream ).length;
-			stream.close();
-			long newTime = System.currentTimeMillis() - start;
+		start = System.currentTimeMillis();
+		stream = new BufferedInputStream( new FileInputStream( file ) );
+		int newLength = ArchiveHelper.getBytesFromInputStream( stream ).length;
+		stream.close();
+		long newTime = System.currentTimeMillis() - start;
 
-			assertEquals( oldLength, newLength );
-			assertTrue( oldTime > newTime );
-		}
-		catch ( Exception e ) {
-			fail( e.getMessage() );
-		}
+		assertEquals( oldLength, newLength );
+		assertTrue( oldTime > newTime );
 	}
 
 	// This is the old getBytesFromInputStream from JarVisitorFactory before
 	// it was changed by HHH-7835. Use it as a regression test.
-	private byte[] getBytesFromInputStream(
-			InputStream inputStream) throws IOException {
+	private byte[] getBytesFromInputStream(InputStream inputStream) throws IOException {
 		int size;
 
 		byte[] entryBytes = new byte[0];
@@ -363,46 +447,16 @@ public class JarVisitorTest extends PackagingTestCase {
 
 	@Test
 	@TestForIssue(jiraKey = "HHH-7835")
-	public void testGetBytesFromZeroInputStream() {
-		try {
-			// Ensure that JarVisitorFactory#getBytesFromInputStream
-			// can handle 0 length streams gracefully.
-			InputStream emptyStream = new BufferedInputStream( 
-					new FileInputStream( new File(
-					"src/test/resources/org/hibernate/jpa/test/packaging/empty.txt" ) ) );
-			int length = JarVisitorFactory.getBytesFromInputStream( 
-					emptyStream ).length;
-			assertEquals( length, 0 );
-			emptyStream.close();
+	public void testGetBytesFromZeroInputStream() throws Exception {
+		// Ensure that JarVisitorFactory#getBytesFromInputStream
+		// can handle 0 length streams gracefully.
+		URL emptyTxtUrl = getClass().getResource( "/org/hibernate/jpa/test/packaging/empty.txt" );
+		if ( emptyTxtUrl == null ) {
+			throw new RuntimeException( "Bah!" );
 		}
-		catch ( Exception e ) {
-			fail( e.getMessage() );
-		}
-	}
-
-	private Filter[] getFilters() {
-		return new Filter[] {
-				new PackageFilter( false, null ) {
-					public boolean accept(String javaElementName) {
-						return true;
-					}
-				},
-				new ClassFilter(
-						false, new Class[] {
-								Entity.class,
-								MappedSuperclass.class,
-								Embeddable.class
-						}
-				) {
-					public boolean accept(String javaElementName) {
-						return true;
-					}
-				},
-				new FileFilter( true ) {
-					public boolean accept(String javaElementName) {
-						return javaElementName.endsWith( "hbm.xml" ) || javaElementName.endsWith( "META-INF/orm.xml" );
-					}
-				}
-		};
+		InputStream emptyStream = new BufferedInputStream( emptyTxtUrl.openStream() );
+		int length = ArchiveHelper.getBytesFromInputStream( emptyStream ).length;
+		assertEquals( length, 0 );
+		emptyStream.close();
 	}
 }

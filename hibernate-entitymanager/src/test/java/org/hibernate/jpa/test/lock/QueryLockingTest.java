@@ -23,23 +23,31 @@
  */
 package org.hibernate.jpa.test.lock;
 
-import java.util.Map;
-import javax.persistence.EntityManager;
-import javax.persistence.LockModeType;
-
-import org.junit.Test;
-
-import org.hibernate.LockMode;
-import org.hibernate.ejb.AvailableSettings;
-import org.hibernate.jpa.internal.QueryImpl;
-import org.hibernate.jpa.test.BaseEntityManagerFunctionalTestCase;
-import org.hibernate.internal.SessionImpl;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.util.List;
+import java.util.Map;
+
+import javax.persistence.Entity;
+import javax.persistence.EntityManager;
+import javax.persistence.Id;
+import javax.persistence.LockModeType;
+import javax.persistence.Query;
+import javax.persistence.Table;
+
+import org.hibernate.LockMode;
+import org.hibernate.internal.SessionImpl;
+import org.hibernate.jpa.AvailableSettings;
+import org.hibernate.jpa.QueryHints;
+import org.hibernate.jpa.internal.QueryImpl;
+import org.hibernate.jpa.test.BaseEntityManagerFunctionalTestCase;
+import org.hibernate.testing.TestForIssue;
+import org.junit.Test;
 
 /**
  * @author Steve Ebersole
@@ -47,7 +55,7 @@ import static org.junit.Assert.assertTrue;
 public class QueryLockingTest extends BaseEntityManagerFunctionalTestCase {
 	@Override
 	protected Class<?>[] getAnnotatedClasses() {
-		return new Class[] { Lockable.class };
+		return new Class[] { Lockable.class, LocalEntity.class };
 	}
 
 	@Override
@@ -83,18 +91,60 @@ public class QueryLockingTest extends BaseEntityManagerFunctionalTestCase {
 	}
 
 	@Test
+	@TestForIssue( jiraKey = "HHH-8756" )
+	public void testNoneLockModeForNonSelectQueryAllowed() {
+		EntityManager em = getOrCreateEntityManager();
+		em.getTransaction().begin();
+		QueryImpl jpaQuery = em.createQuery( "delete from Lockable l" ).unwrap( QueryImpl.class );
+
+		org.hibernate.internal.QueryImpl hqlQuery = (org.hibernate.internal.QueryImpl) jpaQuery.getHibernateQuery();
+		assertEquals( LockMode.NONE, hqlQuery.getLockOptions().getLockMode() );
+
+		jpaQuery.setLockMode( LockModeType.NONE );
+
+		em.getTransaction().commit();
+		em.clear();
+		
+		// ensure other modes still throw the exception
+		em.getTransaction().begin();
+		jpaQuery = em.createQuery( "delete from Lockable l" ).unwrap( QueryImpl.class );
+
+		hqlQuery = (org.hibernate.internal.QueryImpl) jpaQuery.getHibernateQuery();
+		assertEquals( LockMode.NONE, hqlQuery.getLockOptions().getLockMode() );
+
+		try {
+			// Throws IllegalStateException
+			jpaQuery.setLockMode( LockModeType.PESSIMISTIC_WRITE );
+			fail( "IllegalStateException should have been thrown." );
+		}
+		catch (IllegalStateException e) {
+			// expected
+		}
+		finally {
+			em.getTransaction().rollback();
+			em.close();
+		}
+	}
+
+	@Test
 	public void testNativeSql() {
 		EntityManager em = getOrCreateEntityManager();
 		em.getTransaction().begin();
 		QueryImpl query = em.createNativeQuery( "select * from lockable l" ).unwrap( QueryImpl.class );
 
 		org.hibernate.internal.SQLQueryImpl hibernateQuery = (org.hibernate.internal.SQLQueryImpl) query.getHibernateQuery();
-//		assertEquals( LockMode.NONE, hibernateQuery.getLockOptions().getLockMode() );
-//		assertNull( hibernateQuery.getLockOptions().getAliasSpecificLockMode( "l" ) );
-//		assertEquals( LockMode.NONE, hibernateQuery.getLockOptions().getEffectiveLockMode( "l" ) );
 
+		// the spec disallows calling setLockMode in a native SQL query
+		try {
+			query.setLockMode( LockModeType.READ );
+			fail( "Should have failed" );
+		}
+		catch (IllegalStateException expected) {
+		}
+
+		// however, we should be able to set it using hints
+		query.setHint( QueryHints.HINT_NATIVE_LOCKMODE, LockModeType.READ );
 		// NOTE : LockModeType.READ should map to LockMode.OPTIMISTIC
-		query.setLockMode( LockModeType.READ );
 		assertEquals( LockMode.OPTIMISTIC, hibernateQuery.getLockOptions().getLockMode() );
 		assertNull( hibernateQuery.getLockOptions().getAliasSpecificLockMode( "l" ) );
 		assertEquals( LockMode.OPTIMISTIC, hibernateQuery.getLockOptions().getEffectiveLockMode( "l" ) );
@@ -244,6 +294,31 @@ public class QueryLockingTest extends BaseEntityManagerFunctionalTestCase {
 	}
 
 	@Test
+	@TestForIssue(jiraKey = "HHH-9419")
+	public void testNoVersionCheckAfterRemove() {
+		EntityManager em = getOrCreateEntityManager();
+		em.getTransaction().begin();
+		Lockable lock = new Lockable( "name" );
+		em.persist( lock );
+		em.getTransaction().commit();
+		em.close();
+		Integer initial = lock.getVersion();
+		assertNotNull( initial );
+
+		em = getOrCreateEntityManager();
+		em.getTransaction().begin();
+		Lockable reread = em.createQuery( "from Lockable", Lockable.class )
+				.setLockMode( LockModeType.OPTIMISTIC )
+				.getSingleResult();
+		assertEquals( initial, reread.getVersion() );
+		assertTrue( em.unwrap( SessionImpl.class ).getActionQueue().hasBeforeTransactionActions() );
+		em.remove( reread );
+		em.getTransaction().commit();
+		em.close();
+		assertEquals( initial, reread.getVersion() );
+	}
+
+	@Test
 	public void testOptimisticSpecific() {
 		EntityManager em = getOrCreateEntityManager();
 		em.getTransaction().begin();
@@ -270,5 +345,74 @@ public class QueryLockingTest extends BaseEntityManagerFunctionalTestCase {
 		em.remove( em.getReference( Lockable.class, reread.getId() ) );
 		em.getTransaction().commit();
 		em.close();
+	}
+
+	/**
+	 * lock some entities via a query and check the resulting lock mode type via EntityManager
+	 */
+	@Test
+	public void testEntityLockModeStateAfterQueryLocking() {
+		// Create some test data
+		EntityManager em = getOrCreateEntityManager();
+		em.getTransaction().begin();
+		em.persist( new LocalEntity( 1, "test" ) );
+		em.getTransaction().commit();
+//		em.close();
+
+		// issue the query with locking
+//		em = getOrCreateEntityManager();
+		em.getTransaction().begin();
+		Query query = em.createQuery( "select l from LocalEntity l" );
+		assertEquals( LockModeType.NONE, query.getLockMode() );
+		query.setLockMode( LockModeType.PESSIMISTIC_READ );
+		assertEquals( LockModeType.PESSIMISTIC_READ, query.getLockMode() );
+		List<LocalEntity> results = query.getResultList();
+
+		// and check the lock mode for each result
+		for ( LocalEntity e : results ) {
+			assertEquals( LockModeType.PESSIMISTIC_READ, em.getLockMode( e ) );
+		}
+
+		em.getTransaction().commit();
+		em.close();
+
+		// clean up test data
+		em = getOrCreateEntityManager();
+		em.getTransaction().begin();
+		em.createQuery( "delete from LocalEntity" ).executeUpdate();
+		em.getTransaction().commit();
+		em.close();
+	}
+
+	@Entity( name = "LocalEntity" )
+	@Table( name = "LocalEntity" )
+	public static class LocalEntity {
+		private Integer id;
+		private String name;
+
+		public LocalEntity() {
+		}
+
+		public LocalEntity(Integer id, String name) {
+			this.id = id;
+			this.name = name;
+		}
+
+		@Id
+		public Integer getId() {
+			return id;
+		}
+
+		public void setId(Integer id) {
+			this.id = id;
+		}
+
+		public String getName() {
+			return name;
+		}
+
+		public void setName(String name) {
+			this.name = name;
+		}
 	}
 }

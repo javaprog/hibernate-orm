@@ -30,8 +30,6 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jboss.logging.Logger;
-
 import org.hibernate.LockMode;
 import org.hibernate.LockOptions;
 import org.hibernate.dialect.pagination.LimitHelper;
@@ -43,8 +41,11 @@ import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.internal.util.StringHelper;
 import org.hibernate.internal.util.collections.ArrayHelper;
+import org.hibernate.loader.spi.AfterLoadAction;
 import org.hibernate.persister.entity.OuterJoinLoadable;
 import org.hibernate.pretty.MessageHelper;
+
+import org.jboss.logging.Logger;
 
 /**
  * A BatchingEntityLoaderBuilder that builds UniqueEntityLoader instances capable of dynamically building
@@ -255,8 +256,9 @@ public class DynamicBatchingEntityLoaderBuilder extends BatchingEntityLoaderBuil
 					Integer.MAX_VALUE;
 
 			final List<AfterLoadAction> afterLoadActions = new ArrayList<AfterLoadAction>();
-			final ResultSet rs = executeQueryStatement( sql, queryParameters, false, afterLoadActions, session );
-			final Statement st = rs.getStatement();
+			final SqlStatementWrapper wrapper = executeQueryStatement( sql, queryParameters, false, afterLoadActions, session );
+			final ResultSet rs = wrapper.getResultSet();
+			final Statement st = wrapper.getStatement();
 			try {
 				return processResultSet( rs, queryParameters, session, false, null, maxRows, afterLoadActions );
 			}

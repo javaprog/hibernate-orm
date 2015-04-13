@@ -5,9 +5,11 @@ dependencies {
     testCompile project( ':hibernate-testing' )
 }
 
-jar {
-    manifest {
-        instruction 'Bundle-Description', 'Hibernate ORM EHCache'
-        instruction 'Bundle-SymbolicName', 'org.hibernate.ehcache'
-    }
+mavenPom {
+    name = 'Hibernate/Ehcache Integration'
+    description = 'Integration for Ehcache into Hibernate as a second-level caching service'
+}
+
+def osgiDescription() {
+	return mavenPom.description
 }

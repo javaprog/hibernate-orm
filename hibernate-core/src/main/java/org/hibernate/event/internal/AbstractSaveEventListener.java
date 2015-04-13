@@ -34,22 +34,24 @@ import org.hibernate.action.internal.EntityInsertAction;
 import org.hibernate.bytecode.instrumentation.spi.FieldInterceptor;
 import org.hibernate.classic.Lifecycle;
 import org.hibernate.engine.internal.Cascade;
+import org.hibernate.engine.internal.CascadePoint;
 import org.hibernate.engine.internal.ForeignKeys;
 import org.hibernate.engine.internal.Versioning;
 import org.hibernate.engine.spi.CascadingAction;
 import org.hibernate.engine.spi.EntityEntry;
+import org.hibernate.engine.spi.EntityEntryExtraState;
 import org.hibernate.engine.spi.EntityKey;
 import org.hibernate.engine.spi.SessionImplementor;
 import org.hibernate.engine.spi.Status;
 import org.hibernate.event.spi.EventSource;
 import org.hibernate.id.IdentifierGenerationException;
 import org.hibernate.id.IdentifierGeneratorHelper;
+import org.hibernate.internal.CoreLogging;
 import org.hibernate.internal.CoreMessageLogger;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.pretty.MessageHelper;
 import org.hibernate.type.Type;
 import org.hibernate.type.TypeHelper;
-import org.jboss.logging.Logger;
 
 /**
  * A convenience bas class for listeners responding to save events.
@@ -57,12 +59,11 @@ import org.jboss.logging.Logger;
  * @author Steve Ebersole.
  */
 public abstract class AbstractSaveEventListener extends AbstractReassociateEventListener {
-    public enum EntityState{
-        PERSISTENT, TRANSIENT, DETACHED, DELETED
-    }
+	private static final CoreMessageLogger LOG = CoreLogging.messageLogger( AbstractSaveEventListener.class );
 
-    private static final CoreMessageLogger LOG = Logger.getMessageLogger(CoreMessageLogger.class,
-                                                                       AbstractSaveEventListener.class.getName());
+	public static enum EntityState {
+		PERSISTENT, TRANSIENT, DETACHED, DELETED
+	}
 
 	/**
 	 * Prepares the save call using the given requested id.
@@ -127,9 +128,11 @@ public abstract class AbstractSaveEventListener extends AbstractReassociateEvent
 		else {
 			// TODO: define toString()s for generators
 			if ( LOG.isDebugEnabled() ) {
-				LOG.debugf( "Generated identifier: %s, using strategy: %s",
+				LOG.debugf(
+						"Generated identifier: %s, using strategy: %s",
 						persister.getIdentifierType().toLoggableString( generatedId, source.getFactory() ),
-						persister.getIdentifierGenerator().getClass().getName() );
+						persister.getIdentifierGenerator().getClass().getName()
+				);
 			}
 
 			return performSave( entity, generatedId, persister, false, anything, source, true );
@@ -205,7 +208,7 @@ public abstract class AbstractSaveEventListener extends AbstractReassociateEvent
 		// Try to do the callback now
 		if ( persister.implementsLifecycle() ) {
 			LOG.debug( "Calling onSave()" );
-			if ( ( ( Lifecycle ) entity ).onSave( source ) ) {
+			if ( ((Lifecycle) entity).onSave( source ) ) {
 				LOG.debug( "Insertion vetoed by onSave()" );
 				return true;
 			}
@@ -246,7 +249,7 @@ public abstract class AbstractSaveEventListener extends AbstractReassociateEvent
 		// Put a placeholder in entries, so we don't recurse back and try to save() the
 		// same object again. QUESTION: should this be done before onSave() is called?
 		// likewise, should it be done before onUpdate()?
-		source.getPersistenceContext().addEntry(
+		EntityEntry original = source.getPersistenceContext().addEntry(
 				entity,
 				Status.SAVING,
 				null,
@@ -291,17 +294,27 @@ public abstract class AbstractSaveEventListener extends AbstractReassociateEvent
 		// that are not resolved until cascadeAfterSave() is executed
 		cascadeAfterSave( source, persister, entity, anything );
 		if ( useIdentityColumn && insert.isEarlyInsert() ) {
-			if ( ! EntityIdentityInsertAction.class.isInstance( insert ) ) {
+			if ( !EntityIdentityInsertAction.class.isInstance( insert ) ) {
 				throw new IllegalStateException(
 						"Insert should be using an identity column, but action is of unexpected type: " +
-								insert.getClass().getName() );
+								insert.getClass().getName()
+				);
 			}
-			id = ( ( EntityIdentityInsertAction ) insert ).getGeneratedId();
-			
-			insert.handleNaturalIdPostSaveNotifications(id);
+			id = ((EntityIdentityInsertAction) insert).getGeneratedId();
+
+			insert.handleNaturalIdPostSaveNotifications( id );
 		}
 
 		markInterceptorDirty( entity, persister, source );
+
+		EntityEntry newEntry = source.getPersistenceContext().getEntry( entity );
+
+		if ( newEntry != original ) {
+			EntityEntryExtraState extraState = newEntry.getExtraState( EntityEntryExtraState.class );
+			if ( extraState == null ) {
+				newEntry.addExtraState( original.getExtraState( EntityEntryExtraState.class ) );
+			}
+		}
 
 		return id;
 	}
@@ -358,7 +371,12 @@ public abstract class AbstractSaveEventListener extends AbstractReassociateEvent
 		return false;
 	}
 
-	protected boolean visitCollectionsBeforeSave(Object entity, Serializable id, Object[] values, Type[] types, EventSource source) {
+	protected boolean visitCollectionsBeforeSave(
+			Object entity,
+			Serializable id,
+			Object[] values,
+			Type[] types,
+			EventSource source) {
 		WrapVisitor visitor = new WrapVisitor( source );
 		// substitutes into values by side-effect
 		visitor.processEntityPropertyValues( values, types );
@@ -376,7 +394,7 @@ public abstract class AbstractSaveEventListener extends AbstractReassociateEvent
 	 * @param source The originating session
 	 *
 	 * @return True if the snapshot state changed such that
-	 * reinjection of the values into the entity is required.
+	 *         reinjection of the values into the entity is required.
 	 */
 	protected boolean substituteValuesIfNecessary(
 			Object entity,
@@ -421,8 +439,14 @@ public abstract class AbstractSaveEventListener extends AbstractReassociateEvent
 		// cascade-save to many-to-one BEFORE the parent is saved
 		source.getPersistenceContext().incrementCascadeLevel();
 		try {
-			new Cascade( getCascadeAction(), Cascade.BEFORE_INSERT_AFTER_DELETE, source )
-					.cascade( persister, entity, anything );
+			Cascade.cascade(
+					getCascadeAction(),
+					CascadePoint.BEFORE_INSERT_AFTER_DELETE,
+					source,
+					persister,
+					entity,
+					anything
+			);
 		}
 		finally {
 			source.getPersistenceContext().decrementCascadeLevel();
@@ -446,8 +470,14 @@ public abstract class AbstractSaveEventListener extends AbstractReassociateEvent
 		// cascade-save to collections AFTER the collection owner was saved
 		source.getPersistenceContext().incrementCascadeLevel();
 		try {
-			new Cascade( getCascadeAction(), Cascade.AFTER_INSERT_BEFORE_DELETE, source )
-					.cascade( persister, entity, anything );
+			Cascade.cascade(
+					getCascadeAction(),
+					CascadePoint.AFTER_INSERT_BEFORE_DELETE,
+					source,
+					persister,
+					entity,
+					anything
+			);
 		}
 		finally {
 			source.getPersistenceContext().decrementCascadeLevel();
@@ -472,18 +502,19 @@ public abstract class AbstractSaveEventListener extends AbstractReassociateEvent
 			EntityEntry entry, //pass this as an argument only to avoid double looking
 			SessionImplementor source) {
 
+		final boolean traceEnabled = LOG.isTraceEnabled();
 		if ( entry != null ) { // the object is persistent
 
 			//the entity is associated with the session, so check its status
 			if ( entry.getStatus() != Status.DELETED ) {
 				// do nothing for persistent instances
-				if ( LOG.isTraceEnabled() ) {
+				if ( traceEnabled ) {
 					LOG.tracev( "Persistent instance of: {0}", getLoggableName( entityName, entity ) );
 				}
 				return EntityState.PERSISTENT;
 			}
 			// ie. e.status==DELETED
-			if ( LOG.isTraceEnabled() ) {
+			if ( traceEnabled ) {
 				LOG.tracev( "Deleted instance of: {0}", getLoggableName( entityName, entity ) );
 			}
 			return EntityState.DELETED;
@@ -493,13 +524,13 @@ public abstract class AbstractSaveEventListener extends AbstractReassociateEvent
 		// the entity is not associated with the session, so
 		// try interceptor and unsaved-value
 
-		if ( ForeignKeys.isTransient( entityName, entity, getAssumedUnsaved(), source )) {
-			if ( LOG.isTraceEnabled() ) {
+		if ( ForeignKeys.isTransient( entityName, entity, getAssumedUnsaved(), source ) ) {
+			if ( traceEnabled ) {
 				LOG.tracev( "Transient instance of: {0}", getLoggableName( entityName, entity ) );
 			}
 			return EntityState.TRANSIENT;
 		}
-		if ( LOG.isTraceEnabled() ) {
+		if ( traceEnabled ) {
 			LOG.tracev( "Detached instance of: {0}", getLoggableName( entityName, entity ) );
 		}
 		return EntityState.DETACHED;

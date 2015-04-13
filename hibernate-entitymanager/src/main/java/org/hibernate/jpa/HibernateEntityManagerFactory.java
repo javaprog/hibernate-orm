@@ -23,10 +23,11 @@
  */
 package org.hibernate.jpa;
 
-import javax.persistence.EntityManagerFactory;
 import java.io.Serializable;
+import javax.persistence.EntityManagerFactory;
 
 import org.hibernate.SessionFactory;
+import org.hibernate.jpa.internal.metamodel.EntityTypeImpl;
 
 /**
  * Contract giving access to the underlying {@link org.hibernate.SessionFactory} from an {@link javax.persistence.EntityManagerFactory}
@@ -40,4 +41,14 @@ public interface HibernateEntityManagerFactory extends EntityManagerFactory, Ser
 	 * @return The underlying Hibernate SessionFactory
 	 */
 	public SessionFactory getSessionFactory();
+
+	/**
+	 * Retrieve the EntityTypeImpl by name.  Use of the Hibernate O/RM notion the "entity name" allows support
+	 * for non-strictly-JPA models to be used in JPA APIs
+	 *
+	 * @param entityName The entity name
+	 *
+	 * @return The EntityTypeImpl
+	 */
+	public EntityTypeImpl getEntityTypeByName(String entityName);
 }
